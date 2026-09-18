@@ -1,63 +1,78 @@
-# stream-record v0.0.1
+# Stream-Record v0.2.0
 
-Windows에서 마이크 음성과 PC 재생 음성을 서로 분리해 녹음·실시간 전사하고, 전사 원문을 회의록과 요약본으로 정리하는 한국어 데스크톱 앱입니다. Meetily Community Edition 기반이며 한국어 작업 화면은 보호된 overlay로 적용됩니다.
+Windows x64용 한국어 녹음·전사·회의록 앱입니다. 마이크 또는 실제 Stereo Mix 입력 하나를 사용하며, 한국어 음성 인식 모델을 설치파일에 포함합니다. 녹음, 전사, 회의록, AI 연결, 설정을 분리한 KRDS 확장형 UI를 제공합니다.
+
+소스·검사·설치파일 생성·설치본 교체·GitLab 게시 결과는 각각 구분합니다. 현재 실행의 확인 결과는 [UI 수용 검사](docs/UI_ACCEPTANCE_REPORT.md)와 설치파일 옆 `BUILD_VERIFICATION.json`, `package-result.json`, `installation-result.json`, `deployment-result.json`을 확인하세요. 파일이 없거나 해당 단계가 미실행이면 완료된 것이 아닙니다.
 
 ## 설치
 
-1. GitLab의 [v0.0.1 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.0.1)에서 `stream-record.exe`를 내려받습니다.
-2. 내려받은 파일은 Windows x64용 설치 프로그램입니다. 실행 후 안내에 따라 설치합니다.
-3. 현재 설치 파일은 코드 서명 인증서가 없어 Windows가 경고할 수 있습니다. 파일의 SHA-256은 릴리스 설명과 함께 확인하세요.
-4. 첫 실행 후 `음성 모델 설정`에서 **Local Whisper 다국어 모델**을 내려받고 선택합니다. `.en` 모델은 한국어용이 아닙니다.
+[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases)에서 `Stream-Record-0.2.0-korean-bundled-windows-x64-setup.exe`와 `SHA256SUMS.txt`를 받습니다. 해당 버전 릴리스가 게시되기 전에는 내려받을 수 없습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
 
-## 두 가지 녹음 방식
+설치 프로그램은 미서명입니다. SHA-256은 파일 무결성 확인이며 게시자 코드 서명을 대신하지 않습니다. Windows WebView2 등 선행 런타임이 없는 PC에서는 최초 런타임 설치에 인터넷이 필요할 수 있습니다. 음성모델의 오프라인 사용과 선행 런타임 설치는 별개입니다.
 
-- `외부 소리 녹음 (마이크)`: 선택한 마이크 입력만 사용합니다. 마이크 선택 목록에서는 Stereo Mix와 출력 장치를 제외합니다.
-- `PC 소리 녹음 (Stereo Mix)`: Windows의 `Stereo Mix` 입력만 사용해 PC에서 재생되는 소리를 받습니다. 마이크 입력으로 자동 대체하지 않습니다.
+기존 사용자 설정·녹음·모델은 삭제하지 않습니다. 앱 식별자 `local.meetily.korean.workspace`, 기존 모델/복구 경로와 문서 폴더의 `Meetily-Korean/Exports`를 유지합니다.
 
-두 방식 모두 별도의 시스템 오디오 트랙을 동시에 켜지 않습니다. 녹음 전에는 반드시 참여자에게 알리고 화면의 권한 확인란을 선택해야 합니다.
+## 녹음
 
-`Stereo Mix`가 보이지 않으면 Windows **설정 > 시스템 > 소리 > 모든 사운드 장치** 또는 제어판의 **소리 > 녹음**에서 사용하지 않는 장치 표시 후 활성화하세요. 오디오 드라이버가 Stereo Mix를 제공하지 않는 PC에서는 PC 소리 녹음 버튼을 사용할 수 없습니다.
+1. **녹음**에서 마이크 / PC 소리 / 영상 재생을 선택합니다.
+2. 회의 제목과 실제 입력 장치를 확인합니다. 회의 용어는 상세 설정에서 입력합니다.
+3. 참여자에게 녹음을 알리고 처리 권한 확인란을 선택합니다.
+4. **녹음 시작**을 누릅니다. 모델 확인·적재 중에는 녹음하지 않습니다. 실제 시작 성공 후 녹음 시간과 상태가 표시됩니다.
+5. **녹음 중지** 후 마지막 음성 처리와 저장이 끝날 때까지 기다립니다. 남은 구간을 CPU로 전사하므로 녹음 길이와 비슷한 시간이 걸릴 수 있으며, 그동안 '마지막 음성 저장 중…'이 표시됩니다. 다른 화면으로 이동해도 세션은 유지됩니다.
 
-## 유튜브 링크 전사
+PC 소리와 영상은 Windows의 Stereo Mix 입력이 필요합니다. 미존재 장치를 만들거나 마이크로 자동 대체하지 않습니다. 장치가 없으면 Windows 소리 설정에서 활성화 후 새로고침하세요. 별도 시스템 오디오 트랙은 동시에 수집하지 않습니다. 영상 링크는 재생 창을 열며 영상을 다운로드하지 않습니다. 재생 길이만큼 처리 시간이 필요하고 음소거하면 해당 소리를 전사할 수 없습니다.
 
-유튜브 링크를 넣고 `영상 재생 + 전사`를 누르면 앱 안 영상 창을 열고, 재생되는 소리를 Stereo Mix로 받아 실시간 전사합니다. 영상을 다운로드하지 않으며 영상 길이만큼 재생 시간이 필요합니다. 영상 창에서 직접 재생을 눌러야 할 수 있고, 음소거하면 전사되지 않습니다. 저작권과 녹음 권한을 확인한 콘텐츠에만 사용하세요.
+## 동봉 한국어 모델
 
-## 회의록 만들기
+기존에 선택한 정상 다국어 Whisper 모델을 우선 유지합니다. 적합한 모델이 없으면 설치 리소스의 `small-q5_1`을 SHA-256·크기로 검증하고 등록·적재합니다. 영어 전용 `.en` 모델을 자동 선택하지 않습니다. 파일이 없거나 손상되면 자동 다운로드로 전환하지 않고 오류를 표시합니다.
 
-녹음을 중지한 뒤 전사 원문을 확인하고 요약 모델을 선택해 `회의록·요약본 생성`을 누릅니다. 구독 모델을 선택하면 전사문이 해당 서비스로 전송되며, 로컬 Ollama 모델은 PC 안에서 처리합니다. 자동 화자 식별은 제공하지 않으며 결과의 이름, 수치, 결정사항은 원문과 대조해야 합니다.
+동봉 모델은 `ggml-small-q5_1.bin` 190,085,487바이트이며, `manifest.json`과 `WHISPER-LICENSE.txt`를 함께 배포합니다. 출처는 고정 revision의 [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp)입니다. 실제 기준 해시는 `app/frontend/src-tauri/src/whisper_engine/model_integrity.rs`와 동봉 manifest에 기록됩니다. 설치 리소스와 사용자 모델 폴더 각각에 저장하므로 추가 디스크 공간이 필요합니다. 요약용 대형 언어모델은 동봉하지 않습니다.
 
-원문 TXT, 회의록 Markdown, 원문·요약 JSON은 Windows 문서 폴더의 `Meetily-Korean\Exports`에 저장됩니다. 최근 작업은 10초 간격으로 복구 저장됩니다.
+## 전사 검토와 회의록
 
-## 소스 빌드
+전체 원문·검토본 검색과 300구간 단위 페이지 이동을 제공합니다. 검토본은 별도 `reviewed_text`에 저장하며 최초 원문을 덮어쓰지 않습니다. 과거 구간 읽기나 편집 중 자동 이동을 멈추고 최신 구간으로 복귀할 수 있습니다. 근거 ID는 화면 정렬/필터와 무관하게 원래 구간을 가리킵니다.
 
-필요 도구: Node.js 20 이상, npm, Git, Rust/Cargo, Visual Studio C++ Build Tools, CMake, LLVM/Clang.
+원음은 파일 연결·SHA-256·시간정보 확인 후 구간 단위로 재생합니다. 저장 음성 재전사는 24초 단위 체크포인트로 이어가며 원음·모델·용어 변경 시 기존 체크포인트를 재사용하지 않습니다. 이는 강제 종료된 실시간 녹음의 자동 복원을 보장하는 기능이 아닙니다.
+
+회의록은 구간별 결정·제안·조치·수치·미결 사항을 추출하며 존재하는 원문 ID와 정확한 인용을 검사합니다. 담당자·기한을 추측하지 않습니다. 결과는 초안이며 사람이 원음과 대조해야 합니다. 취소는 진행 중인 구간 처리 후 이루어지고 실패한 중간 결과를 완성본으로 표시하지 않습니다.
+
+- TXT: 최초 전사 원문
+- JSON: 원문·검토본·회의록·재개 상태
+- Markdown: 회의록
+
+## AI 연결 범위
+
+현재 연결은 이 PC의 Ollama(`127.0.0.1:11434`)와 사용자가 별도로 설정한 호환 프록시(`127.0.0.1:10100/v1`)입니다. 모델 목록 수신, 계정 인증, 실제 추론 성공은 서로 다른 상태입니다. localhost 프록시는 외부 서비스로 중계할 수 있으므로 요약 전에 전송 위치를 확인하세요. 외부 요약은 사용자가 명시적으로 실행할 때만 수행합니다.
+
+ChatGPT 개인 로그인, Claude 개인 로그인, OpenAI/Anthropic API 키 관리, 독립 GGUF 연결 어댑터는 이번 UI 작업에서 구현되지 않았습니다. 화면은 이를 구현 예정으로 표시하며 성공하는 가짜 로그인/시험 버튼을 제공하지 않습니다. 상세 설계는 [AI 연결 설계](docs/AI_CONNECTIONS_AND_BUNDLED_MODEL_DESIGN.md)를 참고하세요. 기존 내부 `subscription` 분류는 실제 구독 인증 여부를 뜻하지 않습니다.
+
+## 디자인과 아이콘
+
+KRDS 공식 가이드의 버튼 위계·타이포그래피·모달·폼 원칙을 확장형으로 적용했습니다. 공식 인증을 의미하지 않습니다. [컴포넌트 대응표](docs/KRDS_COMPONENT_MAPPING.md)와 [디자인 규칙](DESIGN.md)에 적용 내용을 기록합니다. 시스템 고딕 폰트를 사용하며 실행 중 디자인 CDN이나 외부 폰트를 요청하지 않습니다.
+
+사용자 정본 `assets/branding/streamrecord-icon-source.png`의 내부 배경·주황/회색 도형을 보존합니다. 원본 SHA-256은 `ad509a00e923e6a69fbbc7c26e1a08be77e72ae6fb45ab138f05a6193ba75f84`입니다. [아이콘 생성 기록](docs/ICON_GENERATION.md)을 참조하세요. 192px를 넘는 파생물은 확대본입니다.
+
+## 개발과 빌드
+
+Node.js 20 이상, npm, Rust/Cargo, Visual Studio C++ Build Tools, CMake, LLVM/Clang이 필요합니다. `app/`이 정본이며 `overlay/`와 원래 Meetily 저장소는 참고 자료입니다. 사용자 변경 위에 overlay를 재적용하거나 원본 커밋으로 강제 되돌리지 않습니다.
 
 ```powershell
-Set-Location -LiteralPath "C:\Users\Rumans\Documents\Codex\meetily-korean"
+# 프로젝트 루트
 node setup.mjs doctor
-node setup.mjs check
-.\BUILD.cmd
+# 프런트엔드
+cd app/frontend
+npm run test:stream-record
+node tests/stream-record-ui.cjs
+npm run typecheck
+# 프로젝트 루트에서 모델 포함 새 설치파일 생성
+cd ../..
+node tools/package-korean-bundled.mjs --build
 ```
 
-`apply.mjs`는 `UPSTREAM_COMMIT.txt`에 기록된 Meetily 원본에 overlay를 적용합니다. 원본 파일은 수정 전에 백업하고, 예상하지 못한 사용자 수정이 있으면 덮어쓰지 않고 중단합니다.
+모델을 포함한 새 설치파일, 원본/리소스 해시와 검증 기록은 `outputs/korean-bundled-0.2.0/`에 생성합니다. 실제 설치본 교체와 GitLab 게시는 별도 명령과 검증 단계입니다. 이전 버전 EXE를 새 UI 설치파일로 재사용하지 않습니다.
 
-Tauri 식별자 `local.meetily.korean.workspace`는 이전 Meetily-Korean 빌드의 설정과 내려받은 모델 경로를 이어 쓰기 위해 유지합니다. 제품명과 실행 파일명만 `stream-record`로 변경합니다.
+## 검증 한계
 
-주요 소스:
+자동 회귀검사, 실제 동봉 모델 적재, Tauri 화면 조작, 실제 마이크/Stereo Mix 녹음, 장시간 안정성은 서로 다른 시험입니다. 실행하지 않은 항목은 `NOT_RUN`으로 표시합니다. 자동 접근성 검사만으로 화면 낭독기·Windows 배율·고대비 모드 전체가 검증된 것으로 보고하지 않습니다.
 
-- `overlay/frontend/src/components/meeting-ko/KoreanWorkspace.tsx`: 한국어 녹음·전사·요약 화면
-- `overlay/frontend/src/components/meeting-ko/core.ts`: 장치 필터링과 전사·요약 로직
-- `overlay/frontend/src-tauri/src/meeting_ko.rs`: Tauri 녹음·저장·요약 연결
-- `overlay/frontend/src/components/KoreanLocalizer.tsx`: 원본 설정 화면 한국어 현지화
-- `tests/run.cjs`: overlay와 핵심 로직 회귀 검사
-
-## v0.0.1 검증 범위
-
-- Windows x64 CPU 빌드 및 NSIS 설치 파일 생성: 통과
-- 독립 로직/패처 테스트 32개: 통과
-- TypeScript 엄격 검사와 Rust `cargo check --locked`: 통과
-- 최종 EXE 기동, 한국어 화면, 실제 Windows 입력 장치 열거, 마이크/Stereo Mix 버튼 분리, 1250/768/375px 레이아웃: 통과
-- 실제 마이크 주변음 녹음, 실제 Stereo Mix 음성 캡처, Whisper 추론, 장시간 회의, 실제 모델 요약: 개인정보 및 모델 준비가 필요한 물리 시험이므로 수행하지 않음
-
-기반 저장소: <https://github.com/Zackriya-Solutions/meetily>
-라이선스: MIT. 원본 라이선스와 저작권 표시는 유지합니다.
+MIT 원저작권과 라이선스는 유지합니다. [라이선스](LICENSE). 이전 0.1.0 검증 기록은 [과거 기록](docs/releases/v0.1.0-korean-bundled-validation.md)이며 0.2.0 결과를 대신하지 않습니다.

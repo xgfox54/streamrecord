@@ -2,13 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
-import {applyOverlay} from './apply.mjs';
-import {readPinnedCommit,requirePinnedCommit} from './upstream-pin.mjs';
 const base = path.dirname(fileURLToPath(import.meta.url));
 const app = path.join(base, 'app');
 const frontend = path.join(app, 'frontend');
-const repo = 'https://github.com/Zackriya-Solutions/meetily.git';
-const expectedCommit = readPinnedCommit(path.join(base,'UPSTREAM_COMMIT.txt'));
+// Stream-Record is an independent fork. app/ is authoritative; never reapply upstream overlays.
 const action = process.argv[2] || 'doctor';
 const acceleration = process.argv[3] || 'cpu';
 const win = process.platform === 'win32';
@@ -69,19 +66,10 @@ function prepare() {
     console.log('Aligning Tauri npm packages with the locked Rust crates: '+wanted.join(', '));
     run(npm,['install','--no-save','--no-audit','--no-fund',...wanted],frontend);
   };
-  if (!fs.existsSync(app)) {
-    run('git',['clone','--no-checkout','--filter=blob:none',repo,app]);
-    run('git',['fetch','--depth','1','origin',expectedCommit],app);
-    run('git',['checkout','--detach',expectedCommit],app);
-    run('git',['submodule','update','--init','--recursive','--depth','1'],app);
-  } else {
-    if (!fs.existsSync(path.join(app,'.git'))) throw new Error('app/ already exists and is not a Git checkout. No files deleted.');
-    const origin = run('git',['remote','get-url','origin'],app,true).replace(/\.git$/,'');
-    if(origin!==repo.replace(/\.git$/,''))throw new Error('app/ origin is not the official Meetily repository.');
+  if (!fs.existsSync(path.join(frontend,'package.json'))) {
+    throw new Error('Stream-Record app/frontend source is missing. Restore this project backup; upstream is reference-only and will not be cloned over it.');
   }
-  const commit = run('git',['rev-parse','HEAD'],app,true);
-  requirePinnedCommit(commit,expectedCommit);
-  console.log(applyOverlay(base,app));
+  console.log('Stream-Record independent sources: app/. Upstream checkout and overlay application are disabled.');
   if (!fs.existsSync(path.join(frontend,'node_modules','typescript'))) {
     const locked = fs.existsSync(path.join(frontend,'package-lock.json'));
     console.log(locked?'Installing from upstream package-lock.json':'No npm lock found: generating a local npm lockfile.');
@@ -91,6 +79,7 @@ function prepare() {
 }
 function validate() {
   run(process.execPath,[path.join(base,'tests','run.cjs')]);
+  run(process.execPath,[path.join(frontend,'tests','stream-record.cjs')],frontend);
   run(process.execPath,[path.join(frontend,'node_modules','typescript','bin','tsc'),'--noEmit'],frontend);
 }
 function prepareSidecar(release) {

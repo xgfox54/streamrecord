@@ -1,0 +1,35 @@
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18 is reachable only through the GTK stack that Tauri builds for Linux. Stream-Record ships Windows x64 only; the release build log shows glib and gtk are never compiled into stream-record.exe. The 0.20 fix cannot be adopted because Tauri 2.11 pins gtk 0.18."
+
+[[IgnoredVulns]]
+id = "GHSA-wrw7-89jp-8q8g"
+reason = "Alias of RUSTSEC-2024-0429; identical Linux-only glib path, never compiled on Windows."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+reason = "proc-macro-error is an unmaintained-crate notice with no fixed version. It is reached only through glib-macros and gtk3-macros on Linux and is never compiled into the Windows build."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = "rsa is reached only through sqlx-mysql. The product enables the sqlite driver only, and sqlx-postgres appears in Cargo.lock for the same reason: the lockfile records every optional dependency regardless of the enabled features. rsa is never compiled and no fixed version exists."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0075"
+reason = "unic-char-range is an unmaintained-crate notice with no known vulnerability and no fixed version. It is pulled in by urlpattern inside tauri-utils and cannot be removed without removing Tauri."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0080"
+reason = "unic-common is an unmaintained-crate notice with no known vulnerability and no fixed version. Same urlpattern path inside tauri-utils."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0081"
+reason = "unic-char-property is an unmaintained-crate notice with no known vulnerability and no fixed version. Same urlpattern path inside tauri-utils."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0098"
+reason = "unic-ucd-version is an unmaintained-crate notice with no known vulnerability and no fixed version. Same urlpattern path inside tauri-utils."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0100"
+reason = "unic-ucd-ident is an unmaintained-crate notice with no known vulnerability and no fixed version. Same urlpattern path inside tauri-utils."

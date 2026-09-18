@@ -142,6 +142,9 @@ ${stepThree}`);
 }
 export function applyOverlay(base, target) {
   base = path.resolve(base); target = path.resolve(target);
+  if (fs.existsSync(path.join(base, 'STREAM_RECORD_FORK.json'))) {
+    throw new Error('Stream-Record is an independent project. app/ is authoritative; legacy overlays must not overwrite it.');
+  }
   if (!target.startsWith(base + path.sep)) throw new Error('Target must be inside this project.');
   const manifestPath = path.join(target, 'meeting-ko-install.json');
   const files = {};

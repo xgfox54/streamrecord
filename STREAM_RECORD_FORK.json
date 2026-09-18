@@ -1,0 +1,11 @@
+{
+  "projectName": "Stream-Record",
+  "mode": "independent-fork",
+  "authoritativeSource": "app",
+  "upstreamPolicy": "reference-only",
+  "automaticOverlayApplication": false,
+  "legacyOverlayDirectory": "overlay",
+  "existingUserDataMustBePreserved": true,
+  "requestedRootFolderName": "Stream-Record",
+  "note": "This marker declares source policy, not completion of the filesystem rename or a successful release build."
+}
