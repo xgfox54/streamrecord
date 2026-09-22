@@ -120,7 +120,7 @@ async function main(){
   const backup=path.join(out,'installed-backup-'+Date.now());fs.cpSync(installation.installDir,backup,{recursive:true,errorOnExist:true,force:false,dereference:false});report.backup=backup;save();
   phase('install-verified-package');report.installAttempted=true;save();
   const installed=await host('Install',['-Installer',installer,'-ExpectedExe',installation.exe]);
-  assert.equal(await hashFile(installed.exe),report.builtExeSha256);
+  assert.equal(await hashFile(installed.exe),report.installedExeSha256);
   const installedModel=path.join(path.dirname(installed.exe),'bundled-models',filename);report.installedModel=await verifyModel(installedModel);
   for(const name of ['manifest.json','WHISPER-LICENSE.txt'])assert.equal(await hashFile(path.join(path.dirname(installed.exe),'bundled-models',name)),await hashFile(path.join(resourceDir,name)));
   report.installed=true;report.installedPath=installed.exe;report.tests.installedPayload='hashes_match';save();

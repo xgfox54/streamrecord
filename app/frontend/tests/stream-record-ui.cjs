@@ -50,6 +50,8 @@ function harness(options = {}) {
     if (command === 'api_save_transcript_config' || command === 'set_language_preference') return;
     if (command === 'ko_start_recording') {active = true; return;}
     if (command === 'ko_stop_recording') {active = false; return;}
+    if (command === 'ko_validate_video') return 'https://www.youtube.com/watch?v=abc12345678';
+    if (command === 'ko_generate') return args.stage === 'notes' ? '현재까지의 요약' : '';
     if (command === 'ko_close_video' || command === 'ko_exit_app') return;
     if (command === 'ko_save_snapshot') {snapshots.push(JSON.parse(args.content)); return 'snapshot.json';}
     if (command === 'ko_export') return `saved.${args.kind}`;
@@ -78,11 +80,13 @@ function harness(options = {}) {
   const {useMeetingSession} = load(path.join(root,'src/components/stream-record/useMeetingSession.ts'));
   const {TranscriptView} = load(path.join(root,'src/components/stream-record/TranscriptView.tsx'));
   const {RecordingView} = load(path.join(root,'src/components/stream-record/RecordingView.tsx'));
+  const {DictationView} = load(path.join(root,'src/components/stream-record/DictationView.tsx'));
+  const {YoutubeView} = load(path.join(root,'src/components/stream-record/YoutubeView.tsx'));
   const {AppShell} = load(path.join(root,'src/components/stream-record/AppShell.tsx'));
   function Surface() {
     session = useMeetingSession();
     return React.createElement(AppShell,{view:session.view,onNavigate:session.navigate,status:session.modeLabel,recording:session.mode==='recording',onStop:session.stop},
-      session.view === 'transcript' ? React.createElement(TranscriptView,{session,evidence:null,onEvidenceShown:()=>{}}) : session.view === 'recording' ? React.createElement(RecordingView,{session}) : React.createElement('div',{'data-view':session.view}));
+      session.view === 'transcript' ? React.createElement(TranscriptView,{session,evidence:null,onEvidenceShown:()=>{}}) : session.view === 'recording' ? React.createElement(RecordingView,{session}) : session.view === 'dictation' ? React.createElement(DictationView,{session}) : session.view === 'youtube' ? React.createElement(YoutubeView,{session}) : React.createElement('div',{'data-view':session.view}));
   }
   return {calls,snapshots,listeners,subscriptions,timers,browserListeners,overrides,emit,load,document,
     get session() {return session;}, get renderer() {return renderer;},
@@ -100,23 +104,50 @@ async function test(name,fn) {
 }
 async function using(options,fn) {const h = harness(options); await h.mount(); try {await fn(h);} finally {await h.unmount();}}
 (async()=>{
-  await test('Real RecordingView preserves idle PC and video choices through all navigation views',()=>using({},async h=>{
-    for (const kind of ['pc','video']) {
-      await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value===kind).props.onChange());
-      assert.equal(h.renderer.root.findByType('select').props.value,'Stereo Mix');
-      for (const view of ['transcript','minutes','ai','settings','recording']) await h.run(()=>h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`).props.onClick());
-      assert.equal(h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.checked).props.value,kind);
-      assert.equal(h.renderer.root.findByType('select').props.value,'Stereo Mix'); assert.equal(h.session.mode,'idle'); assert.equal(h.count('ko_start_recording'),0);
-    }
+  await test('Real RecordingView preserves idle PC choice through every task view',()=>using({},async h=>{
+    await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value==='pc').props.onChange());
+    assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix');
+    for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`).props.onClick());
+    assert.equal(h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.checked).props.value,'pc');
+    assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix'); assert.equal(h.session.mode,'idle'); assert.equal(h.count('ko_start_recording'),0);
   }));
   await test('Real RecordingView preserves active PC source after remount without restarting native capture',()=>using({},async h=>{
     await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value==='pc').props.onChange());
     await h.run(()=>h.session.setConsent(true));
     await h.run(()=>h.renderer.root.findAllByType('button').find(node=>node.props['aria-describedby']==='start-help').props.onClick());
     assert.equal(h.session.mode,'recording'); assert.equal(h.calls.find(call=>call.command==='ko_start_recording').args.micName,'Stereo Mix');
-    for (const view of ['transcript','minutes','ai','settings','recording']) await h.run(()=>h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`).props.onClick());
+    for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`).props.onClick());
     assert.equal(h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.checked).props.value,'pc');
-    assert.equal(h.renderer.root.findByType('select').props.value,'Stereo Mix'); assert.equal(h.session.mode,'recording'); assert.equal(h.count('ko_start_recording'),1); assert.equal(h.count('ko_stop_recording'),0);
+    assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix'); assert.equal(h.session.mode,'recording'); assert.equal(h.count('ko_start_recording'),1); assert.equal(h.count('ko_stop_recording'),0);
+  }));
+  await test('Recording screen types partial transcript then replaces it with the final segment',()=>using({},async h=>{
+    await h.start();
+    await h.run(()=>h.emit('transcript-update',{sequence_id:7,text:'회의를 시작하',is_partial:true,audio_start_time:0}));
+    let live = h.renderer.root.findAll(node=>node.props['data-testid']==='live-transcript')[0];
+    assert.ok(live); assert.ok(live.findAllByType('p').map(node=>node.children.join('')).join('\n').includes('회의를 시작하'));
+    await h.run(()=>h.emit('transcript-update',{sequence_id:7,text:'회의를 시작하겠습니다.',is_partial:false,audio_start_time:0}));
+    live = h.renderer.root.findAll(node=>node.props['data-testid']==='live-transcript')[0];
+    const rendered = live.findAllByType('p').map(node=>node.children.join('')).join('\n');
+    assert.ok(rendered.includes('회의를 시작하겠습니다.')); assert.ok(!rendered.includes('미확정'));
+  }));
+  await test('YouTube recording validates and embeds the video without opening a second native window',()=>using({},async h=>{
+    h.overrides.set('ko_validate_video',async()=> 'https://www.youtube.com/watch?v=abc12345678');
+    h.overrides.set('ko_open_video',async()=> 'https://www.youtube.com/watch?v=abc12345678');
+    await h.run(()=>h.session.setConsent(true)); await h.run(()=>h.session.setVideoUrl('https://youtu.be/abc12345678'));
+    await h.run(()=>h.session.startVideo());
+    assert.equal(h.session.mode,'recording'); assert.equal(h.count('ko_open_video'),0);
+    assert.equal(h.calls.find(call=>call.command==='ko_start_recording').args.micName,'Stereo Mix');
+    assert.equal(h.session.videoEmbedUrl,'https://www.youtube-nocookie.com/embed/abc12345678');
+    await h.run(()=>h.session.navigate('youtube'));
+    assert.equal(h.renderer.root.findByType('iframe').props.src,'https://www.youtube-nocookie.com/embed/abc12345678');
+  }));
+  await test('A finalized live segment refreshes the current summary with the selected model',()=>using({},async h=>{
+    h.overrides.set('ko_generate',async args=>args.stage==='notes'?'결정 사항: 다음 주에 검토한다.':'');
+    await h.start();
+    await h.run(()=>h.session.setLiveSummaryEnabled(true));
+    await h.run(()=>h.emit('transcript-update',{sequence_id:1,text:'다음 주에 결과를 다시 검토하겠습니다.',is_partial:false,audio_start_time:0}));
+    assert.equal(h.calls.filter(call=>call.command==='ko_generate'&&call.args.stage==='notes').length,1);
+    assert.equal(h.session.liveSummary,'결정 사항: 다음 주에 검토한다.');
   }));
   await test('Native input enumeration retains Stereo Mix, excludes output and never fabricates devices',()=>using({},async h=>{
     assert.deepEqual(copy(h.session.devices),inputDevices.filter(device=>device.device_type==='Input'));
@@ -126,7 +157,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
   }));
   await test('Every navigation link preserves active recording and exactly one transcript subscription',()=>using({},async h=>{
     await h.start(); const counts = [...h.subscriptions.entries()];
-    for (const [index,view] of ['recording','transcript','minutes','ai','settings','recording'].entries()) {
+    for (const [index,view] of ['recording','dictation','youtube','transcript','minutes','ai','settings','recording'].entries()) {
       const link = h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}` && node.props['aria-current'] !== undefined) || h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`);
       await h.run(()=>link.props.onClick());
       await h.run(()=>h.emit('transcript-update',{sequence_id:index,text:`구간 ${index}`,is_partial:true}));
@@ -136,7 +167,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
       assert.equal(h.listeners.get('transcript-update').size,1); assert.deepEqual([...h.subscriptions.entries()],counts);
     }
     assert.equal(h.count('ko_start_recording'),1); assert.equal(h.count('ko_stop_recording'),0);
-    assert.deepEqual(copy(h.session.rows.map(row=>row.text)),['확정 0','확정 1','확정 2','확정 3','확정 4','확정 5']);
+    assert.deepEqual(copy(h.session.rows.map(row=>row.text)),['확정 0','확정 1','확정 2','확정 3','확정 4','확정 5','확정 6','확정 7']);
   }));
   await test('Concurrent double start invokes native capture exactly once',()=>using({},async h=>{
     await h.run(()=>h.session.setConsent(true));

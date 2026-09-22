@@ -8,6 +8,21 @@ use tokio::{fs, io::{AsyncReadExt, AsyncWriteExt}, sync::Mutex};
 use crate::whisper_engine::model_integrity::{expected_sha256, verify_digest, MAX_MODEL_BYTES};
 
 pub const DEFAULT_MODEL: &str = "small-q5_1";
+
+pub fn models_dir(app_data_dir: &Path) -> PathBuf {
+    let legacy = app_data_dir.join("models");
+    let Some(roaming) = app_data_dir.parent() else { return legacy };
+    let current = roaming.join("Stream-Record").join("models");
+    if current.exists() { return current; }
+    if legacy.is_dir() {
+        match current.parent() {
+            Some(parent) if std::fs::create_dir_all(parent).is_ok() && std::fs::rename(&legacy, &current).is_ok() => current,
+            _ => legacy,
+        }
+    } else {
+        current
+    }
+}
 pub const MODEL_FILENAME: &str = "ggml-small-q5_1.bin";
 static PREPARING: Mutex<()> = Mutex::const_new(());
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -81,7 +96,7 @@ pub async fn ensure_from_paths(resource_dir: &Path, models_dir: &Path) -> Result
 #[tauri::command]
 pub async fn ko_prepare_bundled_whisper<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let resources = app.path().resource_dir().map_err(|e| e.to_string())?;
-    let models = app.path().app_data_dir().map_err(|e| e.to_string())?.join("models");
+    let models = models_dir(&app.path().app_data_dir().map_err(|e| e.to_string())?);
     ensure_from_paths(&resources, &models).await
         .map(|_| DEFAULT_MODEL.to_string())
         .map_err(|e| format!("동봉 한국어 모델 준비 실패. 인터넷 다운로드는 시도하지 않았고 기존 모델은 보존했습니다. {e:#}"))

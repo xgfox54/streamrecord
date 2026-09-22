@@ -2,6 +2,8 @@
 import {useEffect,useState} from 'react';
 import {AppShell} from '../stream-record/AppShell';
 import {RecordingView} from '../stream-record/RecordingView';
+import {DictationView} from '../stream-record/DictationView';
+import {YoutubeView} from '../stream-record/YoutubeView';
 import {TranscriptView} from '../stream-record/TranscriptView';
 import {MinutesView} from '../stream-record/MinutesView';
 import {AiConnectionsView} from '../stream-record/AiConnectionsView';
@@ -20,6 +22,8 @@ export default function KoreanWorkspace(){
   {session.mode==='importing'&&<div className={styles.importProgress}><label htmlFor="import-progress">파일 전사 진행률 {Math.round(session.progress)}%</label><progress id="import-progress" value={session.progress} max={100}/></div>}
   {session.savedPath&&<details className={styles.savedNotice}><summary>최근 저장 완료</summary><p>{session.savedPath}</p></details>}
   {session.view==='recording'&&<RecordingView session={session}/>}
+  {session.view==='dictation'&&<DictationView session={session}/>}
+  {session.view==='youtube'&&<YoutubeView session={session}/>}
   {session.view==='transcript'&&<TranscriptView session={session} evidence={evidence} onEvidenceShown={()=>setEvidence(null)}/>}
   {session.view==='minutes'&&<MinutesView session={session} onEvidence={openEvidence}/>}
   {session.view==='ai'&&<AiConnectionsView session={session}/>}

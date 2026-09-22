@@ -16,7 +16,7 @@ pub fn set_models_directory<R: Runtime>(app: &AppHandle<R>) {
     let app_data_dir = app.path().app_data_dir()
         .expect("Failed to get app data dir");
 
-    let models_dir = app_data_dir.join("models");
+    let models_dir = crate::bundled_whisper::models_dir(&app_data_dir);
 
     // Create directory if it doesn't exist
     if !models_dir.exists() {

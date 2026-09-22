@@ -1,14 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Info } from 'lucide-react';
+import { Check, Mic, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { useOnboarding } from '@/contexts/OnboardingContext';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 export function SetupOverviewStep() {
   const { goNext } = useOnboarding();
@@ -19,93 +13,48 @@ export function SetupOverviewStep() {
       try {
         const { platform } = await import('@tauri-apps/plugin-os');
         setIsMac(platform() === 'macos');
-      } catch (e) {
+      } catch {
         setIsMac(navigator.userAgent.includes('Mac'));
       }
     };
     checkPlatform();
   }, []);
 
-  const steps = [
-    {
-      number: 1,
-      type: 'transcription',
-      title: 'Download Transcription Engine',
-    },
-    {
-      number: 2,
-      type: 'summarization',
-      title: 'Download Summarization Engine',
-    },
-  ];
-
-  const handleContinue = () => {
-    goNext();
-  };
-
   return (
     <OnboardingContainer
-      title="Setup Overview"
-      description="Meetily requires that you download the Transcription & Summarization AI models for the software to work."
+      title="설치 구성 안내"
+      description="한국어 음성 인식 모델은 설치본에 들어 있고, 요약 모델은 나중에 직접 고를 수 있습니다."
       step={2}
       totalSteps={isMac ? 4 : 3}
     >
       <div className="flex flex-col items-center space-y-10">
-        {/* Steps Card */}
-        <div className="w-full max-w-md bg-white rounded-lg border border-gray-200 p-4">
-          <div className="space-y-4">
-            {steps.map((step, idx) => {
-              return (
-                <div
-                  key={step.number}
-                  className={`flex items-start gap-4 p-1`}
-                >
-                  <div className="flex-1 ml-1">
-                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                        Step {step.number} :  {step.title}
-
-                        {step.type === "summarization" && (
-                            <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                <button className="text-gray-400 hover:text-gray-600">
-                                    <Info className="w-4 h-4" />
-                                </button>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs text-sm">
-                                You can also select external AI providers like OpenAI, Claude, or
-                                Ollama for summary generation in settings.
-                                </TooltipContent>
-                            </Tooltip>
-                            </TooltipProvider>
-                        )}
-                        </h3>
-                  </div>
-                </div>
-              );
-            })}
+        <div className="w-full max-w-md space-y-3">
+          <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4">
+            <Mic className="mt-0.5 h-5 w-5 text-gray-500" />
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-900">1. 한국어 음성 인식</h3>
+              <p className="text-sm text-gray-600">설치본에 포함되어 있어 추가로 내려받을 필요가 없습니다.</p>
+            </div>
+            <Check className="mt-0.5 h-5 w-5 text-green-600" />
+          </div>
+          <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4">
+            <Sparkles className="mt-0.5 h-5 w-5 text-gray-500" />
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-900">2. 회의록 요약 (선택)</h3>
+              <p className="text-sm text-gray-600">
+                처음에는 요약 모델이 없습니다. 설치 후 AI 연결에서 로컬 요약 모델을 내려받거나 사용 중인 계정·엔드포인트를 연결하세요.
+              </p>
+            </div>
           </div>
         </div>
 
-
-        {/* CTA Section */}
-        <div className="w-full max-w-xs space-y-4">
+        <div className="w-full max-w-xs">
           <Button
-            onClick={handleContinue}
+            onClick={() => goNext()}
             className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white"
           >
-            Let's Go
+            다음
           </Button>
-          <div className="text-center">
-            <a
-              href="https://github.com/Zackriya-Solutions/meeting-minutes"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-gray-600 hover:underline"
-            >
-              Report issues on GitHub
-            </a>
-          </div>
         </div>
       </div>
     </OnboardingContainer>

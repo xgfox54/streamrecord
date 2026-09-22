@@ -479,27 +479,20 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         saveTimeoutRef.current = undefined;
       }
 
-      let modelToSave = selectedSummaryModel;
-      if (!modelToSave) {
-        modelToSave = await invoke<string>('builtin_ai_get_recommended_model');
-        setSelectedSummaryModel(modelToSave);
-      }
-
-      const selectedModelReady = await invoke<boolean>('builtin_ai_is_model_ready', {
-        modelName: modelToSave,
-        refresh: true,
-      });
+      const modelToSave = selectedSummaryModel;
+      const selectedModelReady = modelToSave
+        ? await invoke<boolean>('builtin_ai_is_model_ready', {
+            modelName: modelToSave,
+            refresh: true,
+          })
+        : false;
       setSummaryModelDownloaded(selectedModelReady);
-      if (!selectedModelReady) {
-        requestSummaryModelDownload(modelToSave);
-      }
 
-      // Onboarding always uses builtin-ai with selected model
       await invoke('complete_onboarding', {
-        model: modelToSave,
+        model: selectedModelReady ? modelToSave : '',
       });
       setCompleted(true);
-      console.log('[OnboardingContext] Onboarding completed with model:', modelToSave);
+      console.log('[OnboardingContext] Onboarding completed. Summary model ready:', selectedModelReady);
 
       // Reset the flag so subsequent state updates can be saved
       isCompletingRef.current = false;
@@ -522,35 +515,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       summaryModel,
     });
 
-    try {
-      const shouldStartParakeet = includeParakeet && !parakeetDownloaded;
-      const shouldStartSummary = includeSummary && !summaryModelDownloaded && !!summaryModel;
-
-      if (!shouldStartParakeet && !shouldStartSummary) {
-        if (includeSummary && !summaryModelDownloaded && !summaryModel) {
-          console.warn('[OnboardingContext] Summary Model download skipped until recommendation is loaded');
-        }
-        return;
-      }
-
-      setIsBackgroundDownloading(true);
-
-      // Start Parakeet download first (speech recognition - always required)
-      if (shouldStartParakeet) {
-        console.log('[OnboardingContext] Starting Parakeet download');
-        invoke('parakeet_download_model', { modelName: PARAKEET_MODEL })
-          .catch(err => console.error('[OnboardingContext] Parakeet download failed:', err));
-      }
-
-      // Start selected Summary Model download immediately so completion cannot race the request.
-      if (shouldStartSummary && summaryModel) {
-        requestSummaryModelDownload(summaryModel);
-      }
-    } catch (error) {
-      console.error('[OnboardingContext] Failed to start background downloads:', error);
-      setIsBackgroundDownloading(false);
-      throw error;
-    }
+    setIsBackgroundDownloading(false);
   };
 
   // Check if any models are currently downloading (for re-entry)

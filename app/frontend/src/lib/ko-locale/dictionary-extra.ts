@@ -51,7 +51,7 @@ const permissionsAndDevices: Dictionary = {
   'Open Microphone Settings': '마이크 설정 열기',
   'Open Screen Recording Settings': '화면 기록 설정 열기',
   "Recording won\u0027t work without permissions. You can grant them later in settings.": '권한이 없으면 녹음할 수 없습니다. 나중에 설정에서 허용할 수 있습니다.',
-  'Meetily needs access to your microphone to record meetings. No microphone devices were detected.': '회의를 녹음하려면 마이크 접근 권한이 필요합니다. 마이크 장치를 찾지 못했습니다.',
+  'Stream-Record needs access to your microphone to record meetings. No microphone devices were detected.': '회의를 녹음하려면 마이크 접근 권한이 필요합니다. 마이크 장치를 찾지 못했습니다.',
   'Set your preferred microphone and system audio devices for recording. These will be automatically selected when starting new recordings.': '녹음에 사용할 기본 마이크와 시스템 오디오 장치를 지정하세요. 새 녹음을 시작할 때 자동으로 선택됩니다.',
   'Device selection is locked while a recording is in progress. Connecting a new device mid-recording will not switch to it. Stop the current meeting to change devices.': '녹음 중에는 장치를 변경할 수 없습니다. 녹음 도중 새 장치를 연결해도 전환되지 않습니다. 장치를 바꾸려면 현재 회의를 중지하세요.',
   'System Audio Backend': '시스템 오디오 수집 방식',
@@ -133,13 +133,13 @@ const summaryAndModels: Dictionary = {
 };
 
 const dataAndBeta: Dictionary = {
-  'View and access where Meetily stores your data': 'Meetily가 데이터를 저장하는 위치를 확인합니다',
+  'View and access where Stream-Record stores your data': 'Stream-Record가 데이터를 저장하는 위치를 확인합니다',
   'Database and models are stored together in your application data directory for unified management.': '데이터베이스와 모델은 앱 데이터 폴더에 함께 저장되어 한곳에서 관리됩니다.',
-  'Previous Meetily Installation Detected!': '이전 Meetily 설치를 발견했습니다',
-  'We found an existing database from your previous Meetily installation (Python backend version).': '이전에 설치한 Meetily(Python 백엔드 버전)의 데이터베이스를 발견했습니다.',
+  'Previous Stream-Record Installation Detected!': '이전 Stream-Record 설치를 발견했습니다',
+  'We found an existing database from your previous Stream-Record installation (Python backend version).': '이전에 설치한 Stream-Record(Python 백엔드 버전)의 데이터베이스를 발견했습니다.',
   'Would you like to import your previous meetings, transcripts, and summaries?': '이전 회의, 전사문, 요약을 가져올까요?',
-  'Do you have data from a previous Meetily installation?': '이전에 설치한 Meetily의 데이터가 있나요?',
-  'Select your previous Meetily folder, backend directory, or database file:': '이전 Meetily 폴더, 백엔드 디렉터리 또는 데이터베이스 파일을 선택하세요:',
+  'Do you have data from a previous Stream-Record installation?': '이전에 설치한 Stream-Record의 데이터가 있나요?',
+  'Select your previous Stream-Record folder, backend directory, or database file:': '이전 Stream-Record 폴더, 백엔드 디렉터리 또는 데이터베이스 파일을 선택하세요:',
   'No, Browse Manually': '아니요, 직접 찾기',
   'Start Fresh (No Import)': '새로 시작(가져오지 않음)',
   'These features are still being tested. You may encounter issues, and we appreciate your feedback.': '아직 시험 중인 기능입니다. 문제가 생길 수 있으며 의견을 보내 주시면 도움이 됩니다.',

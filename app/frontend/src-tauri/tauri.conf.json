@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "stream-record",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "identifier": "local.meetily.korean.workspace",
   "build": {
     "frontendDist": "../out",
@@ -28,6 +28,7 @@
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' asset: https://asset.localhost data:",
         "media-src": "'self' asset: http://asset.localhost https://asset.localhost",
+        "frame-src": "'self' https://www.youtube.com https://www.youtube-nocookie.com",
         "connect-src": "'self' http://localhost:11434 http://localhost:5167 http://localhost:8178 https://api.ollama.ai"
       },
       "assetProtocol": {

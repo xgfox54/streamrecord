@@ -6,9 +6,94 @@ use tauri::{AppHandle, Manager, Runtime};
 static GENERATING: AtomicBool = AtomicBool::new(false);
 static RECORDING_TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static EXITING: AtomicBool = AtomicBool::new(false);
-const PROXY_BASE: &str = "http://127.0.0.1:10100/v1";
+const DEFAULT_PROXY_BASE: &str = "http://127.0.0.1:10100/v1";
 const OLLAMA_BASE: &str = "http://127.0.0.1:11434";
 const VIDEO_WINDOW_LABEL: &str = "ko-video";
+
+#[derive(Clone, Default)]
+pub struct ProxyEndpoint {
+    pub base: String,
+    pub api_key: String,
+}
+
+static PROXY_ENDPOINT: std::sync::RwLock<Option<ProxyEndpoint>> = std::sync::RwLock::new(None);
+
+fn proxy_endpoint() -> ProxyEndpoint {
+    PROXY_ENDPOINT
+        .read()
+        .ok()
+        .and_then(|guard| guard.clone())
+        .unwrap_or(ProxyEndpoint { base: DEFAULT_PROXY_BASE.to_owned(), api_key: String::new() })
+}
+
+const DATA_DIR_NAME: &str = "Stream-Record";
+const LEGACY_DATA_DIR_NAME: &str = "Meetily-Korean";
+
+fn ko_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, String> {
+    let documents = app.path().document_dir().map_err(|e| e.to_string())?;
+    let current = documents.join(DATA_DIR_NAME);
+    let legacy = documents.join(LEGACY_DATA_DIR_NAME);
+    if !current.exists() && legacy.is_dir() {
+        if std::fs::rename(&legacy, &current).is_err() {
+            return Ok(legacy);
+        }
+    }
+    Ok(current)
+}
+
+fn valid_endpoint(base: &str) -> bool {
+    let base = base.trim();
+    (base.starts_with("http://") || base.starts_with("https://")) && base.len() <= 300 && !base.contains(' ')
+}
+
+const PROXY_STORE_FILE: &str = "stream_record_proxy.json";
+const PROXY_STORE_KEY: &str = "endpoint";
+
+pub fn load_proxy_endpoint<R: Runtime>(app: &AppHandle<R>) {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store(PROXY_STORE_FILE) else { return };
+    let Some(value) = store.get(PROXY_STORE_KEY) else { return };
+    let base = value.get("base").and_then(|item| item.as_str()).unwrap_or_default().to_owned();
+    if !valid_endpoint(&base) { return; }
+    let api_key = value.get("apiKey").and_then(|item| item.as_str()).unwrap_or_default().to_owned();
+    if let Ok(mut guard) = PROXY_ENDPOINT.write() {
+        *guard = Some(ProxyEndpoint { base, api_key });
+    }
+}
+
+fn persist_proxy_endpoint<R: Runtime>(app: &AppHandle<R>, endpoint: &ProxyEndpoint) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store(PROXY_STORE_FILE).map_err(|e| format!("연결 설정을 저장하지 못했습니다: {e}"))?;
+    store.set(PROXY_STORE_KEY, json!({"base": endpoint.base, "apiKey": endpoint.api_key}));
+    store.save().map_err(|e| format!("연결 설정을 저장하지 못했습니다: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn ko_get_proxy_endpoint() -> Result<Value, String> {
+    let endpoint = proxy_endpoint();
+    Ok(json!({"base": endpoint.base, "hasApiKey": !endpoint.api_key.is_empty()}))
+}
+
+#[tauri::command]
+pub async fn ko_set_proxy_endpoint<R: Runtime>(app: AppHandle<R>, base: String, api_key: Option<String>) -> Result<Value, String> {
+    let base = base.trim().to_owned();
+    let base = if base.is_empty() { DEFAULT_PROXY_BASE.to_owned() } else { base };
+    if !valid_endpoint(&base) {
+        return Err("http:// 또는 https:// 로 시작하는 주소를 입력하세요.".into());
+    }
+    let api_key = api_key.unwrap_or_default().trim().to_owned();
+    if api_key.len() > 400 {
+        return Err("인증 키가 너무 깁니다.".into());
+    }
+    let endpoint = ProxyEndpoint { base: base.clone(), api_key: api_key.clone() };
+    persist_proxy_endpoint(&app, &endpoint)?;
+    {
+        let mut guard = PROXY_ENDPOINT.write().map_err(|_| "설정을 저장할 수 없습니다.".to_string())?;
+        *guard = Some(endpoint);
+    }
+    Ok(json!({"base": base, "hasApiKey": !api_key.is_empty()}))
+}
 struct BusyGuard;
 impl Drop for BusyGuard { fn drop(&mut self) { GENERATING.store(false, Ordering::SeqCst); } }
 
@@ -59,7 +144,7 @@ pub async fn ko_start_recording<R: Runtime>(app: AppHandle<R>, mic_name: String,
 #[tauri::command]
 pub async fn ko_stop_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let _transition = RECORDING_TRANSITION.try_lock().map_err(|_| "녹음 상태를 변경하고 있습니다. 잠시 기다려 주세요.")?;
-    let dir = app.path().document_dir().map_err(|e| e.to_string())?.join("Meetily-Korean");
+    let dir = ko_data_dir(&app)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
     let args = crate::RecordingArgs { save_path: dir.join(format!("recording-{stamp}.wav")).to_string_lossy().into_owned() };
@@ -100,7 +185,7 @@ pub fn ko_app_info<R: Runtime>(app: AppHandle<R>) -> Value {
 
 #[tauri::command]
 pub fn ko_open_exports_folder<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
-    let dir = app.path().document_dir().map_err(|e| e.to_string())?.join("Meetily-Korean").join("Exports");
+    let dir = ko_data_dir(&app)?.join("Exports");
     std::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;
     #[cfg(target_os = "windows")]
     let program = "explorer";
@@ -237,7 +322,12 @@ pub async fn ko_models() -> Result<Vec<Value>, String> {
         .build().map_err(|e| e.to_string())?;
     let local_future = ollama_models(&listing_client);
     let proxy_future = async {
-        let value: Value = listing_client.get(format!("{PROXY_BASE}/models")).send().await
+        let endpoint = proxy_endpoint();
+        let mut request = listing_client.get(format!("{}/models", endpoint.base));
+        if !endpoint.api_key.is_empty() {
+            request = request.bearer_auth(&endpoint.api_key);
+        }
+        let value: Value = request.send().await
             .map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?
             .json().await.map_err(|e| e.to_string())?;
         let rows = value.get("data").and_then(Value::as_array).ok_or("외부 프록시 모델 목록 형식 오류".to_string())?;
@@ -306,14 +396,19 @@ pub async fn ko_generate(model: String, text: String, stage: String, provider: S
             .ok_or("모델이 빈 응답을 반환했습니다.")?;
         return Ok(result.to_owned());
     }
-    let answer: Value = client.post(format!("{PROXY_BASE}/chat/completions")).json(&json!({
+    let endpoint = proxy_endpoint();
+    let mut request = client.post(format!("{}/chat/completions", endpoint.base));
+    if !endpoint.api_key.is_empty() {
+        request = request.bearer_auth(&endpoint.api_key);
+    }
+    let answer: Value = request.json(&json!({
         "model": model, "stream": false,
         "max_tokens": if stage == "notes" { 4000 } else { 16000 },
         "messages": [
             {"role": "system", "content": format!("{base}\n{task}")},
             {"role": "user", "content": text}
         ]
-    })).send().await.map_err(|e| format!("외부 프록시 요약 실패. 127.0.0.1:10100의 프록시 실행·인증 설정을 확인하세요: {e}"))?
+    })).send().await.map_err(|e| format!("연결 요약 실패. {} 주소의 서버 실행과 인증 설정을 확인하세요: {e}", endpoint.base))?
         .error_for_status().map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
     let choice = answer.get("choices").and_then(Value::as_array).and_then(|rows| rows.first())
         .ok_or("외부 프록시 응답 형식 오류")?;
@@ -329,7 +424,7 @@ pub async fn ko_generate(model: String, text: String, stage: String, provider: S
 pub async fn ko_export<R: Runtime>(app: AppHandle<R>, title: String, kind: String, content: String) -> Result<String, String> {
     let extension = match kind.as_str() { "transcript" => "txt", "minutes" => "md", "bundle" => "json", _ => return Err("잘못된 저장 형식".into()) };
     if content.len() > 8_000_000 { return Err("저장할 내용이 너무 큽니다.".into()); }
-    let dir = app.path().document_dir().map_err(|e| e.to_string())?.join("Meetily-Korean").join("Exports");
+    let dir = ko_data_dir(&app)?.join("Exports");
     std::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;
     let safe: String = title.chars().filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_').take(60).collect();
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();

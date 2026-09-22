@@ -1,4 +1,4 @@
 export { WelcomeStep } from './WelcomeStep';
 export { PermissionsStep } from './PermissionsStep';
-export { DownloadProgressStep } from './DownloadProgressStep';
+export { ReadyStep } from './ReadyStep';
 export { SetupOverviewStep } from './SetupOverviewStep';

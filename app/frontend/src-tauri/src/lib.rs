@@ -541,6 +541,7 @@ pub fn run() {
             });
 
             // Set models directory to use app_data_dir (unified storage location)
+            meeting_ko::load_proxy_endpoint(&_app.handle());
             whisper_engine::commands::set_models_directory(&_app.handle());
 
             // Initialize Whisper engine on startup
@@ -624,6 +625,8 @@ pub fn run() {
             meeting_ko::ko_close_video,
             meeting_ko::ko_models,
             meeting_ko::ko_generate,
+            meeting_ko::ko_get_proxy_endpoint,
+            meeting_ko::ko_set_proxy_endpoint,
             meeting_ko::ko_export,
             meeting_ko::ko_save_snapshot,
             meeting_ko::ko_load_snapshot,
