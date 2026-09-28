@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 
 
 export function About() {
-    const [currentVersion, setCurrentVersion] = useState<string>('0.4.1');
+    const [currentVersion, setCurrentVersion] = useState<string>('0.5.0');
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
     const [isChecking, setIsChecking] = useState(false);
     const [showUpdateDialog, setShowUpdateDialog] = useState(false);
@@ -23,7 +23,7 @@ export function About() {
 
     const handleContactClick = async () => {
         try {
-            await invoke('open_external_url', { url: 'https://meetily.zackriya.com/#about' });
+            await invoke('open_external_url', { url: 'https://gitlab.aigov.go.kr/memory365/streamrecord' });
         } catch (error) {
             console.error('Failed to open link:', error);
         }
@@ -133,7 +133,7 @@ export function About() {
                     onClick={handleContactClick}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors duration-200 shadow-sm hover:shadow-md"
                 >
-                    Chat with the Zackriya team
+                    Stream-Record 프로젝트 보기
                 </button>
             </div>
 

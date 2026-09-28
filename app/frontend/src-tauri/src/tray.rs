@@ -1,8 +1,7 @@
 use tauri::{
-    Emitter,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, Runtime,
+    AppHandle, Emitter, Manager, Runtime,
 };
 
 #[derive(Debug, Clone)]
@@ -173,7 +172,10 @@ async fn check_can_record<R: Runtime>(app: &AppHandle<R>) -> bool {
     let onboarding_complete = match crate::onboarding::load_onboarding_status(app).await {
         Ok(status) => status.completed,
         Err(e) => {
-            log::warn!("Tray: Failed to load onboarding status: {}, assuming complete", e);
+            log::warn!(
+                "Tray: Failed to load onboarding status: {}, assuming complete",
+                e
+            );
             true // Assume complete if we can't check (safe default)
         }
     };
@@ -188,7 +190,10 @@ async fn check_can_record<R: Runtime>(app: &AppHandle<R>) -> bool {
     match crate::parakeet_engine::commands::parakeet_has_available_models().await {
         Ok(has_models) => has_models,
         Err(e) => {
-            log::warn!("Tray: Failed to check Parakeet models: {}, assuming not ready", e);
+            log::warn!(
+                "Tray: Failed to check Parakeet models: {}, assuming not ready",
+                e
+            );
             false
         }
     }
@@ -247,7 +252,10 @@ fn build_menu<R: Runtime>(
             RecordingState::Recording => {
                 builder = builder
                     .item(&MenuItemBuilder::with_id("pause_recording", "일시 정지").build(app)?)
-                    .item(&MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장").build(app)?);
+                    .item(
+                        &MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장")
+                            .build(app)?,
+                    );
             }
             RecordingState::Pausing => {
                 builder = builder
@@ -256,15 +264,18 @@ fn build_menu<R: Runtime>(
                             .enabled(false)
                             .build(app)?,
                     )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장").build(app)?);
+                    .item(
+                        &MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장")
+                            .build(app)?,
+                    );
             }
             RecordingState::Paused => {
                 builder = builder
+                    .item(&MenuItemBuilder::with_id("resume_recording", "녹음 재개").build(app)?)
                     .item(
-                        &MenuItemBuilder::with_id("resume_recording", "녹음 재개")
+                        &MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장")
                             .build(app)?,
-                    )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장").build(app)?);
+                    );
             }
             RecordingState::Resuming => {
                 builder = builder
@@ -273,7 +284,10 @@ fn build_menu<R: Runtime>(
                             .enabled(false)
                             .build(app)?,
                     )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장").build(app)?);
+                    .item(
+                        &MenuItemBuilder::with_id("stop_recording", "녹음 중지 및 저장")
+                            .build(app)?,
+                    );
             }
             RecordingState::Stopping => {
                 builder = builder.item(

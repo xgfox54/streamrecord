@@ -1,4 +1,4 @@
-# Stream-Record v0.4.0
+# Stream-Record v0.5.0
 
 Windows x64용 한국어 녹음·전사·회의록 앱입니다. 마이크 또는 실제 Stereo Mix 입력 하나를 사용하며, 한국어 음성 인식 모델을 설치파일에 포함합니다. 회의 녹음, 받아쓰기, YouTube 전사, 전체 전사, 회의록, AI 연결, 설정을 분리한 KRDS 확장형 UI를 제공합니다.
 
@@ -6,7 +6,7 @@ Windows x64용 한국어 녹음·전사·회의록 앱입니다. 마이크 또�
 
 ## 설치
 
-[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases)에서 `Stream-Record-0.4.0-korean-bundled-windows-x64-setup.exe`와 `SHA256SUMS.txt`를 받습니다. 해당 버전 릴리스가 게시되기 전에는 내려받을 수 없습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
+[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases)에서 `Stream-Record-0.5.0-korean-bundled-windows-x64-setup.exe`와 `SHA256SUMS.txt`를 받습니다. 해당 버전 릴리스가 게시되기 전에는 내려받을 수 없습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
 
 설치 프로그램은 미서명입니다. SHA-256은 파일 무결성 확인이며 게시자 코드 서명을 대신하지 않습니다. Windows WebView2 등 선행 런타임이 없는 PC에서는 최초 런타임 설치에 인터넷이 필요할 수 있습니다. 음성모델의 오프라인 사용과 선행 런타임 설치는 별개입니다.
 
@@ -35,6 +35,8 @@ PC 소리와 YouTube 전사는 Windows의 Stereo Mix 입력이 필요합니다. 
 기존에 선택한 정상 다국어 Whisper 모델을 우선 유지합니다. 적합한 모델이 없으면 설치 리소스의 `small-q5_1`을 SHA-256·크기로 검증하고 등록·적재합니다. 영어 전용 `.en` 모델을 자동 선택하지 않습니다. 파일이 없거나 손상되면 자동 다운로드로 전환하지 않고 오류를 표시합니다.
 
 동봉 모델은 `ggml-small-q5_1.bin` 190,085,487바이트이며, `manifest.json`과 `WHISPER-LICENSE.txt`를 함께 배포합니다. 출처는 고정 revision의 [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp)입니다. 실제 기준 해시는 `app/frontend/src-tauri/src/whisper_engine/model_integrity.rs`와 동봉 manifest에 기록됩니다. 설치 리소스와 사용자 모델 폴더 각각에 저장하므로 추가 디스크 공간이 필요합니다. 요약용 대형 언어모델은 동봉하지 않습니다.
+
+Windows x64 설치본은 native Whisper CUDA 빌드와 CUDA 12.3 실행 DLL을 함께 배포합니다. 별도 CUDA Toolkit 설치 없이 NVIDIA GPU 드라이버가 있는 지원 장치에서 동작하도록 구성하며, CUDA 빌드가 실제 NVIDIA 장치를 찾지 못하면 CPU로 조용히 전환하지 않고 오류를 표시합니다.
 
 ## 전사 검토와 회의록
 
@@ -77,10 +79,10 @@ cd ../..
 node tools/package-korean-bundled.mjs --build
 ```
 
-모델을 포함한 새 설치파일, 원본/리소스 해시와 검증 기록은 `outputs/korean-bundled-0.4.0/`에 생성합니다. 실제 설치본 교체와 GitLab 게시는 별도 명령과 검증 단계입니다. 이전 버전 EXE를 새 UI 설치파일로 재사용하지 않습니다.
+모델을 포함한 새 설치파일, 원본/리소스 해시와 검증 기록은 `outputs/korean-bundled-0.5.0/`에 생성합니다. 실제 설치본 교체와 GitLab 게시는 별도 명령과 검증 단계입니다. 이전 버전 EXE를 새 UI 설치파일로 재사용하지 않습니다.
 
 ## 검증 한계
 
 자동 회귀검사, 실제 동봉 모델 적재, Tauri 화면 조작, 실제 마이크/Stereo Mix 녹음, 장시간 안정성은 서로 다른 시험입니다. 실행하지 않은 항목은 `NOT_RUN`으로 표시합니다. 자동 접근성 검사만으로 화면 낭독기·Windows 배율·고대비 모드 전체가 검증된 것으로 보고하지 않습니다.
 
-MIT 원저작권과 라이선스는 유지합니다. [라이선스](LICENSE). 이전 0.1.0 검증 기록은 [과거 기록](docs/releases/v0.1.0-korean-bundled-validation.md)이며 0.4.0 결과를 대신하지 않습니다.
+MIT 원저작권과 라이선스는 유지합니다. [라이선스](LICENSE). 이전 버전 기록은 현재 v0.5.0 검증 결과를 대신하지 않습니다.

@@ -41,6 +41,7 @@ async function verifyPackage(version){
  const receipt=JSON.parse(fs.readFileSync(path.join(out,'package-result.json'),'utf8'));
  assert.equal(receipt.complete,true);assert.equal(receipt.version,version);assert.equal(receipt.variant,'korean-model-included');
  for(const test of ['typecheck','rustCheck','realModelOfflineLoad','installerIntegrity'])assert.equal(receipt.tests[test],'passed',test);
+ assert.equal(receipt.tests?.cudaInference?.status,'passed');assert.equal(receipt.tests.cudaInference.effective,'cuda');
  assert.ok(receipt.tests.frontend>=42&&receipt.tests.rust>=23);
  for(const gate of ['iconManifest','uiSession','releaseTools'])assert.equal(receipt.tests[gate]?.status,'passed',gate);
  const name=`Stream-Record-${version}-korean-bundled-windows-x64-setup.exe`, installer=path.join(out,name);

@@ -36,7 +36,7 @@ impl TranscriptsRepository {
         .await;
 
         if let Err(e) = result {
-            error!("Failed to create meeting '{}': {}", meeting_title, e);
+            error!("Failed to create meeting: {}", e);
             transaction.rollback().await?;
             return Err(e);
         }
@@ -46,14 +46,29 @@ impl TranscriptsRepository {
         // 2. Save each transcript segment with audio timing fields
         for segment in transcripts {
             let transcript_id = format!("transcript-{}", Uuid::new_v4());
+            let spans_json =
+                serde_json::to_string(&segment.spans).unwrap_or_else(|_| "[]".to_string());
             let result = sqlx::query(
-                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO transcripts
+                 (id, meeting_id, raw_engine_output, raw_engine_output_status, transcript, timestamp,
+                  score_kind, score_value, score_engine, score_calibration, spans_json,
+                  audio_start_time, audio_end_time, duration)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(&transcript_id)
             .bind(&meeting_id)
+            .bind(&segment.raw_engine_output)
+            .bind(match segment.raw_engine_output_status {
+                crate::audio::transcription::RawEngineOutputStatus::Captured => "captured",
+                crate::audio::transcription::RawEngineOutputStatus::RawUnavailableLegacy => "raw_unavailable_legacy",
+            })
             .bind(&segment.text)
             .bind(&segment.timestamp)
+            .bind(segment.score.kind.as_str())
+            .bind(segment.score.value)
+            .bind(&segment.score.engine)
+            .bind(&segment.score.calibration)
+            .bind(spans_json)
             .bind(segment.audio_start_time)
             .bind(segment.audio_end_time)
             .bind(segment.duration)

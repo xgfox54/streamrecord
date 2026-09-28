@@ -81,7 +81,7 @@ export function BluetoothPlaybackWarning({
             <strong>wired headphones</strong>.
             <br />
             <a
-              href="https://github.com/your-org/meetily/blob/main/BLUETOOTH_PLAYBACK_NOTICE.md"
+              href="https://gitlab.aigov.go.kr/memory365/streamrecord"
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:text-yellow-900 font-medium mt-2 inline-block"

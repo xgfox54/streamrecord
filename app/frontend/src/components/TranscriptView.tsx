@@ -294,7 +294,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
                   {transcript.duration !== undefined && (
                     <span className="text-xs text-gray-400">
                       {transcript.duration.toFixed(1)}s
-                      {transcript.confidence !== undefined && (
+                      {typeof transcript.confidence === 'number' && (
                         <ConfidenceIndicator
                           confidence={transcript.confidence}
                           showIndicator={showConfidence}

@@ -13,7 +13,7 @@ export const expectedBytes=190085487;
 export function readPolicy(){
  const text=fs.readFileSync(path.join(root,'app/frontend/src-tauri/src/whisper_engine/model_integrity.rs'),'utf8');
  const revision=text.match(/pub const REVISION: &str = "([0-9a-f]{40})";/)?.[1];
- const sha256=text.match(/\("small-q5_1", "([0-9a-f]{64})"\)/)?.[1];
+ const sha256=text.match(/\(\s*"small-q5_1"\s*,\s*"([0-9a-f]{64})"\s*,?\s*\)/)?.[1];
  const block=text.split('pub const HF_TRANSPORT_HOSTS:')[1]?.split('];')[0]||'';
  const hosts=new Set([...block.matchAll(/"([a-z0-9.-]+)"/g)].map(m=>m[1]));
  assert.ok(revision&&sha256&&hosts.has('huggingface.co'),'Missing pinned native model policy');
@@ -72,6 +72,7 @@ function selfTest(){
  for(const url of ['https://huggingface.co.evil.test/x','http://huggingface.co/x','https://meetily.ai/x','https://user@huggingface.co/x','https://huggingface.co:8443/x'])assert.equal(allowedUrl(url,policy.hosts),false);
  const win=JSON.parse(fs.readFileSync(path.join(root,'app/frontend/src-tauri/tauri.windows.conf.json'),'utf8'));
  for(const name of [filename,'manifest.json','WHISPER-LICENSE.txt'])assert.equal(win.bundle.resources['bundled-models/'+name],'bundled-models/'+name);
+ assert.equal(win.bundle.resources['binaries/cuda'],'.');
  const source=fs.readFileSync(path.join(root,'app/frontend/src/components/meeting-ko/korean-model.ts'),'utf8');assert.ok(source.includes('ko_prepare_bundled_whisper'));assert.ok(!source.includes('WhisperAPI.downloadModel'));
  console.log('PASS bundled model policy, resource mapping, offline default and denied hosts');
 }

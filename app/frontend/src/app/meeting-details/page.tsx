@@ -126,7 +126,7 @@ function MeetingDetailsContent() {
     }
 
     if (metadata) {
-      console.log('Meeting metadata loaded:', metadata);
+      console.log('Meeting metadata loaded');
 
       // Build meeting details from metadata and paginated transcripts
       setMeetingDetails({

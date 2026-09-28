@@ -104,7 +104,10 @@ impl DatabaseManager {
                             Ok(db_manager)
                         }
                         Err(retry_err) => {
-                            log::error!("Database connection failed even after WAL cleanup: {}", retry_err);
+                            log::error!(
+                                "Database connection failed even after WAL cleanup: {}",
+                                retry_err
+                            );
                             Err(retry_err)
                         }
                     }
@@ -204,5 +207,108 @@ impl DatabaseManager {
         log::info!("Database connection pool closed");
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::database::models::Transcript;
+    use sha2::{Digest, Sha256};
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[test]
+    fn stream_record_historical_migration_bytes_remain_compatible_with_v0_4_1() {
+        let migrations: &[(&[u8], &str)] = &[
+            (
+                include_bytes!("../../migrations/20250916100000_initial_schema.sql"),
+                "e7a9a6c41dd6e91a50efd6c9c609b3f90b5dec99b0266040b4ffe89bccded8ad",
+            ),
+            (
+                include_bytes!("../../migrations/20250920155811_add_openrouter_api_key.sql"),
+                "76b7233e0e477def7e6993754ff59a24270cddd923f8f80c02d7fc0e9a5df9e0",
+            ),
+            (
+                include_bytes!("../../migrations/20251006000000_add_audio_sync_fields.sql"),
+                "bed470d284ebe769e289e53f63ee3ae4981ad5fb302309fe33f8e17c8f227013",
+            ),
+            (
+                include_bytes!("../../migrations/20251010153942_add_ollama_endpoint.sql"),
+                "91e252a8ae300445dc0935b464a560f01f364c7c4a19a6f501b8e9d8da81f0b1",
+            ),
+            (
+                include_bytes!("../../migrations/20251101000000_add_summary_backup.sql"),
+                "0361667ea3d98badac193b97cad4c5c39d3a52216660a3403398d6f05ca0ed87",
+            ),
+            (
+                include_bytes!("../../migrations/20251105120000_add_pro_license_custom_openai.sql"),
+                "cd02c628e50374ea0444b1061865760bf26f90b5d926a5a3128fb4dd73c809d1",
+            ),
+            (
+                include_bytes!("../../migrations/20251110000000_add_grace_period_to_licensing.sql"),
+                "95bae564e1e6e5bb771289b3c77b44bc61a2c82f52ee8dfc5f71534d3ba2d6d2",
+            ),
+            (
+                include_bytes!("../../migrations/20251110000001_add_speaker_field.sql"),
+                "1866113020bb245347ab2771f3a2d330763f0f57e4ecc2f214e713871f40493a",
+            ),
+            (
+                include_bytes!("../../migrations/20251223000000_add_meeting_notes.sql"),
+                "2a14f1ad0116a85c48e6aaa01767fb0901535063f94734ebc3a436c66d093ed1",
+            ),
+            (
+                include_bytes!("../../migrations/20251229000000_add_gemini_api_key.sql"),
+                "39042addbdde1b3cc6214785514d408cb04fd5b99288138f5776742801fd4ac7",
+            ),
+        ];
+
+        for (bytes, expected) in migrations {
+            assert_eq!(format!("{:x}", Sha256::digest(bytes)), *expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn migrations_preserve_legacy_transcripts_and_add_versioned_runs() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+        sqlx::query(
+            "INSERT INTO meetings (id, title, created_at, updated_at) VALUES ('meeting-1', 'legacy', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp) VALUES ('transcript-1', 'meeting-1', 'kept', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let transcript =
+            sqlx::query_as::<_, Transcript>("SELECT * FROM transcripts WHERE id = 'transcript-1'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(transcript.transcript, "kept");
+        assert_eq!(transcript.raw_engine_output, None);
+        assert_eq!(
+            transcript.raw_engine_output_status,
+            "raw_unavailable_legacy"
+        );
+        assert_eq!(transcript.score_kind, "unavailable");
+        assert_eq!(transcript.score_engine, "legacy");
+        assert_eq!(transcript.spans_json, "[]");
+
+        let run_tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('transcription_runs', 'transcription_run_segments')",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(run_tables, 2);
     }
 }

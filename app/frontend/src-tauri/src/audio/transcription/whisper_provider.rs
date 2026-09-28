@@ -2,7 +2,7 @@
 //
 // Whisper transcription provider implementation.
 
-use super::provider::{TranscriptionError, TranscriptionProvider, TranscriptResult};
+use super::provider::{TranscriptResult, TranscriptionError, TranscriptionProvider};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -28,20 +28,15 @@ impl TranscriptionProvider for WhisperProvider {
     }
 
     async fn transcribe_with_prompt(
-        &self, audio: Vec<f32>, language: Option<String>, prompt: Option<String>,
+        &self,
+        audio: Vec<f32>,
+        language: Option<String>,
+        prompt: Option<String>,
     ) -> std::result::Result<TranscriptResult, TranscriptionError> {
-        match self
-            .engine
+        self.engine
             .transcribe_audio_with_prompt(audio, language, prompt)
             .await
-        {
-            Ok((text, confidence, is_partial)) => Ok(TranscriptResult {
-                text: text.trim().to_string(),
-                confidence: Some(confidence),
-                is_partial,
-            }),
-            Err(e) => Err(TranscriptionError::EngineFailed(e.to_string())),
-        }
+            .map_err(|e| TranscriptionError::EngineFailed(e.to_string()))
     }
 
     async fn is_model_loaded(&self) -> bool {

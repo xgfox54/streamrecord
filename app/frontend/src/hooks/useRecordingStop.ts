@@ -86,6 +86,7 @@ export function useRecordingStop(
           message: string;
           folder_path?: string;
           meeting_name?: string;
+          audio_durable?: boolean;
         }>('recording-stopped', async (event) => {
           // Create promise that resolves when sessionStorage is set (prevents race condition)
           recordingStoppedDataRef.current = (async () => {
@@ -244,12 +245,9 @@ export function useRecordingStop(
         const folderPath = sessionStorage.getItem('last_recording_folder_path');
         const savedMeetingName = sessionStorage.getItem('last_recording_meeting_name');
 
-        console.log('💾 Saving COMPLETE transcripts to database...', {
-          transcript_count: freshTranscripts.length,
-          meeting_name: savedMeetingName || meetingTitle,
-          folder_path: folderPath,
-          sample_text: freshTranscripts.length > 0 ? freshTranscripts[0].text.substring(0, 50) + '...' : 'none',
-          last_transcript: freshTranscripts.length > 0 ? freshTranscripts[freshTranscripts.length - 1].text.substring(0, 30) + '...' : 'none',
+        console.log('💾 Saving complete transcripts to database', {
+          transcriptCount: freshTranscripts.length,
+          folderPathPresent: Boolean(folderPath),
         });
 
         try {
@@ -312,7 +310,7 @@ export function useRecordingStop(
                 id: meetingId,
                 title: meetingData.title
               });
-              console.log('✅ Current meeting set:', meetingData.title);
+              console.log('✅ Current meeting state updated');
             }
           } catch (error) {
             console.warn('Could not fetch meeting details, using ID only:', error);

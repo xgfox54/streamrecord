@@ -345,11 +345,7 @@ export function ModelSettingsModal({
   // Sync custom OpenAI state from modelConfig (context or props)
   useEffect(() => {
     if (modelConfig.provider === 'custom-openai') {
-      console.log('Syncing custom OpenAI fields from ConfigContext:', {
-        endpoint: modelConfig.customOpenAIEndpoint,
-        model: modelConfig.customOpenAIModel,
-        hasApiKey: !!modelConfig.customOpenAIApiKey,
-      });
+      console.log('Syncing custom OpenAI fields from ConfigContext');
 
       // Always sync from modelConfig (which comes from context if available)
       setCustomOpenAIEndpoint(modelConfig.customOpenAIEndpoint || '');
@@ -651,7 +647,7 @@ export function ModelSettingsModal({
       model: modelConfig.provider === 'custom-openai' ? customOpenAIModel.trim() : modelConfig.model,
     };
     setModelConfig(updatedConfig);
-    console.log('ModelSettingsModal - handleSave - Updated ModelConfig:', updatedConfig);
+    console.log('ModelSettingsModal - handleSave - model configuration updated');
 
     // Persist confirmed model choice to per-provider cache
     if (updatedConfig.model) {

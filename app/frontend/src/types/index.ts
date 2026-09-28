@@ -6,26 +6,52 @@ export interface Message {
 
 export interface Transcript {
   id: string;
+  raw_engine_output?: string | null;
+  raw_engine_output_status?: RawEngineOutputStatus;
   text: string;
   timestamp: string; // Wall-clock time (e.g., "14:30:05")
   sequence_id?: number;
   chunk_start_time?: number; // Legacy field
   is_partial?: boolean;
-  confidence?: number;
+  confidence?: number | null;
+  score?: TranscriptScore;
+  spans?: TranscriptSpan[];
   // NEW: Recording-relative timestamps for playback sync
   audio_start_time?: number; // Seconds from recording start (e.g., 125.3)
   audio_end_time?: number;   // Seconds from recording start (e.g., 128.6)
   duration?: number;          // Segment duration in seconds (e.g., 3.3)
 }
 
+export type TranscriptScoreKind = 'mean_token_probability' | 'unavailable';
+export type RawEngineOutputStatus = 'captured' | 'raw_unavailable_legacy';
+
+export interface TranscriptScore {
+  readonly kind: TranscriptScoreKind;
+  readonly value: number | null;
+  readonly engine: string;
+  readonly calibration: string;
+}
+
+export interface TranscriptSpan {
+  readonly text: string;
+  readonly start_sample: number;
+  readonly end_sample: number;
+  readonly timebase_hz: number;
+}
+
 export interface TranscriptUpdate {
+  raw_engine_output: string;
+  raw_engine_output_status: RawEngineOutputStatus;
   text: string;
   timestamp: string; // Wall-clock time for reference
   source: string;
   sequence_id: number;
   chunk_start_time: number; // Legacy field
   is_partial: boolean;
-  confidence: number;
+  confidence: number | null;
+  score: TranscriptScore;
+  spans: TranscriptSpan[];
+  result_committed: boolean;
   // NEW: Recording-relative timestamps for playback sync
   audio_start_time: number; // Seconds from recording start
   audio_end_time: number;   // Seconds from recording start
@@ -140,5 +166,5 @@ export interface TranscriptSegmentData {
   timestamp: number; // audio_start_time in seconds
   endTime?: number; // audio_end_time in seconds
   text: string;
-  confidence?: number;
+  confidence?: number | null;
 }

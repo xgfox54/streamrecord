@@ -75,7 +75,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     id: string;
     timestamp: number;
     text: string;
-    confidence?: number;
+    confidence?: number | null;
     isStreaming: boolean;
     showConfidence: boolean;
 }) {
@@ -91,7 +91,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                        {confidence !== undefined && showConfidence && (
+                        {typeof confidence === 'number' && showConfidence && (
                             <ConfidenceIndicator confidence={confidence} showIndicator={showConfidence} />
                         )}
                     </TooltipContent>

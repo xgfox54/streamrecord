@@ -47,6 +47,7 @@ async function main(){
  const receipt=JSON.parse(fs.readFileSync(path.join(directory,'package-result.json'),'utf8'));
  assert.equal(receipt.complete,true);assert.equal(receipt.version,version);assert.equal(receipt.variant,'korean-model-included');
  assert.equal(receipt.tests?.installerIntegrity,'passed');assert.equal(receipt.tests?.realModelOfflineLoad,'passed');
+ assert.equal(receipt.tests?.cudaInference?.status,'passed');assert.equal(receipt.tests.cudaInference.effective,'cuda');
  assert.equal(receipt.tests?.typecheck,'passed');assert.equal(receipt.tests?.rustCheck,'passed');assert.ok(receipt.tests.frontend>=42&&receipt.tests.rust>=23);
  assert.equal(path.resolve(receipt.installer.path).toLowerCase(),installer.toLowerCase());
  const stat=regular(installer);assert.equal(stat.size,receipt.installer.bytes);assert.ok(stat.size<700*1024*1024);

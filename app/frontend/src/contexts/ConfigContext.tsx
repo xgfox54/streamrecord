@@ -200,7 +200,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       try {
         const config = await configService.getTranscriptConfig();
         if (config) {
-          console.log('[ConfigContext] Loaded saved transcript config:', config);
+          console.log('[ConfigContext] Loaded saved transcript configuration');
           setTranscriptModelConfig({
             provider: config.provider || 'parakeet',
             model: config.model || 'parakeet-tdt-0.6b-v3-int8',
@@ -239,10 +239,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
               const customConfig = await configService.getCustomOpenAIConfig();
               if (customConfig) {
                 // Merge custom config fields into modelConfig
-                console.log('[ConfigContext] Loading custom OpenAI config:', {
-                  endpoint: customConfig.endpoint,
-                  model: customConfig.model,
-                });
+                console.log('[ConfigContext] Loading custom OpenAI configuration');
                 const resolvedModel = customConfig.model || data.model || '';
                 setModelConfig(prev => ({
                   ...prev,
@@ -328,7 +325,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     const setupListener = async () => {
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
-        console.log('[ConfigContext] Received model-config-updated event:', event.payload);
+        console.log('[ConfigContext] Received model-config-updated event');
         setModelConfig(event.payload);
 
         // Update provider-specific key when config changes

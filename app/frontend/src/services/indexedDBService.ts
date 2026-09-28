@@ -4,6 +4,8 @@
  * to enable recovery after app crashes or unexpected closures.
  */
 
+import type { RawEngineOutputStatus, TranscriptScore, TranscriptSpan } from '@/types';
+
 // Database schema interfaces
 export interface MeetingMetadata {
   meetingId: string;          // Primary key: "meeting-{timestamp}"
@@ -20,7 +22,13 @@ export interface StoredTranscript {
   meetingId: string;          // Foreign key to meetings store
   text: string;               // Transcript text
   timestamp: string;          // ISO 8601 timestamp
-  confidence: number;         // Whisper confidence score
+  confidence: number | null;
+  raw_engine_output?: string | null;
+  raw_engine_output_status?: RawEngineOutputStatus;
+  score?: TranscriptScore;
+  spans?: TranscriptSpan[];
+  chunk_start_time?: number;
+  is_partial?: boolean;
   sequenceId: number;         // Sequence number for ordering
   storedAt: number;           // Unix timestamp when saved
   audio_start_time?: number;  // Recording-relative start time in seconds

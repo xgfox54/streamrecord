@@ -164,15 +164,24 @@ export function useTranscriptRecovery(): UseTranscriptRecoveryReturn {
       // 5. Convert StoredTranscripts to the format expected by storageService
       const formattedTranscripts = transcripts.map((t, index) => ({
         id: t.id?.toString() || `${Date.now()}-${index}`,
+        raw_engine_output: t.raw_engine_output ?? null,
+        raw_engine_output_status: t.raw_engine_output_status ?? 'raw_unavailable_legacy',
         text: t.text,
         timestamp: t.timestamp,
         sequence_id: t.sequenceId || index,
-        chunk_start_time: (t as any).chunk_start_time,
-        is_partial: (t as any).is_partial || false,
+        chunk_start_time: t.chunk_start_time,
+        is_partial: t.is_partial || false,
         confidence: t.confidence,
-        audio_start_time: (t as any).audio_start_time,
-        audio_end_time: (t as any).audio_end_time,
-        duration: (t as any).duration,
+        score: t.score ?? {
+          kind: 'unavailable' as const,
+          value: null,
+          engine: 'legacy',
+          calibration: 'legacy_unavailable',
+        },
+        spans: t.spans ?? [],
+        audio_start_time: t.audio_start_time,
+        audio_end_time: t.audio_end_time,
+        duration: t.duration,
       }));
 
       // 6. Save to backend database using existing save utilities

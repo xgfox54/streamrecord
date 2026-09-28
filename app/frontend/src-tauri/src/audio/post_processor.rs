@@ -1,7 +1,7 @@
+use anyhow::Result;
+use log::{error, info, warn};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use anyhow::Result;
-use log::{info, warn, error};
 
 /// Post-processing request for transcript text
 #[derive(Debug, Clone)]
@@ -17,7 +17,7 @@ pub struct PostProcessRequest {
 pub struct PostProcessResponse {
     pub sequence_id: u32,
     pub processed_text: String,
-    pub confidence: f32,
+    pub confidence: Option<f32>,
     pub is_partial: bool,
     pub timestamp: String,
     pub processing_time_ms: u64,
@@ -49,7 +49,7 @@ impl PostProcessor {
                         let response = PostProcessResponse {
                             sequence_id: request.sequence_id,
                             processed_text,
-                            confidence: if request.is_partial { 0.8 } else { 0.95 }, // Processed text has higher confidence
+                            confidence: None,
                             is_partial: request.is_partial,
                             timestamp: request.timestamp,
                             processing_time_ms: processing_time,
@@ -61,16 +61,22 @@ impl PostProcessor {
                         }
 
                         if processing_time > 100 {
-                            warn!("Slow post-processing for sequence {}: {}ms", request.sequence_id, processing_time);
+                            warn!(
+                                "Slow post-processing for sequence {}: {}ms",
+                                request.sequence_id, processing_time
+                            );
                         }
                     }
                     Err(e) => {
-                        warn!("Post-processing failed for sequence {}: {}", request.sequence_id, e);
+                        warn!(
+                            "Post-processing failed for sequence {}: {}",
+                            request.sequence_id, e
+                        );
                         // Send original text as fallback
                         let response = PostProcessResponse {
                             sequence_id: request.sequence_id,
                             processed_text: request.raw_text.clone(),
-                            confidence: 0.5, // Lower confidence for failed processing
+                            confidence: None,
                             is_partial: request.is_partial,
                             timestamp: request.timestamp,
                             processing_time_ms: start_time.elapsed().as_millis() as u64,
@@ -164,8 +170,8 @@ impl PostProcessor {
             }
             // Check for phrase repetitions
             else if i + 3 < words.len() {
-                let phrase = &words[i..i+2];
-                let next_phrase = &words[i+2..i+4];
+                let phrase = &words[i..i + 2];
+                let next_phrase = &words[i + 2..i + 4];
 
                 if phrase == next_phrase {
                     result.extend_from_slice(phrase);
@@ -173,7 +179,7 @@ impl PostProcessor {
 
                     // Skip additional repetitions of the same phrase
                     while i + 1 < words.len() && i + 1 < words.len() - 1 {
-                        let check_phrase = &words[i..std::cmp::min(i+2, words.len())];
+                        let check_phrase = &words[i..std::cmp::min(i + 2, words.len())];
                         if check_phrase == phrase && check_phrase.len() == 2 {
                             i += 2;
                         } else {
@@ -194,14 +200,11 @@ impl PostProcessor {
 
     /// Remove common transcription artifacts using simple string matching
     fn remove_artifacts(text: &str) -> String {
-        let mut words: Vec<String> = text.split_whitespace()
-            .map(|w| w.to_string())
-            .collect();
+        let mut words: Vec<String> = text.split_whitespace().map(|w| w.to_string()).collect();
 
         // Remove common filler words and sounds
         let fillers = [
-            "uh", "um", "er", "ah", "oh", "hm", "hmm",
-            "uhh", "umm", "err", "ahh", "ohh",
+            "uh", "um", "er", "ah", "oh", "hm", "hmm", "uhh", "umm", "err", "ahh", "ohh",
         ];
 
         words.retain(|word| {

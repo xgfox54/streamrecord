@@ -28,6 +28,10 @@ const companions={
  'onnxruntime/onnxruntime.dll':'onnxruntime.dll',
  'onnxruntime/onnxruntime_providers_shared.dll':'onnxruntime_providers_shared.dll',
  'onnxruntime/onnxruntime-LICENSE.txt':'onnxruntime-LICENSE.txt',
+ 'cuda/cublas64_12.dll':'cublas64_12.dll',
+ 'cuda/cublasLt64_12.dll':'cublasLt64_12.dll',
+ 'cuda/cudart64_12.dll':'cudart64_12.dll',
+ 'cuda/CUDA-RUNTIME-NOTICE.txt':'CUDA-RUNTIME-NOTICE.txt',
 };
 export async function verifyInstalledCompanions(directory,snapshot) {
  assert.deepEqual(Object.keys(snapshot).sort(),Object.keys(companions).sort(),'Runtime companion mapping changed; review installer mapping');

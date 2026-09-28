@@ -286,14 +286,10 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       try {
         console.log('🔥 Setting up MAIN transcript listener during component initialization...');
         unlistenFn = await transcriptService.onTranscriptUpdate((update) => {
-          const now = Date.now();
-          console.log('🎯 MAIN LISTENER: Received transcript update:', {
-            sequence_id: update.sequence_id,
-            text: update.text.substring(0, 50) + '...',
-            timestamp: update.timestamp,
-            is_partial: update.is_partial,
-            received_at: new Date(now).toISOString(),
-            buffer_size_before: transcriptBuffer.size
+          console.log('🎯 MAIN LISTENER: Received transcript update', {
+            sequenceId: update.sequence_id,
+            isPartial: update.is_partial,
+            bufferSizeBefore: transcriptBuffer.size
           });
 
           // Check for duplicate sequence_id before processing
@@ -391,7 +387,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           // Fetch meeting name from backend
           const meetingName = await recordingService.getRecordingMeetingName();
           if (meetingName) {
-            console.log('[Reload Sync] Retrieved meeting name:', meetingName);
+            console.log('[Reload Sync] Retrieved meeting name');
             setMeetingTitle(meetingName);
             console.log('[Reload Sync] ✅ Meeting title synced successfully');
           }
@@ -434,7 +430,9 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         t => t.text === update.text && t.timestamp === update.timestamp
       );
       if (exists) {
-        console.log('🚫 Duplicate transcript detected, skipping:', update.text.substring(0, 30) + '...');
+        console.log('🚫 Duplicate transcript detected, skipping', {
+          sequenceId: update.sequence_id,
+        });
         return prev;
       }
 
@@ -443,10 +441,9 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       const sorted = updated.sort((a, b) => (a.sequence_id || 0) - (b.sequence_id || 0));
 
       console.log('✅ Added new transcript. New count:', sorted.length);
-      console.log('📝 Latest transcript:', {
+      console.log('📝 Latest transcript metadata', {
         id: newTranscript.id,
-        text: newTranscript.text.substring(0, 30) + '...',
-        sequence_id: newTranscript.sequence_id
+        sequenceId: newTranscript.sequence_id
       });
 
       return sorted;

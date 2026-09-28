@@ -1,4 +1,5 @@
 use crate::api::TranscriptSegment;
+use crate::audio::transcription::{RawEngineOutputStatus, TranscriptScore, TranscriptSpan};
 use anyhow::Result;
 use log::{debug, info};
 use once_cell::sync::Lazy;
@@ -48,18 +49,52 @@ pub(crate) async fn unload_engine_after_batch(use_parakeet: bool) {
 
 /// Create transcript segments from transcription results.
 /// Each tuple is (text, start_ms, end_ms) from VAD timestamps.
-pub(crate) fn create_transcript_segments(transcripts: &[(String, f64, f64)]) -> Vec<TranscriptSegment> {
+pub(crate) struct TranscriptDraft {
+    pub raw_engine_output: Option<String>,
+    pub raw_engine_output_status: RawEngineOutputStatus,
+    pub text: String,
+    pub start_ms: f64,
+    pub end_ms: f64,
+    pub score: TranscriptScore,
+    pub spans: Vec<TranscriptSpan>,
+}
+
+pub(crate) fn create_transcript_segments(
+    transcripts: &[(String, f64, f64)],
+) -> Vec<TranscriptSegment> {
+    let drafts = transcripts
+        .iter()
+        .map(|(text, start_ms, end_ms)| TranscriptDraft {
+            raw_engine_output: None,
+            raw_engine_output_status: RawEngineOutputStatus::RawUnavailableLegacy,
+            text: text.clone(),
+            start_ms: *start_ms,
+            end_ms: *end_ms,
+            score: TranscriptScore::default(),
+            spans: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    create_transcript_segments_with_metadata(&drafts)
+}
+
+pub(crate) fn create_transcript_segments_with_metadata(
+    transcripts: &[TranscriptDraft],
+) -> Vec<TranscriptSegment> {
     transcripts
         .iter()
-        .map(|(text, start_ms, end_ms)| {
-            let start_seconds = start_ms / 1000.0;
-            let end_seconds = end_ms / 1000.0;
+        .map(|draft| {
+            let start_seconds = draft.start_ms / 1000.0;
+            let end_seconds = draft.end_ms / 1000.0;
             let duration = end_seconds - start_seconds;
 
             TranscriptSegment {
                 id: format!("transcript-{}", Uuid::new_v4()),
-                text: text.trim().to_string(),
+                raw_engine_output: draft.raw_engine_output.clone(),
+                raw_engine_output_status: draft.raw_engine_output_status.clone(),
+                text: draft.text.trim().to_string(),
                 timestamp: chrono::Utc::now().to_rfc3339(),
+                score: draft.score.clone(),
+                spans: draft.spans.clone(),
                 audio_start_time: Some(start_seconds),
                 audio_end_time: Some(end_seconds),
                 duration: Some(duration),
@@ -80,8 +115,12 @@ pub(crate) fn write_transcripts_json(folder: &Path, segments: &[TranscriptSegmen
         "segments": segments.iter().enumerate().map(|(i, s)| {
             serde_json::json!({
                 "id": s.id,
+                "raw_engine_output": s.raw_engine_output,
+                "raw_engine_output_status": s.raw_engine_output_status,
                 "text": s.text,
                 "timestamp": s.timestamp,
+                "score": s.score,
+                "spans": s.spans,
                 "audio_start_time": s.audio_start_time,
                 "audio_end_time": s.audio_end_time,
                 "duration": s.duration,
@@ -126,8 +165,8 @@ pub(crate) fn split_segment_at_silence(
         return vec![segment.clone()];
     }
 
-    let ms_per_sample = (segment.end_timestamp_ms - segment.start_timestamp_ms)
-        / segment.samples.len() as f64;
+    let ms_per_sample =
+        (segment.end_timestamp_ms - segment.start_timestamp_ms) / segment.samples.len() as f64;
     let mut result = Vec::new();
     let mut pos = 0usize;
 

@@ -1,6 +1,10 @@
-use std::path::Path;
-use std::sync::OnceLock;
 use log::info;
+use std::path::Path;
+use std::process::Command;
+use std::sync::OnceLock;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 /// Hardware capabilities for audio processing optimization
 #[derive(Debug, Clone, PartialEq)]
@@ -15,18 +19,18 @@ pub struct HardwareProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GpuType {
     None,
-    Metal,      // Apple Silicon
-    Cuda,       // NVIDIA
-    Vulkan,     // AMD/Intel
-    OpenCL,     // Generic GPU compute
+    Metal,  // Apple Silicon
+    Cuda,   // NVIDIA
+    Vulkan, // AMD/Intel
+    OpenCL, // Generic GPU compute
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PerformanceTier {
-    Low,      // CPU-only, limited resources
-    Medium,   // CPU-only but powerful, or basic GPU
-    High,     // Dedicated GPU with good compute
-    Ultra,    // High-end hardware with fast GPU
+    Low,    // CPU-only, limited resources
+    Medium, // CPU-only but powerful, or basic GPU
+    High,   // Dedicated GPU with good compute
+    Ultra,  // High-end hardware with fast GPU
 }
 
 /// Adaptive Whisper configuration based on hardware
@@ -41,9 +45,9 @@ pub struct AdaptiveWhisperConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChunkSizePreference {
-    Fast,       // Smaller chunks for responsiveness
-    Balanced,   // Medium chunks for balance
-    Quality,    // Larger chunks for accuracy
+    Fast,     // Smaller chunks for responsiveness
+    Balanced, // Medium chunks for balance
+    Quality,  // Larger chunks for accuracy
 }
 
 static HARDWARE_PROFILE: OnceLock<HardwareProfile> = OnceLock::new();
@@ -118,7 +122,11 @@ impl HardwareProfile {
     }
 
     /// Calculate performance tier based on hardware
-    fn calculate_performance_tier(cpu_cores: u8, gpu_type: &GpuType, memory_gb: u8) -> PerformanceTier {
+    fn calculate_performance_tier(
+        cpu_cores: u8,
+        gpu_type: &GpuType,
+        memory_gb: u8,
+    ) -> PerformanceTier {
         match gpu_type {
             GpuType::Metal => {
                 if memory_gb >= 16 && cpu_cores >= 8 {
@@ -158,16 +166,47 @@ impl HardwareProfile {
     }
 
     fn has_cuda_support() -> bool {
-        // Check for CUDA environment or libraries
-        std::env::var("CUDA_PATH").is_ok() ||
-        std::env::var("CUDA_HOME").is_ok() ||
-        std::path::Path::new("/usr/local/cuda").exists()
+        #[cfg(target_os = "windows")]
+        {
+            let system_root = std::env::var_os("SystemRoot")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+            if !system_root.join("System32").join("nvcuda.dll").is_file() {
+                return false;
+            }
+
+            let output = Command::new("nvidia-smi.exe")
+                .args([
+                    "--query-gpu=name,compute_cap",
+                    "--format=csv,noheader,nounits",
+                ])
+                .creation_flags(0x08000000)
+                .output();
+            return output
+                .ok()
+                .filter(|result| result.status.success())
+                .is_some_and(|result| Self::nvidia_smi_reports_cuda_gpu(&result.stdout));
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::env::var("CUDA_PATH").is_ok()
+                || std::env::var("CUDA_HOME").is_ok()
+                || std::path::Path::new("/usr/local/cuda").exists()
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn nvidia_smi_reports_cuda_gpu(stdout: &[u8]) -> bool {
+        String::from_utf8_lossy(stdout)
+            .lines()
+            .any(|line| !line.trim().is_empty() && line.contains(','))
     }
 
     fn has_vulkan_support() -> bool {
-        if std::env::var("VULKAN_SDK").is_ok() ||
-            std::path::Path::new("/usr/lib/x86_64-linux-gnu/libvulkan.so").exists() ||
-            std::path::Path::new("/usr/lib/libvulkan.so").exists()
+        if std::env::var("VULKAN_SDK").is_ok()
+            || std::path::Path::new("/usr/lib/x86_64-linux-gnu/libvulkan.so").exists()
+            || std::path::Path::new("/usr/lib/libvulkan.so").exists()
         {
             return true;
         }
@@ -219,28 +258,28 @@ impl HardwareProfile {
         {
             match self.performance_tier {
                 PerformanceTier::Ultra => AdaptiveWhisperConfig {
-                    beam_size: 5,  // Maximum quality
+                    beam_size: 5, // Maximum quality
                     temperature: 0.1,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(8) as usize),
                     chunk_size_preference: ChunkSizePreference::Quality,
                 },
                 PerformanceTier::High => AdaptiveWhisperConfig {
-                    beam_size: 3,  // High quality
+                    beam_size: 3, // High quality
                     temperature: 0.2,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(6) as usize),
                     chunk_size_preference: ChunkSizePreference::Balanced,
                 },
                 PerformanceTier::Medium => AdaptiveWhisperConfig {
-                    beam_size: 2,  // Balanced
+                    beam_size: 2, // Balanced
                     temperature: 0.3,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(4) as usize),
                     chunk_size_preference: ChunkSizePreference::Balanced,
                 },
                 PerformanceTier::Low => AdaptiveWhisperConfig {
-                    beam_size: 1,  // Fast processing
+                    beam_size: 1, // Fast processing
                     temperature: 0.4,
                     use_gpu: false, // Force CPU to avoid GPU overhead on weak hardware
                     max_threads: Some(2),
@@ -253,10 +292,10 @@ impl HardwareProfile {
     /// Get recommended chunk duration in milliseconds based on performance tier
     pub fn get_recommended_chunk_duration_ms(&self) -> u32 {
         match self.performance_tier {
-            PerformanceTier::Ultra => 25000,   // 25 seconds for maximum accuracy
-            PerformanceTier::High => 20000,    // 20 seconds for high quality
-            PerformanceTier::Medium => 15000,  // 15 seconds for balance
-            PerformanceTier::Low => 10000,     // 10 seconds for responsiveness
+            PerformanceTier::Ultra => 25000,  // 25 seconds for maximum accuracy
+            PerformanceTier::High => 20000,   // 20 seconds for high quality
+            PerformanceTier::Medium => 15000, // 15 seconds for balance
+            PerformanceTier::Low => 10000,    // 10 seconds for responsiveness
         }
     }
 
@@ -322,5 +361,17 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
 
         assert!(!HardwareProfile::has_windows_vulkan_loader(temp_dir.path()));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn hardware_detector_requires_a_real_nvidia_smi_device_row() {
+        assert!(HardwareProfile::nvidia_smi_reports_cuda_gpu(
+            b"NVIDIA GeForce GTX 1660 Ti, 7.5\r\n"
+        ));
+        assert!(!HardwareProfile::nvidia_smi_reports_cuda_gpu(b""));
+        assert!(!HardwareProfile::nvidia_smi_reports_cuda_gpu(
+            b"No devices were found\r\n"
+        ));
     }
 }

@@ -4,6 +4,7 @@
 // transcription engines (Whisper, Parakeet, future providers).
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 // ============================================================================
 // TRANSCRIPTION PROVIDER TRAIT & ERROR TYPES
@@ -37,12 +38,98 @@ impl std::fmt::Display for TranscriptionError {
 
 impl std::error::Error for TranscriptionError {}
 
-/// Unified transcription result across all providers
-#[derive(Debug, Clone)]
-pub struct TranscriptResult {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TranscriptScoreKind {
+    MeanTokenProbability,
+    Unavailable,
+}
+
+impl Default for TranscriptScoreKind {
+    fn default() -> Self {
+        Self::Unavailable
+    }
+}
+
+impl TranscriptScoreKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::MeanTokenProbability => "mean_token_probability",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TranscriptScore {
+    pub kind: TranscriptScoreKind,
+    pub value: Option<f32>,
+    pub engine: String,
+    pub calibration: String,
+}
+
+impl TranscriptScore {
+    pub fn unavailable(engine: impl Into<String>) -> Self {
+        Self {
+            kind: TranscriptScoreKind::Unavailable,
+            value: None,
+            engine: engine.into(),
+            calibration: "unavailable".to_string(),
+        }
+    }
+
+    pub fn mean_token_probability(engine: impl Into<String>, value: Option<f32>) -> Self {
+        match value.filter(|value| value.is_finite() && (0.0..=1.0).contains(value)) {
+            Some(value) => Self {
+                kind: TranscriptScoreKind::MeanTokenProbability,
+                value: Some(value),
+                engine: engine.into(),
+                calibration: "uncalibrated_not_accuracy".to_string(),
+            },
+            None => Self::unavailable(engine),
+        }
+    }
+}
+
+impl Default for TranscriptScore {
+    fn default() -> Self {
+        Self {
+            kind: TranscriptScoreKind::Unavailable,
+            value: None,
+            engine: "legacy".to_string(),
+            calibration: "legacy_unavailable".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RawEngineOutputStatus {
+    Captured,
+    RawUnavailableLegacy,
+}
+
+impl Default for RawEngineOutputStatus {
+    fn default() -> Self {
+        Self::RawUnavailableLegacy
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TranscriptSpan {
     pub text: String,
-    pub confidence: Option<f32>, // None if provider doesn't support confidence scores
+    pub start_sample: u64,
+    pub end_sample: u64,
+    pub timebase_hz: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptResult {
+    pub raw_text: String,
+    pub text: String,
+    pub score: TranscriptScore,
     pub is_partial: bool,
+    pub spans: Vec<TranscriptSpan>,
 }
 
 /// Trait for transcription providers (Whisper, Parakeet, future providers)
@@ -55,7 +142,6 @@ pub trait TranscriptionProvider: Send + Sync {
     /// * `language` - Optional language hint (e.g., "en", "es", "fr")
     ///
     /// # Returns
-    /// * `TranscriptResult` with text, optional confidence, and partial flag
     async fn transcribe(
         &self,
         audio: Vec<f32>,
@@ -65,7 +151,10 @@ pub trait TranscriptionProvider: Send + Sync {
     /// Optional explicit hint. Providers without prompt support keep their
     /// normal behavior rather than treating the hint as audio or instructions.
     async fn transcribe_with_prompt(
-        &self, audio: Vec<f32>, language: Option<String>, _prompt: Option<String>,
+        &self,
+        audio: Vec<f32>,
+        language: Option<String>,
+        _prompt: Option<String>,
     ) -> std::result::Result<TranscriptResult, TranscriptionError> {
         self.transcribe(audio, language).await
     }
@@ -78,4 +167,36 @@ pub trait TranscriptionProvider: Send + Sync {
 
     /// Get the provider name (for logging/debugging)
     fn provider_name(&self) -> &'static str;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_defaults_are_explicitly_unavailable() {
+        let score = TranscriptScore::default();
+        assert_eq!(score.kind, TranscriptScoreKind::Unavailable);
+        assert_eq!(score.value, None);
+        assert_eq!(score.engine, "legacy");
+        assert_eq!(score.calibration, "legacy_unavailable");
+        assert_eq!(
+            RawEngineOutputStatus::default(),
+            RawEngineOutputStatus::RawUnavailableLegacy
+        );
+    }
+
+    #[test]
+    fn token_probability_rejects_invalid_values() {
+        for value in [None, Some(f32::NAN), Some(-0.1), Some(1.1)] {
+            assert_eq!(
+                TranscriptScore::mean_token_probability("whisper_cpp", value).kind,
+                TranscriptScoreKind::Unavailable
+            );
+        }
+        let score = TranscriptScore::mean_token_probability("whisper_cpp", Some(0.75));
+        assert_eq!(score.kind, TranscriptScoreKind::MeanTokenProbability);
+        assert_eq!(score.value, Some(0.75));
+        assert_eq!(score.calibration, "uncalibrated_not_accuracy");
+    }
 }

@@ -89,7 +89,6 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     if (isStarting || isValidatingModel || isStartingRecording) return;
     console.log('Starting recording...');
     console.log('Selected devices:', selectedDevices);
-    console.log('Meeting name:', meetingName);
     console.log('Current isRecording state:', isRecording);
 
     setShowPlayback(false);

@@ -26,8 +26,15 @@ impl From<NaiveDateTime> for DateTimeUtc {
 pub struct Transcript {
     pub id: String,
     pub meeting_id: String,
+    pub raw_engine_output: Option<String>,
+    pub raw_engine_output_status: String,
     pub transcript: String,
     pub timestamp: String,
+    pub score_kind: String,
+    pub score_value: Option<f32>,
+    pub score_engine: String,
+    pub score_calibration: String,
+    pub spans_json: String,
     pub summary: Option<String>,
     pub action_items: Option<String>,
     pub key_points: Option<String>,
@@ -35,6 +42,34 @@ pub struct Transcript {
     pub audio_start_time: Option<f64>,
     pub audio_end_time: Option<f64>,
     pub duration: Option<f64>,
+}
+
+impl Transcript {
+    pub fn raw_engine_output_status(&self) -> crate::audio::transcription::RawEngineOutputStatus {
+        match self.raw_engine_output_status.as_str() {
+            "captured" => crate::audio::transcription::RawEngineOutputStatus::Captured,
+            _ => crate::audio::transcription::RawEngineOutputStatus::RawUnavailableLegacy,
+        }
+    }
+
+    pub fn score(&self) -> crate::audio::transcription::TranscriptScore {
+        let kind = match self.score_kind.as_str() {
+            "mean_token_probability" => {
+                crate::audio::transcription::TranscriptScoreKind::MeanTokenProbability
+            }
+            _ => crate::audio::transcription::TranscriptScoreKind::Unavailable,
+        };
+        crate::audio::transcription::TranscriptScore {
+            kind,
+            value: self.score_value,
+            engine: self.score_engine.clone(),
+            calibration: self.score_calibration.clone(),
+        }
+    }
+
+    pub fn spans(&self) -> Vec<crate::audio::transcription::TranscriptSpan> {
+        serde_json::from_str(&self.spans_json).unwrap_or_default()
+    }
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
@@ -49,7 +84,7 @@ pub struct SummaryProcess {
     pub end_time: Option<chrono::DateTime<chrono::Utc>>,
     pub chunk_count: i64,
     pub processing_time: f64,
-    pub metadata: Option<String>, // JSON
+    pub metadata: Option<String>,      // JSON
     pub result_backup: Option<String>, // Backup of result before regeneration
     pub result_backup_timestamp: Option<chrono::DateTime<chrono::Utc>>, // When backup was created
 }
@@ -101,9 +136,9 @@ pub struct Setting {
 impl Setting {
     /// Parse the custom OpenAI config from JSON string
     pub fn get_custom_openai_config(&self) -> Option<crate::summary::CustomOpenAIConfig> {
-        self.custom_openai_config.as_ref().and_then(|json| {
-            serde_json::from_str(json).ok()
-        })
+        self.custom_openai_config
+            .as_ref()
+            .and_then(|json| serde_json::from_str(json).ok())
     }
 }
 
