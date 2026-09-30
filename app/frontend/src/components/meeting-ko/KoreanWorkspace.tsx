@@ -18,12 +18,12 @@ export default function KoreanWorkspace(){
  const openEvidence=(id:string)=>{if(!sourceParts(session.rows).some(source=>source.id===id)){session.setError(`근거 ${id}에 해당하는 전사 구간이 없습니다. 회의록의 ID와 현재 원문을 확인하세요.`);return;}const number=Number(id.match(/^S(\d+)/)?.[1]);session.setQuery('');session.setPage(Math.floor((session.rows.length-number)/300));session.setFollow(false);session.setEditing(null);setEvidence(id);session.navigate('transcript');};
  return <AppShell view={session.view} onNavigate={session.navigate} status={session.modeLabel} recording={session.mode==='recording'} onStop={()=>void session.stop()}>
   {session.error&&<div role="alert" className={styles.error}><p>{session.error}</p><button onClick={()=>session.setError('')}>오류 안내 닫기</button></div>}
-  <div role="status" aria-live="polite" aria-atomic="true" className={styles.status}>{session.notice||'준비가 끝나면 선택한 입력의 녹음을 시작할 수 있습니다.'}</div>
+  <div role="status" aria-live="polite" aria-atomic="true" className={styles.status}>{session.notice}</div>
   {session.mode==='importing'&&<div className={styles.importProgress}><label htmlFor="import-progress">파일 전사 진행률 {Math.round(session.progress)}%</label><progress id="import-progress" value={session.progress} max={100}/></div>}
   {session.savedPath&&<details className={styles.savedNotice}><summary>최근 저장 완료</summary><p>{session.savedPath}</p></details>}
   {session.view==='recording'&&<RecordingView session={session}/>}
   {session.view==='dictation'&&<DictationView session={session}/>}
-  {session.view==='youtube'&&<YoutubeView session={session}/>}
+  <div hidden={session.view!=='youtube'}><YoutubeView session={session}/></div>
   {session.view==='transcript'&&<TranscriptView session={session} evidence={evidence} onEvidenceShown={()=>setEvidence(null)}/>}
   {session.view==='minutes'&&<MinutesView session={session} onEvidence={openEvidence}/>}
   {session.view==='ai'&&<AiConnectionsView session={session}/>}

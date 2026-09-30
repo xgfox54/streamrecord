@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../styles/jeju-tokens.css" layer(base);
 @config "../../tailwind.config.js";
 
 @keyframes vibrate {
@@ -165,18 +166,18 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #d1d5db;
+    background: var(--jeju-border-strong);
     border-radius: 3px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
+    background: var(--jeju-text-muted);
   }
 
   /* Firefox scrollbar */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #d1d5db transparent;
+    scrollbar-color: var(--jeju-border-strong) transparent;
   }
 
   /* BlockNote Editor - Override fixed dimensions for responsive layout */

@@ -1,0 +1,289 @@
+/* ==========================================================================
+ * jeju-tokens.css — 제주특별자치도 공통 디자인 토큰 v0.5.0
+ * 값의 단일 원천(Single Source of Truth)
+ *
+ * 원칙:
+ * - 공식 포인트 3색은 원색 토큰으로 그대로 보존한다.
+ * - Green/Orange는 흰 글자 대비가 4.5:1 미만이므로, 텍스트/채움 UI에는
+ *   별도의 접근성용 strong 역할색을 사용한다.
+ * - 대민 프로필은 색을 바꾸지 않고 치수/타이포 밀도만 변경한다.
+ * ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------------
+   * 제주 브랜드 원색 — 변경 시 기관 CI 근거가 필요하다.
+   * ------------------------------------------------------------------------ */
+  --jeju-blue: #0173bc;   /* RGB 1, 115, 188 · white contrast ≈ 5.02:1 */
+  --jeju-green: #00a074;  /* RGB 0, 160, 116 · white contrast ≈ 3.34:1 */
+  --jeju-orange: #f18101; /* RGB 241, 129, 1 · white contrast ≈ 2.66:1 */
+
+  /* 브랜드 tint / hover */
+  --jeju-blue-dark: #005f9d;
+  --jeju-blue-deep: #004f83;
+  --jeju-blue-light: #eaf4fb;
+  --jeju-blue-light-strong: #d6eaf7;
+
+  --jeju-green-dark: #008762;     /* white contrast ≈ 4.52:1 */
+  --jeju-green-deep: #006f51;
+  --jeju-green-light: #e7f7f2;
+  --jeju-green-light-strong: #cfefe5;
+
+  --jeju-orange-dark: #b46101;    /* white contrast ≈ 4.52:1 */
+  --jeju-orange-deep: #965100;
+  --jeju-orange-light: #fff3e4;
+  --jeju-orange-light-strong: #ffe5c2;
+
+  /* semantic aliases — 앱은 가능하면 이 역할 토큰을 우선 사용한다. */
+  --jeju-primary: var(--jeju-blue);
+  --jeju-primary-hover: var(--jeju-blue-dark);
+  --jeju-primary-active: var(--jeju-blue-deep);
+  --jeju-primary-tint: var(--jeju-blue-light);
+
+  --jeju-secondary: var(--jeju-green);
+  --jeju-secondary-strong: var(--jeju-green-dark);
+  --jeju-secondary-tint: var(--jeju-green-light);
+
+  --jeju-accent: var(--jeju-orange);
+  --jeju-accent-strong: var(--jeju-orange-dark);
+  --jeju-accent-tint: var(--jeju-orange-light);
+
+  /* 상태색 */
+  --jeju-success: #008762;
+  --jeju-success-tint: #e7f7f2;
+  --jeju-info: #0173bc;
+  --jeju-info-tint: #eaf4fb;
+  --jeju-warning: #a45500;
+  --jeju-warning-tint: #fff3e4;
+  --jeju-danger: #c43131;
+  --jeju-danger-tint: #fdeaea;
+
+  /* 폼 상태 역할색 — 비활성/읽기전용/반전 표면 */
+  --jeju-disabled-bg: #eef1f4;
+  --jeju-disabled-border: #dbe2e8;
+  --jeju-disabled-text: #59646f;
+  --jeju-readonly-bg: #f2f5f7;
+  --jeju-inverse-surface: #1f2933;
+  --jeju-inverse-text: #ffffff;
+  --jeju-on-fill: #ffffff; /* Blue·strong 역할색·Danger 채움 위 글자 */
+
+  /* 텍스트 */
+  --jeju-text-strong: #151b23;
+  --jeju-text: #1f2933;
+  --jeju-text-body: #344354;
+  --jeju-text-muted: #4e5f70;
+  --jeju-text-subtle: #5d6d7c;
+  --jeju-text-faint: #8a97a5; /* 일반 텍스트 금지: 장식/아이콘/구분선용 */
+
+  /* 면과 선 */
+  --jeju-bg: #f2f5f7;
+  --jeju-surface: #ffffff;
+  --jeju-surface-inset: #f7f9fa;
+  --jeju-control-bg: #f5f7f9;
+  --jeju-row-hover: #f8fbfd;
+  --jeju-border: #e1e7eb;
+  --jeju-border-strong: #cfd8df;
+  --jeju-shell-border: #dbe3e8;
+  --jeju-hairline: #edf1f3;
+
+  /* 타이포 */
+  --jeju-font: "Pretendard GOV", Pretendard, "Noto Sans KR", "Malgun Gothic",
+               system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --jeju-font-mono: ui-monospace, "Cascadia Mono", Consolas, "D2Coding", Menlo, monospace;
+
+  --jeju-text-xs: 12px;
+  --jeju-text-sm: 13px;
+  --jeju-text-base: 14px;
+  --jeju-text-md: 16px;
+  --jeju-text-lg: 18px;
+  --jeju-text-xl: 20px;
+  --jeju-text-2xl: 24px;
+  --jeju-text-3xl: 30px;
+  --jeju-leading-tight: 1.25;
+  --jeju-leading-normal: 1.5;
+  --jeju-h1-size: var(--jeju-text-2xl);
+  --jeju-h2-size: var(--jeju-text-lg);
+  --jeju-h3-size: var(--jeju-text-md);
+  --jeju-kpi-size: var(--jeju-text-3xl);
+
+  /* spacing — 임의 중간값 대신 이 스케일을 우선한다. */
+  --jeju-space-1: 4px;
+  --jeju-space-2: 8px;
+  --jeju-space-3: 12px;
+  --jeju-space-4: 16px;
+  --jeju-space-5: 20px;
+  --jeju-space-6: 24px;
+  --jeju-space-7: 32px;
+  --jeju-space-8: 40px;
+  --jeju-space-9: 48px;
+  --jeju-space-10: 64px;
+  --jeju-space-11: 80px;
+
+  /* shape / elevation */
+  --jeju-radius-xs: 4px;
+  --jeju-radius-sm: 6px;
+  --jeju-radius: 10px;
+  --jeju-radius-lg: 14px;
+  --jeju-radius-pill: 999px;
+  --jeju-shadow: 0 1px 2px rgba(18, 38, 52, 0.05);
+  --jeju-shadow-primary: 0 4px 12px rgba(1, 115, 188, 0.24);
+  --jeju-shadow-pop: 0 14px 34px rgba(15, 31, 43, 0.16);
+  --jeju-overlay: rgba(15, 31, 43, 0.48);
+
+  /* 레이어 순서 — 겹치는 UI는 이 스케일만 사용한다. */
+  --jeju-z-sticky: 2;
+  --jeju-z-drawer: 1000;
+  --jeju-z-menu: 1100;
+  --jeju-z-tooltip: 1200;
+  --jeju-z-toast: 9000;
+
+  /* focus */
+  --jeju-focus-ring: 0 0 0 3px rgba(1, 115, 188, 0.22);
+
+  /* shell */
+  --jeju-gnb-h: 64px;
+  --jeju-lnb-w: 256px;
+  --jeju-lnb-w-icon: 48px;
+  --jeju-main-max: 1320px;
+  --jeju-main-max-wide: 1440px;
+  --jeju-side-panel-w: 480px; /* 상세 보기 사이드 패널 */
+
+  /* work profile: high-density */
+  --jeju-control-h-sm: 32px;
+  --jeju-control-h: 36px;
+  --jeju-control-h-lg: 40px;
+  --jeju-input-h: 36px;
+  --jeju-search-h: 36px;
+  --jeju-control-font: 14px;
+  --jeju-control-font-sm: 13px;
+  --jeju-control-font-lg: 14px;
+  --jeju-label-font: 14px;
+  --jeju-table-font: 14px;
+  --jeju-cell-pad: 8px 12px;
+  --jeju-row-pad: 12px 16px;
+  --jeju-card-pad: 16px 20px;
+  --jeju-container-max: 1280px;
+
+  /* work profile: 선택/진행 컨트롤 치수 */
+  --jeju-choice-size: 18px;
+  --jeju-switch-w: 44px;
+  --jeju-switch-h: 24px;
+  --jeju-progress-h: 8px;
+  --jeju-step-dot: 32px;
+  --jeju-menu-min-w: 220px;
+  --jeju-tooltip-max-w: 260px;
+
+  /* 누를 수 있는 영역 — 업무는 WCAG 2.2 SC 2.5.8(24px), 대민은 KRDS 권장(44px) */
+  --jeju-target-min: 24px;
+  --jeju-chip-h: 30px;
+  --jeju-chip-remove: 20px;
+  --jeju-feedback-font: 12px; /* 입력 오류·확인 문장 */
+
+  /* icon */
+  --jeju-icon: 16px;
+  --jeju-icon-lg: 20px;
+  --jeju-icon-stroke: 2;
+}
+
+/* 대민 프로필: 색상은 동일, 크기와 밀도만 확장 */
+[data-jeju-profile="public"] {
+  --jeju-control-h-sm: 44px; /* KRDS 권장 터치 영역 44px 이상 */
+  --jeju-control-h: 48px;
+  --jeju-control-h-lg: 56px;
+  --jeju-input-h: 48px;
+  --jeju-search-h: 48px;
+  --jeju-control-font: 17px;
+  --jeju-control-font-sm: 15px;
+  --jeju-control-font-lg: 19px;
+  --jeju-label-font: 17px;
+  --jeju-table-font: 17px;
+  --jeju-cell-pad: 12px 16px;
+  --jeju-row-pad: 20px 24px;
+  --jeju-card-pad: 24px;
+  --jeju-container-max: 1248px;
+  --jeju-text-xs: 13px; /* KRDS 가장 작은 글자(xsmall) */
+  --jeju-text-sm: 15px;
+  --jeju-text-base: 17px;
+  --jeju-text-md: 19px;
+  --jeju-text-lg: 20px;
+  --jeju-text-xl: 24px;
+  --jeju-text-2xl: 32px;
+  --jeju-text-3xl: 40px;
+  --jeju-icon: 20px;
+  --jeju-icon-lg: 24px;
+  --jeju-choice-size: 24px;
+  --jeju-switch-w: 56px;
+  --jeju-switch-h: 30px;
+  --jeju-progress-h: 12px;
+  --jeju-step-dot: 40px;
+  --jeju-menu-min-w: 260px;
+  --jeju-tooltip-max-w: 300px;
+  --jeju-target-min: 44px;
+  --jeju-chip-h: 44px;
+  --jeju-chip-remove: 28px;
+  --jeju-feedback-font: 15px;
+}
+
+/* 공통 접근성 */
+:focus-visible {
+  border-color: var(--jeju-primary);
+  box-shadow: var(--jeju-focus-ring);
+  outline: none;
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  .jeju-badge,
+  .jeju-tab[aria-selected="true"],
+  .jeju-lnb a[aria-current="page"] {
+    border: 1px solid currentColor;
+  }
+
+  .jeju-choice input,
+  .jeju-switch input,
+  .jeju-progress__track,
+  .jeju-steps__dot,
+  .jeju-chip,
+  .jeju-upload__drop {
+    border: 1px solid currentColor;
+    forced-color-adjust: none;
+  }
+
+  .jeju-switch input:checked,
+  .jeju-choice input:checked,
+  .jeju-choice input:indeterminate,
+  .jeju-progress__bar,
+  .jeju-steps__item[data-state="current"] .jeju-steps__dot,
+  .jeju-steps__item[data-state="done"] .jeju-steps__dot {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .jeju-tooltip__bubble,
+  .jeju-menu {
+    border: 1px solid currentColor;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --jeju-text-muted: #344354;
+    --jeju-text-subtle: #4e5f70;
+    --jeju-border: #cfd8df;
+    --jeju-border-strong: #aebcc7;
+    --jeju-focus-ring: 0 0 0 4px rgba(1, 115, 188, 0.42);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

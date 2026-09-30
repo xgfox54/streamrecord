@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const css=fs.readFileSync(path.join(root,'app/frontend/src/components/meeting-ko/workspace.module.css'),'utf8');
-const tokens=Object.fromEntries([...css.slice(0,css.indexOf("}")).matchAll(/--sr-([\w-]+)\s*:\s*([^;}]+)[;}]/g)].map(m=>[m[1],m[2].trim()]));
-function color(name){const value=tokens[name];assert.ok(value,'Unknown token '+name);const ref=value.match(/^var\(--sr-([\w-]+)\)$/);return ref?color(ref[1]):value;}
+const jeju=fs.readFileSync(path.join(root,'app/frontend/src/styles/jeju-tokens.css'),'utf8');
+const tokens=Object.fromEntries([...(jeju+'\n'+css.slice(0,css.indexOf('}'))).matchAll(/--([\w-]+)\s*:\s*([^;}]+)[;}]/g)].map(m=>[m[1],m[2].trim()]));
+function resolve(name,seen=new Set()){assert.ok(!seen.has(name),'Circular token '+name);seen.add(name);const value=tokens[name];assert.ok(value,'Unknown token '+name);const ref=value.match(/^var\(--([\w-]+)\)$/);return ref?resolve(ref[1],seen):value;}
+function color(name){return resolve('sr-'+name);}
 function luminance(hex){assert.match(hex,/^#[0-9a-f]{6}$/i);const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return c[0]*.2126+c[1]*.7152+c[2]*.0722;}
 function contrast(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
 assert.equal(color('brand-blue'),'#0173bc');assert.equal(color('brand-orange'),'#f18101');assert.equal(color('brand-green'),'#00a074');

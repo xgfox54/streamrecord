@@ -71,10 +71,11 @@ function harness(options = {}) {
       if (id === '@tauri-apps/api/window') return {getCurrentWindow:()=>({onCloseRequested:handler=>listen('window-close',handler)})};
       if (id === '@/lib/whisper') return {WhisperAPI:{init:async()=>{},getAvailableModels:async()=>options.modelFails ? [] : [{name:'base',status:'Available'}],loadModel:async()=>{calls.push({command:'loadModel'});}}};
       if (id.endsWith('.css')) return {};
+      if (id.startsWith('@/')) return load(path.join(root,'src',id.slice(2)));
       if (id.startsWith('.')) return load(path.join(path.dirname(filename),id));
       return require(id);
     };
-    vm.runInNewContext(result.outputText,{module,exports:module.exports,require:requireModule,console,window,document,Date:ClockDate,Error,TextEncoder,crypto:webcrypto,setTimeout,clearTimeout},{filename});
+    vm.runInNewContext(result.outputText,{module,exports:module.exports,require:requireModule,console,window,document,Date:ClockDate,Error,AbortController,TextEncoder,crypto:webcrypto,setTimeout,clearTimeout},{filename});
     return module.exports;
   }
   const {useMeetingSession} = load(path.join(root,'src/components/stream-record/useMeetingSession.ts'));
@@ -252,6 +253,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     await h.run(()=>h.session.save('transcript')); const raw = h.calls.filter(call=>call.command==='ko_export').at(-1);
     assert.ok(raw.args.content.includes('3000만원')); assert.ok(!raw.args.content.includes('300만원'));
   }));
+  await require('./transcript-correction.cjs')({test,using,deferred});
   const passed = results.filter(result=>result.status==='passed').length, failed = results.length-passed;
   const report = {passed,failed,executedAt:new Date().toISOString(),scope:'Offline React 18 renderer with real session hook, transcript editor, AppShell and helpers; mocked Tauri/browser boundary. StrictMode wrapper plus explicit teardown/remount; no native capture, network, model inference or WebView rendering.',results};
   fs.mkdirSync(path.join(root,'test-results'),{recursive:true}); fs.writeFileSync(path.join(root,'test-results/ui-session.json'),JSON.stringify(report,null,2));

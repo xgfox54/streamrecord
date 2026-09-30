@@ -1,0 +1,6 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http');const fixture=require('./jeju-browser-fixture.cjs');const root=path.resolve(__dirname,'../out');
+const scenario={models:[{id:'검증용 AI',provider:'local'}],snapshot:{version:1,title:'받아쓰기 화면 검증',minutes:'',startedAt:null,rows:[{sequence_id:1,text:'오늘 회의을 시작합니다. 예산은 3000만 원입니다.',audio_start_time:0,is_partial:false},{sequence_id:2,text:'다음 주 월요일에 결과를 공유하겠습니다.',audio_start_time:8,is_partial:false},{sequence_id:3,text:'회의을 마친 뒤 담당자가 내용을 검토 하겠습니다.',audio_start_time:15,is_partial:false}]}};
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'};
+const server=http.createServer((req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);const file=path.resolve(root,'.'+(name==='/'?'/index.html':name));if(!file.startsWith(root+path.sep))return res.writeHead(403).end();fs.readFile(file,(err,bytes)=>{if(err)return res.writeHead(404).end();res.setHeader('Content-Type',types[path.extname(file)]||'application/octet-stream');res.end(file.endsWith('index.html')?bytes.toString().replace('<head>','<head><script>('+fixture.toString()+')('+JSON.stringify(scenario)+');</script>'):bytes);});});
+server.listen(3217,'127.0.0.1',()=>console.log('http://127.0.0.1:3217/#dictation'));
