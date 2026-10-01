@@ -79,7 +79,9 @@ async fn get_sidecar_manager() -> Result<Arc<SidecarManager>> {
 fn get_cached_model_path(app_data_dir: &PathBuf, model_name: &str) -> Result<PathBuf> {
     // Try read lock first (fast path for cache hits)
     {
-        let cache = MODEL_PATH_CACHE.read().unwrap();
+        let cache = MODEL_PATH_CACHE
+            .read()
+            .map_err(|_| anyhow!("Model path cache unavailable"))?;
         if let Some(path) = cache.get(model_name) {
             // Verify file still exists before returning cached path
             if path.exists() {
@@ -89,7 +91,9 @@ fn get_cached_model_path(app_data_dir: &PathBuf, model_name: &str) -> Result<Pat
     }
 
     // Cache miss or file deleted - acquire write lock and update cache
-    let mut cache = MODEL_PATH_CACHE.write().unwrap();
+    let mut cache = MODEL_PATH_CACHE
+        .write()
+        .map_err(|_| anyhow!("Model path cache unavailable"))?;
 
     // Double-check after acquiring write lock (another thread may have updated it)
     if let Some(path) = cache.get(model_name) {
@@ -136,6 +140,43 @@ pub async fn generate_with_builtin(
     user_prompt: &str,
     cancellation_token: Option<&CancellationToken>,
 ) -> Result<String> {
+    generate_bounded(
+        app_data_dir,
+        &BuiltinGeneration {
+            model_name,
+            system_prompt,
+            user_prompt,
+            max_tokens: models::DEFAULT_MAX_TOKENS,
+            timeout: Duration::from_secs(models::GENERATION_TIMEOUT_SECS),
+        },
+        cancellation_token,
+    )
+    .await
+}
+
+/// Bounded request shared by meeting notes, live summary and transcript correction.
+pub struct BuiltinGeneration<'a> {
+    pub model_name: &'a str,
+    pub system_prompt: &'a str,
+    pub user_prompt: &'a str,
+    pub max_tokens: i32,
+    pub timeout: Duration,
+}
+
+pub async fn generate_bounded(
+    app_data_dir: &PathBuf,
+    input: &BuiltinGeneration<'_>,
+    cancellation_token: Option<&CancellationToken>,
+) -> Result<String> {
+    if !(1..=models::DEFAULT_MAX_TOKENS).contains(&input.max_tokens) || input.timeout.is_zero() {
+        return Err(anyhow!("Invalid built-in generation limits"));
+    }
+    let BuiltinGeneration {
+        model_name,
+        system_prompt,
+        user_prompt,
+        ..
+    } = input;
     // Check cancellation at start
     if let Some(token) = cancellation_token {
         if token.is_cancelled() {
@@ -163,7 +204,9 @@ pub async fn generate_with_builtin(
             let new_manager = SidecarManager::new(app_data_dir.clone())?;
             *global_manager = Some(Arc::new(new_manager));
         }
-        global_manager.clone().unwrap()
+        global_manager
+            .clone()
+            .ok_or_else(|| anyhow!("Sidecar initialization failed"))?
     };
 
     // Ensure sidecar is running with this model
@@ -180,7 +223,7 @@ pub async fn generate_with_builtin(
     let sampling = model_def.sampling.sanitize_for_llama_helper();
     let request = Request::Generate {
         prompt: formatted_prompt,
-        max_tokens: Some(models::DEFAULT_MAX_TOKENS),
+        max_tokens: Some(input.max_tokens),
         context_size: Some(model_def.context_size),
         model_path: Some(model_path.to_string_lossy().to_string()),
         temperature: Some(sampling.temperature),
@@ -196,7 +239,7 @@ pub async fn generate_with_builtin(
     let request_json = serde_json::to_string(&request)?;
 
     // Send request with timeout
-    let timeout = Duration::from_secs(models::GENERATION_TIMEOUT_SECS);
+    let timeout = input.timeout;
 
     log::info!("Sending generation request to sidecar");
 
@@ -297,61 +340,5 @@ pub async fn is_sidecar_healthy() -> bool {
 // ============================================================================
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_request_serialization() {
-        let request = Request::Generate {
-            prompt: "test prompt".to_string(),
-            max_tokens: Some(512),
-            context_size: Some(2048),
-            model_path: Some("/path/to/model.gguf".to_string()),
-            temperature: Some(1.0),
-            top_k: Some(64),
-            top_p: Some(0.95),
-            presence_penalty: Some(0.3),
-            frequency_penalty: Some(0.0),
-            repeat_penalty: Some(1.05),
-            penalty_last_n: Some(256),
-            stop_tokens: Some(vec!["<end_of_turn>".to_string()]),
-        };
-
-        let json = serde_json::to_string(&request).unwrap();
-        assert!(json.contains("\"type\":\"generate\""));
-        assert!(json.contains("\"prompt\":\"test prompt\""));
-        assert!(json.contains("\"max_tokens\":512"));
-        assert!(json.contains("\"temperature\":1.0"));
-        assert!(json.contains("\"presence_penalty\":0.3"));
-        assert!(json.contains("\"frequency_penalty\":0.0"));
-        assert!(json.contains("\"repeat_penalty\":1.05"));
-        assert!(json.contains("\"penalty_last_n\":256"));
-    }
-
-    #[test]
-    fn test_response_deserialization() {
-        let json = r#"{"type":"response","text":"generated text","error":null}"#;
-        let response: Response = serde_json::from_str(json).unwrap();
-
-        match response {
-            Response::Response { text, error } => {
-                assert_eq!(text, "generated text");
-                assert!(error.is_none());
-            }
-            _ => panic!("Wrong response type"),
-        }
-    }
-
-    #[test]
-    fn test_error_response_deserialization() {
-        let json = r#"{"type":"error","message":"something went wrong"}"#;
-        let response: Response = serde_json::from_str(json).unwrap();
-
-        match response {
-            Response::Error { message } => {
-                assert_eq!(message, "something went wrong");
-            }
-            _ => panic!("Wrong response type"),
-        }
-    }
-}
+#[path = "client_tests.rs"]
+mod tests;

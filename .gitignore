@@ -35,3 +35,5 @@
 **/*token*.secret
 **/last-session.json
 /tools/libclang-16/
+
+/app/frontend/src-tauri/bundled-diarization/

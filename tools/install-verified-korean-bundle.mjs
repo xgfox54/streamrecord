@@ -58,6 +58,7 @@ async function main(){
  assert.match(receipt.bundledModel.sha256,/^[a-f0-9]{64}$/);assert.match(receipt.builtExeSha256,/^[a-f0-9]{64}$/);
  const sourceModel=path.join(root,'app/frontend/src-tauri/bundled-models',model);assert.equal(regular(sourceModel).size,receipt.bundledModel.bytes);assert.equal(await hash(sourceModel),receipt.bundledModel.sha256);
  const buildInputs=await buildSnapshot(root);buildInputs['runtime-companions']=await treeSnapshot(path.join(root,'app/frontend/src-tauri/binaries'));
+ buildInputs['bundled-diarization']=await treeSnapshot(path.join(root,'app/frontend/src-tauri/bundled-diarization'));
  for(const file of [model,'manifest.json','WHISPER-LICENSE.txt'])buildInputs['bundled-models/'+file]=await hash(path.join(root,'app/frontend/src-tauri/bundled-models',file));
  assert.deepEqual(buildInputs,receipt.buildInputs,'Inputs changed after verified package');
  assert.deepEqual(await treeSnapshot(path.join(root,'app/frontend/out')),receipt.frontendOutput,'Frontend output changed after package');
@@ -82,6 +83,7 @@ async function main(){
  assert.equal(await hash(path.join(installedResources,model)),receipt.bundledModel.sha256);
  for(const file of ['manifest.json','WHISPER-LICENSE.txt']){regular(path.join(installedResources,file));assert.equal(await hash(path.join(installedResources,file)),await hash(path.join(root,'app/frontend/src-tauri/bundled-models',file)));}
  state.installedCompanions=await verifyInstalledCompanions(path.dirname(installed.exe),receipt.buildInputs['runtime-companions']);
+ assert.deepEqual(await treeSnapshot(path.join(path.dirname(installed.exe),'bundled-diarization')),receipt.buildInputs['bundled-diarization'],'Installed diarization differs from build');
  state.installed=true;state.installedPath=installed.exe;state.installedPayload='exe-model-manifest-license-hashes-match';state.complete=true;state.finishedAt=new Date().toISOString();phase('completed');console.log(JSON.stringify(state,null,2));
 }
 main().catch(error=>{state.complete=false;state.error=String(error.message);save();console.error(state.error);process.exitCode=1;});

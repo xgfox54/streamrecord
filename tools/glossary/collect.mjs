@@ -1,0 +1,18 @@
+import {execFileSync} from 'node:child_process';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {collectTerms} from './pack.mjs';
+const sourceUrl='https://record.council.jeju.kr/CLRecords/Retrieval2/index.php?daesu=13&hfile=13A0110454071.html';
+const candidates=['제주특별자치도의회','제주특별자치도교육청','제주특별자치도의회사무처','의회운영위원회','행정자치위원회','보건복지안전위원회','미래경제산업위원회','환경도시위원회','문화관광체육위원회','농수축위원회','교육위원회','예산결산특별위원회','4·3특별위원회','규제개혁특별위원회','공유재산관리계획안','애월복합지원센터','명예도민증','탄소중립','풍력발전사업','가파도','제주시민속오일시장','도시재생혁신지구','제주칠머리당영등굿','지방교육재정교부금','기금운용결산','제주창업체험교육지원센터','민간위탁','지하수 관리 조례','행정사무감사'];
+const bytes=execFileSync('curl',['--fail','--silent','--show-error','--proto','=https','--max-time','30','--max-filesize','2000000',sourceUrl],{maxBuffer:2000000});
+const html=new TextDecoder('euc-kr',{fatal:true}).decode(bytes);
+const output=resolve(process.argv[2]??'assets/glossary/jeju-council-candidates.json');
+const terms=collectTerms({html,url:sourceUrl,retrievedAt:new Date().toISOString()},candidates);
+if(terms.length===0)throw new Error('No attested terms: inspect official source format');
+const pack={schemaVersion:1,id:'jeju-council-20261001',label:'제주도의회 공식 회의록 용어 후보',defaultEnabled:false,reviewStatus:'candidate',rightsStatus:'source-terms-only-review-pending',sourceTitle:'제454회 제7차 본회의 (2026-09-22)',terms};
+const snapshot=resolve(process.argv[3]??'outputs/glossary-quality/official-plenary.html');
+await mkdir(resolve(snapshot,'..'),{recursive:true});
+await writeFile(snapshot,bytes);
+await mkdir(resolve(output,'..'),{recursive:true});
+await writeFile(output,JSON.stringify(pack,null,2)+'\n');
+console.log(JSON.stringify({output,terms:pack.terms.length,reviewStatus:pack.reviewStatus,defaultEnabled:false}));

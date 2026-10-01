@@ -627,6 +627,21 @@ pub fn run() {
             meeting_ko::ko_open_video,
             meeting_ko::ko_close_video,
             meeting_ko::ko_models,
+            meeting_ko::diarization_commands::ko_run_diarization,
+            meeting_ko::diarization_commands::ko_cancel_diarization,
+            meeting_ko::connections::ko_list_connections,
+            meeting_ko::connections::ko_save_connection,
+            meeting_ko::connections::ko_remove_connection,
+            meeting_ko::connections::ko_test_connection,
+            meeting_ko::connections::ko_probe_connection,
+            meeting_ko::chatgpt::ko_chatgpt_status,
+            meeting_ko::chatgpt::ko_chatgpt_login,
+            meeting_ko::chatgpt::ko_chatgpt_cancel,
+            meeting_ko::chatgpt::ko_chatgpt_disconnect,
+            meeting_ko::chatgpt::ko_chatgpt_select,
+            meeting_ko::chatgpt::ko_chatgpt_models,
+            meeting_ko::recovery_commands::ko_list_transcription_recovery,
+            meeting_ko::recovery_commands::ko_resume_transcription_recovery,
             meeting_ko::ko_generate,
             meeting_ko::ko_get_proxy_endpoint,
             meeting_ko::ko_set_proxy_endpoint,
@@ -893,3 +908,6 @@ pub fn run() {
             }
         });
 }
+
+#[cfg(all(test,target_os="windows",feature="cuda"))]
+mod whisper_quality_tests;

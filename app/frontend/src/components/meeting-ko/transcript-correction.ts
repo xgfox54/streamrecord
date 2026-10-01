@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {rowTime,splitText,type TranscriptRow} from './core';
 
-export type CorrectionModel={readonly id:string;readonly provider:'local'|'subscription'};
+export type CorrectionModel={readonly id:string;readonly provider:string;readonly revision?:string};
 export type CorrectionSource={readonly index:number;readonly row:TranscriptRow};
 type Part={readonly id:string;readonly text:string;readonly index:number};
 const answerSchema=z.object({corrections:z.array(z.object({id:z.string(),text:z.string().trim().min(1)}).strict()).min(1)}).strict();

@@ -36,11 +36,11 @@ static IMPORT_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 /// RAII guard for IMPORT_IN_PROGRESS flag
 /// Ensures flag is cleared even if import panics or returns early
-struct ImportGuard;
+pub(crate) struct ImportGuard;
 
 impl ImportGuard {
     /// Create guard and set flag atomically
-    fn acquire() -> Result<Self, String> {
+    pub(crate) fn acquire() -> Result<Self, String> {
         if IMPORT_IN_PROGRESS
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()

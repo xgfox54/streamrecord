@@ -15,7 +15,7 @@ import {buildSnapshot,treeSnapshot,verifyVersions} from './release-inputs.mjs';
 const frontend=path.join(root,'app/frontend');
 const version=JSON.parse(fs.readFileSync(path.join(frontend,'src-tauri/tauri.conf.json'),'utf8')).version;
 const out=path.join(root,'outputs',`korean-bundled-${version}`);
-const report={version,variant:'korean-model-included',acceleration:'cuda-12.3',startedAt:new Date().toISOString(),phase:'not_started',complete:false,passed:0,failed:0,tests:{},installed:false,physicalAudioTest:'pre_recorded_fixture_only',providerConnections:'design_only'};
+const report={version,variant:'korean-model-included',acceleration:'cuda-12.3',startedAt:new Date().toISOString(),phase:'not_started',complete:false,passed:0,failed:0,tests:{},installed:false,physicalAudioTest:'pre_recorded_fixture_only',providerConnections:'implemented_live_accounts_not_tested'};
 const home=process.env.USERPROFILE||path.resolve(root,'../../..');
 const systemRoot=process.env.SystemRoot||'C:\\Windows';
 const ps=path.join(systemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
@@ -67,6 +67,7 @@ async function host(action,extra=[]){const result=await run(ps,['-NoLogo','-NoPr
 async function sourceSnapshot(){
  const result=await buildSnapshot(root);
  result['runtime-companions']=await treeSnapshot(path.join(frontend,'src-tauri/binaries'));
+ result['bundled-diarization']=await treeSnapshot(path.join(root,'app/frontend/src-tauri/bundled-diarization'));
  for(const name of [filename,'manifest.json','WHISPER-LICENSE.txt'])result['bundled-models/'+name]=await hashFile(path.join(resourceDir,name));
  return result;
 }
@@ -102,6 +103,10 @@ async function main(){
  await run(cargo,['check','--locked','--features','cuda'],path.join(frontend,'src-tauri'),'rust-check');report.tests.rustCheck='passed';
  const native=await run(cargo,['test','--lib','stream_record_','--locked','--features','cuda','--','--nocapture'],path.join(frontend,'src-tauri'),'rust-tests');
  const counts=native.text.match(/test result: ok\. (\d+) passed; 0 failed/);assert.ok(counts&&Number(counts[1])>=23,'Offline native tests did not pass');report.tests.rust=Number(counts[1]);report.passed+=Number(counts[1]);
+ for(const [name,filter,minimum] of [['connections','meeting_ko::connections',14],['diarization','meeting_ko::diarization::tests',4],['queueRecovery','audio::transcription::queue',13],['builtinLimits','summary::summary_engine::client::tests::bounded',2]]){
+  const checked=await run(cargo,['test','--lib',filter,'--locked','--features','cuda','--','--nocapture'],path.join(frontend,'src-tauri'),'rust-'+name);
+  const result=[...checked.text.matchAll(/test result: ok. ([0-9]+) passed; 0 failed/g)].at(-1);assert.ok(result&&Number(result[1])>=minimum,'Native '+name+' tests incomplete');report.tests[name]={status:'passed',passed:Number(result[1])};report.passed+=Number(result[1]);
+ }
  process.env.STREAM_RECORD_BUNDLED_TEST='1';let offline;
  try{offline=await run(cargo,['test','--lib','stream_record_bundled_real_model_loads_offline','--locked','--features','cuda','--','--ignored','--nocapture'],path.join(frontend,'src-tauri'),'real-bundled-model-offline');}
  finally{delete process.env.STREAM_RECORD_BUNDLED_TEST;}
@@ -138,6 +143,8 @@ async function main(){
   assert.equal(path.normalize(emitted).toLowerCase(),path.join(frontend,'src-tauri/icons/app_icon.ico').toLowerCase(),'NSIS recipe changed '+name);
  }
  report.tests.nsisIconRecipe='passed';
+ for(const file of ['nemo-speech.exe','Nemotron-3-Diarization.q8_0.gguf','nemo_speech_asr.dll'])assert.ok(nsi.includes(file),'NSIS omitted diarization '+file);
+ report.tests.diarizationBundled='passed';
  assert.deepEqual(await sourceSnapshot(),before,'Build inputs changed during packaging');
  assert.deepEqual(await treeSnapshot(path.join(frontend,'out')),report.frontendOutput,'Frontend output changed during packaging');
  const installer=path.join(out,`Stream-Record-${version}-korean-bundled-windows-x64-setup.exe`);fs.copyFileSync(bundle,installer);

@@ -1,4 +1,4 @@
-use super::{local_client, proxy_endpoint, valid_model, BusyGuard, GENERATING, OLLAMA_BASE};
+use super::{local_client, valid_model, BusyGuard, GENERATING, OLLAMA_BASE};
 use serde_json::{json, Value};
 use std::{sync::atomic::Ordering, time::Duration};
 #[derive(Debug, PartialEq, Eq)]
@@ -40,15 +40,17 @@ impl Stage {
 }
 
 pub(super) async fn generate(
+    app: &tauri::AppHandle,
     model: String,
     text: String,
     stage: String,
     provider: String,
+    revision: Option<String>,
 ) -> Result<String, String> {
     if !valid_model(&model) {
         return Err("요약 모델을 선택하세요.".into());
     }
-    if provider != "local" && provider != "subscription" {
+    if !matches!(provider.as_str(), "local" | "subscription" | "builtin" | "chatgpt") && !provider.starts_with("connection:") {
         return Err("지원하지 않는 모델 공급 방식입니다.".into());
     }
     let stage = Stage::parse(&stage)?;
@@ -73,6 +75,7 @@ pub(super) async fn generate(
                 .error_for_status()
                 .map_err(|e| e.to_string())?;
         }
+        if provider == "builtin" { super::builtin::release().await?; }
         return Ok("released".to_string());
     }
     let mut suppress_thinking = false;
@@ -168,55 +171,20 @@ pub(super) async fn generate(
             .ok_or("모델이 빈 응답을 반환했습니다.")?;
         return Ok(result.to_owned());
     }
-    let endpoint = proxy_endpoint();
-    let mut request = client.post(format!("{}/chat/completions", endpoint.base));
-    if !endpoint.api_key.is_empty() {
-        request = request.bearer_auth(&endpoint.api_key);
+    if provider == "builtin" {
+        return super::builtin::generate(app, &model, &system, &text, limit).await;
     }
-    let mut payload = json!({
-        "model": model, "stream": false,
-        "max_tokens": match stage { Stage::Notes => 4000, Stage::Correction | Stage::Final | Stage::Structured | Stage::Release => 16000 },
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": text}
-        ]
-    });
-    match stage {
-        Stage::Correction => payload["temperature"] = json!(0.1),
-        Stage::Notes | Stage::Final | Stage::Structured | Stage::Release => {}
+    if provider == "chatgpt" {
+        return super::chatgpt::generate(&model, &system, &text, limit, revision.as_deref()).await;
     }
-    let answer: Value = request
-        .timeout(stage.timeout())
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| {
-            format!(
-                "연결 요약 실패. {} 주소의 서버 실행과 인증 설정을 확인하세요: {e}",
-                endpoint.base
-            )
-        })?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
-    let choice = answer
-        .get("choices")
-        .and_then(Value::as_array)
-        .and_then(|rows| rows.first())
-        .ok_or("외부 프록시 응답 형식 오류")?;
-    if choice.get("finish_reason").and_then(Value::as_str) == Some("length") {
-        return Err(
-            "모델 출력 한도에 도달했습니다. 잘린 요약을 완료본으로 저장하지 않았습니다.".into(),
-        );
-    }
-    let result = choice
-        .pointer("/message/content")
-        .and_then(Value::as_str)
-        .filter(|s| !s.trim().is_empty())
-        .ok_or("모델이 빈 응답을 반환했습니다.")?;
-    Ok(result.to_owned())
+    let id = if provider == "subscription" { super::connections::legacy_id() }
+        else { provider.strip_prefix("connection:").ok_or("잘못된 연결 ID")? };
+    let profile = super::connections::resolve_revision(app, id, revision.as_deref())?;
+    let input = super::connections::GenerationInput {
+        model: &model, system: &system, text: &text,
+        max_tokens: match stage { Stage::Notes => 4000, _ => 16000 }, timeout: stage.timeout()
+    };
+    super::connections::generate(&profile, &input).await
 }
 
 #[cfg(test)]

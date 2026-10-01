@@ -7,6 +7,7 @@ pub mod engine;
 pub mod parakeet_provider;
 pub mod provider;
 pub mod queue;
+pub mod queue_runner;
 pub mod whisper_provider;
 pub mod worker;
 

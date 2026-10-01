@@ -8,7 +8,7 @@ export function useTranscriptCorrection(input:CorrectionSession){
  const [enabled,setEnabled]=useState(false);const [running,setRunning]=useState(false);const [error,setError]=useState('');const [tick,setTick]=useState(0);
  const current=useRef(input);current.current=input;
  const inFlight=useRef(false);const controller=useRef<AbortController|null>(null);const lastTick=useRef(-1);const alive=useRef(true);
- const modelKey=input.model?`${input.model.provider}:${input.model.id}`:'';
+ const modelKey=input.model?`${input.model.provider}:${input.model.id}${input.model.revision?`@${input.model.revision}`:''}`:'';
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;controller.current?.abort();};},[]);
  useEffect(()=>{
   controller.current?.abort();controller.current=new AbortController();setError('');lastTick.current=-1;
@@ -22,7 +22,7 @@ export function useTranscriptCorrection(input:CorrectionSession){
   if(lastTick.current===tick)return;
   lastTick.current=tick;inFlight.current=true;setRunning(true);
   const epoch=input.epoch;const glossary=input.glossary;
-  void correctTranscript({batch,rows:input.rows,glossary,modelKey,generate:text=>generateText({model:chosen.id,provider:chosen.provider,text,stage:'correction'},signal)}).then(async result=>{
+  void correctTranscript({batch,rows:input.rows,glossary,modelKey,generate:text=>generateText({model:chosen.id,revision:chosen.revision,provider:chosen.provider,text,stage:'correction'},signal)}).then(async result=>{
    if(signal.aborted||!alive.current||current.current.epoch!==epoch)return;
    const next=current.current.rowsRef.current.map((row,index)=>{const item=result.find(value=>value.index===index&&value.source.text===row.text&&value.source.id===row.id&&value.source.sequence_id===row.sequence_id&&value.source.audio_start_time===row.audio_start_time&&value.source.chunk_start_time===row.chunk_start_time&&value.source.timestamp===row.timestamp);return item&&!row.is_partial?{...row,ai_correction:item.correction}:row;});
    current.current.setRows(next);await current.current.persist();

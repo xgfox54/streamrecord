@@ -1,6 +1,6 @@
 import {invoke} from '@tauri-apps/api/core';
 import type {CorrectionModel} from './transcript-correction';
-type GenerationRequest={readonly model:string;readonly provider:CorrectionModel['provider'];readonly text:string;readonly stage:'notes'|'structured'|'final'|'release'|'correction'};
+type GenerationRequest={readonly model:string;revision?:string;readonly provider:CorrectionModel['provider'];readonly text:string;readonly stage:'notes'|'structured'|'final'|'release'|'correction'};
 let tail:Promise<unknown>=Promise.resolve();
 export class GenerationCancelled extends Error {override name='GenerationCancelled';}
 /** All callers share the native engine's single-request capacity. */

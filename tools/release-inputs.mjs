@@ -3,7 +3,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 
-const excluded = new Set(['.git','node_modules','target','.next','out','coverage','test-results','logs','work','reports','outputs','.agents','.codex','.omo','.chatgpt2codex','.venv','venv','__pycache__','gen','binaries','libclang-16','bundled-models','.meeting-ko-originals','recordings','recovery','cache','.cache','backups','data']);
+const excluded = new Set(['.git','node_modules','target','.next','out','coverage','test-results','logs','work','reports','outputs','.agents','.codex','.omo','.chatgpt2codex','.venv','venv','__pycache__','gen','binaries','libclang-16','bundled-models','bundled-diarization','.meeting-ko-originals','recordings','recovery','cache','.cache','backups','data']);
 const roots = new Set(['app','tools','scripts','assets','docs','tests','overlay','licenses']);
 const rootFiles = new Set(['.gitattributes','.gitignore','AGENTS.md','PROJECT.md','README.md','RELEASE_NOTES.md','DESIGN.md','LICENSE','NOTICE','STREAM_RECORD_FORK.json','UPSTREAM_COMMIT.txt','setup.mjs','apply.mjs','upstream-pin.mjs','BUILD.cmd','BUILD-KOREAN.cmd','START.cmd'].map(name => name.toLowerCase()));
 export function sourceAllowed(relative) {

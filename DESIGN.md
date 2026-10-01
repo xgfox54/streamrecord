@@ -77,3 +77,18 @@ borders-only. 흰 작업 패널, 회색 페이지 배경, 파랑 선택 표식. 
 실시간 원문과 AI 보정본은 aria-pressed 토글로 전환한다. 보정본 없는 구간은 원문과 대기 표시를 함께 제공한다. AI 보정은 사용자 활성화 후 연결 모델로 확정 구간만 처리하며, 요청/완료/대기/오류/일시정지 상태를 구별한다. 원문과 사람이 편집한 검토본은 보존하고 AI 결과를 별도 저장한다. 원문 펼치기와 보정본 TXT/원문 TXT를 구분한다. AI 수정은 원음 검증이 아니므로 보정본에 확인 필요 문구를 표시한다.
 
 Reader role aliases live in `workspace.module.css`: `--sr-type-reader` (19px at default scale), `--sr-line-reader` (1.85), `--sr-reader-height` (60vh), and `--sr-reader-min` (30rem). The narrow reader uses the existing body type role and CSS pretty wrapping to avoid a lone predicate where supported. Borders and focus consume the existing shared width aliases. Expanded recording options are verified at 375px and 768px alongside the correction error state.
+
+## v0.5.4 공통 실시간 읽기 영역
+회의 녹음·YouTube 전사도 받아쓰기의 dictation.module.css reader/conversation/utterance/meta/empty를 재사용한다. 본문 전체 폭, 높이 60vh·최소 30rem, 본문 19px·줄간격 1.85 및 작은 화면 본문 크기를 동일하게 유지한다. 회의 녹음 준비는 상단 toolbar와 접는 녹음 옵션으로 배치하며 동의·시작/중지는 밖에 둔다. YouTube 전사 패널은 영상 준비 카드 바로 아래에 독립된 전체 폭 패널로 배치한다. 각 reader가 전사 스크롤을 소유하고 바깥 main은 옵션·영상·요약 간 이동을 담당한다. 실시간 요약은 전사 아래에 전체 폭으로 배치한다. 전사 원문, 최근 80구간, 최신 따라가기, 영상 iframe 생명주기와 녹음 엔진은 유지한다.
+
+## v0.5.5 YouTube 전체 대화
+사용자가 제공한 기존 받아쓰기 스크린샷과 DictationConversation을 그대로 계약으로 사용한다. YouTube의 LiveTranscriptPanel을 DictationConversation으로 교체한다. 전체 대화 제목·자동 보정 상태/설정·실시간 원문/AI 보정본·원문 함께 보기·검색·200구간 페이지·최신 이동·분리 TXT 저장을 같은 컴포넌트와 토큰으로 제공한다. 새 스타일/의존성/보정 엔진은 추가하지 않으며 영상 아래 전체 폭과 높이, 세션 공유 및 iframe 유지 정책을 보존한다.
+
+## 미완료 개선사항 · AI 연결 관리 계약 (2026-10-01)
+AiConnectionCard는 기존 Jeju 카드·폼·상태 배지·details를 재사용한다. 연결별 이름, 실제 전송 주소, 사용 여부와 모델 목록을 독립 보존한다. OpenCodex 연결, OpenClaw, OpenRouter(클라우드 API), OpenCode, 기타 OpenAI 호환, OpenAI API, Anthropic API를 구분한다. 연결 저장은 인증/추론 성공이 아니다. 목록 조회와 인증 허용, 명시적으로 실행한 시험 요청의 결과를 따로 표시하며 직접 입력한 모델은 미검증으로 표시한다. 주소 변경 시 이전 인증 정보를 재사용하지 않는다.
+ChatGPT는 공식 계정 로그인 카드에서 사용자 동작으로 로그인·취소·계정 선택·연결 해제를 제공한다. 로그인 대기와 요약 사용 동의를 구분하며 토큰은 화면에 노출하지 않는다. 모델 선택은 연결 프로필별 그룹으로 표시하여 같은 모델 ID도 구별한다. 회의록·실시간 요약·보정 설정의 전송 위치는 모델 메타데이터를 사용한다. 내장 모델 설치 상태는 실제 목록을 사용하고 최초 설치 상태를 고정 문구로 단정하지 않는다. 새 색·간격·모션 토큰은 추가하지 않는다.
+제주도의회 용어 후보는 녹음 옵션의 전문 용어 설정 안에서 native details와 체크박스로 선택한다. 기본 비선택이며 “미검수”와 출처를 표시한다. 선택 용어를 기존 수동 입력 뒤에 추가하고 중복을 제거하며 500자 한도로 생략한 후보를 명시한다. 기존 입력을 자동 삭제·덮어쓰지 않는다.
+
+## v0.6 화자분리·복구 검토 계약
+화자분리는 원음을 연결한 뒤 저장 음성 전체를 처리하는 명시적 동작이다. 준비/처리/취소/완료/실패를 문구로 표시한다. 화자 번호는 사람 이름이 아니며 추정 결과임을 안내한다. 같은 전사 구간에 여러 화자가 겹치면 모든 번호와 구간 내 복수 화자 표시를 제공하며 문장을 임의 분할하지 않는다. DictationConversation, LiveTranscriptPanel, TranscriptView가 같은 SpeakerLabel을 재사용한다. 원문과 AI 보정본에 같은 화자 메타데이터를 표시한다. 음성 해시와 원문 연결이 유효한 결과만 사용한다.
+복구 후보는 기록 세션별 pending/failed/active 상태와 날짜를 보여주고 사용자가 선택해 처리한다. 현재 녹음·가져오기를 진행 중일 때 복구는 비활성화한다. 복구 결과를 새 현재 작업에 적용하기 전에 기존 원문·검토본·요약을 JSON으로 보관한다. native details/summary, 기존 패널·버튼·상태 토큰을 재사용하고 새 색상·모션을 추가하지 않는다.

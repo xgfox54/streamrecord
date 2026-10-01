@@ -2,7 +2,7 @@
 import {Link2,Play,Square,Youtube} from 'lucide-react';
 import {stereoMixName} from '../meeting-ko/core';
 import type {MeetingSession} from './useMeetingSession';
-import {LiveTranscriptPanel} from './LiveTranscriptPanel';
+import {DictationConversation} from './DictationConversation';
 import {LiveSummaryPanel} from './LiveSummaryPanel';
 import {SessionProgress} from './SessionProgress';
 import styles from '../meeting-ko/workspace.module.css';
@@ -25,9 +25,9 @@ export function YoutubeView({session:s}:{readonly session:MeetingSession}) {
         <p id="youtube-start-help" className={styles.hint}>{reason||`입력: ${stereo}. 녹음 시작 → 플레이어 재생 → 끝나면 중지 및 저장 순서입니다.`}</p>
         <p className={styles.hint}>플레이어 음소거를 해제하고 PC 음량을 켜 주세요. 다른 영상·알림 소리도 함께 녹음되므로 꺼 주세요. 메뉴를 이동해도 영상은 유지됩니다.</p>
         <details className={styles.disclosure} open={s.ready&&!stereo}><summary>PC 소리가 녹음되지 않나요?</summary><p>Windows 설정 → 시스템 → 소리 → 더 많은 소리 설정 → 녹음에서 스테레오 믹스를 사용으로 설정하세요. 장치가 지원하지 않는 PC는 녹음파일 첨부를 이용하세요.</p><button disabled={s.busy} onClick={()=>void s.refreshDevices().catch(error=>s.setError(s.messageOf(error)))}>장치 새로고침</button></details>
-        <LiveTranscriptPanel session={s} compact/>
       </section>
-      <aside className={styles.youtubeResults}><LiveSummaryPanel session={s}/></aside>
+      <DictationConversation session={s}/>
+      <LiveSummaryPanel session={s}/>
     </div>
   </div>;
 }

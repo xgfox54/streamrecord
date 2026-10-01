@@ -4,6 +4,9 @@ import {invoke} from '@tauri-apps/api/core';
 import {generateText} from '../meeting-ko/generate-text';
 import {correctedTranscriptText} from '../meeting-ko/transcript-correction';
 import {useTranscriptCorrection} from './useTranscriptCorrection';
+import {useLiveSummary} from './useLiveSummary';
+import {useDiarization} from './useDiarization';
+import {readLiveSummaryCheckpoint,type LiveSummaryCheckpoint} from '../meeting-ko/live-summary';
 import {listen,type UnlistenFn} from '@tauri-apps/api/event';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 import {ensureKoreanWhisper} from '../meeting-ko/korean-model';
@@ -11,15 +14,16 @@ import {loadAllTranscriptRows,microphoneInputs,readRows,rowTime,stereoMixName,tr
 import {createStructuredMinutes,reviewText,type SummaryCheckpoint} from '../meeting-ko/structured-minutes';
 import {playbackRange,recoverAudio,type ReviewAudio,type RecoveryCheckpoint} from '../meeting-ko/review-core';
 import {type WorkspaceView} from '../stream-record/AppShell';
-type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'importing'|'summarizing'|'reviewing'|'recovering';
+type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'importing'|'summarizing'|'reviewing'|'recovering'|'diarizing';
 type Config={provider:string;model:string};
-type ModelOption={id:string;provider:'local'|'subscription'};
+export type ModelOption={id:string;provider:string;connectionId?:string;connectionLabel?:string;destination?:string;revision?:string};
 const modelKey=(m:ModelOption)=>`${m.provider}:${m.id}`;
+const modelKeyOrEmpty=(model:ModelOption|undefined)=>model?modelKey(model):'';
 type AudioFile={path:string;filename:string};
 type ImportProgress={progress_percentage:number;message:string};
 type ImportResult={meeting_id:string;title:string};
-type Snapshot={version:number;title:string;rows:TranscriptRow[];minutes:string;startedAt:string|null;videoUrl?:string;glossary?:string;liveSummary?:string;summaryDraft?:SummaryCheckpoint|null;audioPath?:string;audioSha256?:string;recoveryDraft?:RecoveryCheckpoint|null};
-const labels:Record<Mode,string>={loading:'초기화 중',idle:'준비',starting:'녹음 시작 중',recording:'녹음 · 실시간 전사 중',stopping:'마지막 음성 처리 중',importing:'녹음파일 전사 중',summarizing:'회의록 작성 중',reviewing:'원음 확인 중',recovering:'저장 음성 전사 복구 중'};
+type Snapshot={version:number;title:string;rows:TranscriptRow[];minutes:string;startedAt:string|null;videoUrl?:string;glossary?:string;liveSummary?:string;liveSummaryDraft?:LiveSummaryCheckpoint|null;summaryDraft?:SummaryCheckpoint|null;audioPath?:string;audioSha256?:string;recoveryDraft?:RecoveryCheckpoint|null};
+const labels:Record<Mode,string>={loading:'초기화 중',idle:'준비',starting:'녹음 시작 중',recording:'녹음 · 실시간 전사 중',stopping:'마지막 음성 처리 중',importing:'녹음파일 전사 중',summarizing:'회의록 작성 중',reviewing:'원음 확인 중',recovering:'저장 음성 전사 복구 중',diarizing:'저장 음성 화자분리 중'};
 const messageOf=(e:unknown)=>e instanceof Error?e.message:String(e);
 export function youtubeEmbedUrl(watchUrl:string){const id=watchUrl.match(/[?&]v=([A-Za-z0-9_-]{6,32})(?:[&#]|$)/)?.[1];if(!id)throw new Error('검증된 YouTube 영상 ID를 읽지 못했습니다.');return `https://www.youtube-nocookie.com/embed/${id}`;}
 export function useMeetingSession(){
@@ -43,8 +47,7 @@ export function useMeetingSession(){
  const [minutes,setMinutesState]=useState('');const minutesRef=useRef('');const startedAt=useRef<string|null>(null);
  const [models,setModels]=useState<ModelOption[]>([]);const [model,setModel]=useState('');
  const [liveSummaryEnabled,setLiveSummaryEnabled]=useState(false);const [liveSummary,setLiveSummaryState]=useState('');const liveSummaryRef=useRef('');
- const [liveSummaryStatus,setLiveSummaryStatus]=useState('확정 문장 대기');const [liveSummaryRunning,setLiveSummaryRunning]=useState(false);
- const liveSummaryInFlight=useRef(false);const liveSummaryPending=useRef(false);const liveSummarySignature=useRef('');const liveSummaryGeneration=useRef(0);const [liveSummaryTick,setLiveSummaryTick]=useState(0);const alive=useRef(true);
+ const liveSummaryDraft=useRef<LiveSummaryCheckpoint|null>(null);
  const [saving,setSaving]=useState(false);const saveInFlight=useRef(false);
  const [error,setError]=useState('');const [notice,setNotice]=useState('');const [savedPath,setSavedPath]=useState('');
  const [progress,setProgress]=useState(0);const [consent,setConsent]=useState(false);const [follow,setFollow]=useState(true);
@@ -58,17 +61,19 @@ export function useMeetingSession(){
  const setTitle=(v:string)=>{titleRef.current=v;setTitleState(v);dirty.current++;};
  const setVideoUrl=(v:string)=>{videoUrlRef.current=v;setVideoUrlState(v);setVideoEmbedUrl('');dirty.current++;};
  const setLiveSummary=(v:string)=>{liveSummaryRef.current=v;setLiveSummaryState(v);dirty.current++;};
- const snapshot=():Snapshot=>({version:1,title:titleRef.current,rows:rowsRef.current,minutes:minutesRef.current,startedAt:startedAt.current,videoUrl:videoUrlRef.current,glossary:glossaryRef.current,liveSummary:liveSummaryRef.current,summaryDraft:summaryDraft.current,audioPath:audioPath.current,audioSha256:audioSha256.current,recoveryDraft:recoveryDraft.current});
+ const snapshot=():Snapshot=>({version:1,title:titleRef.current,rows:rowsRef.current,minutes:minutesRef.current,startedAt:startedAt.current,videoUrl:videoUrlRef.current,glossary:glossaryRef.current,liveSummary:liveSummaryRef.current,liveSummaryDraft:liveSummaryDraft.current,summaryDraft:summaryDraft.current,audioPath:audioPath.current,audioSha256:audioSha256.current,recoveryDraft:recoveryDraft.current});
  const persist=()=>{const content=JSON.stringify(snapshot());const next=(snapshotQueue.current??Promise.resolve()).catch(()=>undefined).then(()=>invoke('ko_save_snapshot',{content}));snapshotQueue.current=next;return next;};
+ const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
+ const diarization=useDiarization({audio:audioSource,rows,busy:mode!=='idle',setBusy:value=>setMode(value?'diarizing':'idle'),setRows,persist,report:setError});
  const correction=useTranscriptCorrection({rows,rowsRef,setRows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,persist});
  const exportFile=async(kind:'transcript'|'corrected'|'minutes'|'bundle')=>{
   const content=kind==='transcript'?transcriptText(rowsRef.current):kind==='corrected'?correctedTranscriptText(rowsRef.current):kind==='minutes'?minutesRef.current:JSON.stringify(snapshot(),null,2);
   if(!content.trim())throw new Error('저장할 내용이 없습니다.');
   const path=await invoke<string>('ko_export',{title:kind==='corrected'?`${titleRef.current}-AI보정본`:titleRef.current,kind:kind==='corrected'?'transcript':kind,content});setSavedPath(path);return path;
  };
- const archive=async()=>{if(rowsRef.current.length||minutesRef.current||recoveryDraft.current)await exportFile('bundle');liveSummaryGeneration.current++;liveSummarySignature.current='';liveSummaryPending.current=false;audioElement.current?.pause();audioPath.current='';audioSha256.current='';recoveryDraft.current=null;setAudioSource(null);setEpoch(value=>value+1);setRows([]);setMinutes('');setLiveSummary('');setLiveSummaryStatus('확정 문장 대기');startedAt.current=null;setElapsed(0);summaryDraft.current=null;setPage(0);setQuery('');setEditing(null);};
+ const archive=async()=>{if(rowsRef.current.length||minutesRef.current||recoveryDraft.current)await exportFile('bundle');liveSummaryDraft.current=null;audioElement.current?.pause();audioPath.current='';audioSha256.current='';recoveryDraft.current=null;setAudioSource(null);setEpoch(value=>value+1);setRows([]);setMinutes('');setLiveSummary('');startedAt.current=null;setElapsed(0);summaryDraft.current=null;setPage(0);setQuery('');setEditing(null);};
  const refreshDevices=async()=>{const list=await invoke<AudioInput[]>('get_audio_devices');if(!Array.isArray(list))throw new Error('입력 장치 목록 형식 오류');const inputs=list.filter(d=>d.device_type==='Input');setDevices(inputs);setMicrophone(v=>inputs.some(d=>d.name===v)?v:microphoneInputs(inputs)[0]?.name||inputs[0]?.name||'');};
- const refreshModels=async()=>{const list=await invoke<ModelOption[]>('ko_models');if(!Array.isArray(list))throw new Error('요약 모델 목록 형식 오류');setModels(list);let previous='';try{previous=window.localStorage.getItem('stream-record.summary-model')||'';}catch{}setModel(v=>list.some(m=>modelKey(m)===v)?v:list.some(m=>modelKey(m)===previous)?previous:list.some(m=>m.provider==='local')?modelKey(list.find(m=>m.provider==='local')!):'');};
+ const refreshModels=async()=>{const list=await invoke<ModelOption[]>('ko_models');if(!Array.isArray(list))throw new Error('요약 모델 목록 형식 오류');setModels(list);let previous='';try{previous=window.localStorage.getItem('stream-record.summary-model')||'';}catch{}setModel(v=>list.some(m=>modelKey(m)===v)?v:list.some(m=>modelKey(m)===previous)?previous:modelKeyOrEmpty(list.find(m=>m.provider==='builtin'||m.provider==='local')));};
  const whisperConfig=async():Promise<Config>=>{const config=await ensureKoreanWhisper(value=>{setNotice(value);setModelStatus(value);});return config;};
  const loadImported=(meetingId:string)=>loadAllTranscriptRows(meetingId,
   (id,limit,offset)=>invoke('api_get_meeting_transcripts',{meetingId:id,limit,offset}));
@@ -77,7 +82,7 @@ export function useMeetingSession(){
   catch(e){setNotice(`녹음 상태 확인 실패: ${messageOf(e)}`);return fallback;}
  };
  useEffect(()=>{
-  alive.current=true;let cancelled=false;const cleanups:UnlistenFn[]=[];
+  let cancelled=false;const cleanups:UnlistenFn[]=[];
   const register=async<T,>(name:string,handler:(v:T)=>void)=>{const stop=await listen<T>(name,e=>{if(!cancelled)handler(e.payload);});if(cancelled)stop();else cleanups.push(stop);};
   const initialise=async()=>{
    await register<null>('ko-exit-requested',()=>setExitOpen(true));
@@ -90,8 +95,8 @@ export function useMeetingSession(){
    await register<ImportResult>('import-complete',v=>{if(modeRef.current!=='importing')return;void(async()=>{try{setRows(await loadImported(v.meeting_id));setTitle(v.title);setProgress(100);await persist();await exportFile('transcript');setNotice(`파일 전사 완료 · ${rowsRef.current.length}구간. 회의록 생성 버튼으로 요약하세요.`);}catch(e){setError(messageOf(e));}finally{if(!cancelled)setMode('idle');}})();});
    await register<{error:string}>('import-error',v=>{if(modeRef.current==='importing'){setError(v.error||'녹음파일 변환 실패');setMode('idle');}});
    await register<{warning:string}>('import-warning',v=>setNotice(v.warning));
-   const close=await getCurrentWindow().onCloseRequested(e=>{if(['starting','recording','stopping','importing','summarizing','reviewing','recovering'].includes(modeRef.current)){e.preventDefault();setExitOpen(true);}});if(cancelled)close();else cleanups.push(close);
-   try{const old=await invoke<Snapshot|null>('ko_load_snapshot');if(old){if(old.version!==1)throw new Error('복구 파일 버전이 다릅니다. 원본은 변경하지 않았습니다.');setRows(readRows(old.rows));setTitle(old.title||'복구된 회의');setMinutes(old.minutes||'');setVideoUrl(typeof old.videoUrl==='string'?old.videoUrl:'');setLiveSummary(typeof old.liveSummary==='string'?old.liveSummary:'');glossaryRef.current=typeof old.glossary==='string'?old.glossary:'';setGlossaryState(glossaryRef.current);summaryDraft.current=old.summaryDraft&&typeof old.summaryDraft.key==='string'&&old.summaryDraft.notes&&typeof old.summaryDraft.notes==='object'?old.summaryDraft:null;audioPath.current=typeof old.audioPath==='string'?old.audioPath:'';audioSha256.current=typeof old.audioSha256==='string'?old.audioSha256:'';recoveryDraft.current=old.recoveryDraft?.version===1?old.recoveryDraft:null;startedAt.current=old.startedAt;setNotice('이전 작업을 복구했습니다. 원음은 파일을 다시 선택해 확인하세요. 새 작업 전에는 기존 결과를 JSON으로 보관합니다.');}}
+   const close=await getCurrentWindow().onCloseRequested(e=>{if(['starting','recording','stopping','importing','summarizing','reviewing','recovering','diarizing'].includes(modeRef.current)){e.preventDefault();setExitOpen(true);}});if(cancelled)close();else cleanups.push(close);
+   try{const old=await invoke<Snapshot|null>('ko_load_snapshot');if(old){if(old.version!==1)throw new Error('복구 파일 버전이 다릅니다. 원본은 변경하지 않았습니다.');setRows(readRows(old.rows));setTitle(old.title||'복구된 회의');setMinutes(old.minutes||'');setVideoUrl(typeof old.videoUrl==='string'?old.videoUrl:'');setLiveSummary(typeof old.liveSummary==='string'?old.liveSummary:'');liveSummaryDraft.current=readLiveSummaryCheckpoint(old.liveSummaryDraft);glossaryRef.current=typeof old.glossary==='string'?old.glossary:'';setGlossaryState(glossaryRef.current);summaryDraft.current=old.summaryDraft&&typeof old.summaryDraft.key==='string'&&old.summaryDraft.notes&&typeof old.summaryDraft.notes==='object'?old.summaryDraft:null;audioPath.current=typeof old.audioPath==='string'?old.audioPath:'';audioSha256.current=typeof old.audioSha256==='string'?old.audioSha256:'';recoveryDraft.current=old.recoveryDraft?.version===1?old.recoveryDraft:null;startedAt.current=old.startedAt;setNotice('이전 작업을 복구했습니다. 원음은 파일을 다시 선택해 확인하세요. 새 작업 전에는 기존 결과를 JSON으로 보관합니다.');}}
    catch(e){setNotice(`복구 파일을 열지 못했지만 새 녹음·파일 전사는 사용할 수 있습니다: ${messageOf(e)}`);}
    await refreshDevices().catch(e=>setNotice(`입력 장치를 읽지 못했습니다. 파일 전사는 사용할 수 있습니다: ${messageOf(e)}`));
    const active=await invoke<boolean>('is_recording').catch(e=>{setNotice(`녹음 상태 확인 실패: ${messageOf(e)}`);return false;});
@@ -101,23 +106,11 @@ export function useMeetingSession(){
   };
   void initialise().catch(e=>{if(!cancelled)setError(messageOf(e));});
   let saved=0;const timer=window.setInterval(()=>{if(modeRef.current==='loading'||dirty.current===saved)return;const revision=dirty.current;void persist().then(()=>{saved=revision;}).catch(e=>{if(!cancelled)setError(`복구 저장 실패: ${messageOf(e)}`);});},10000);
-  return()=>{cancelled=true;alive.current=false;window.clearInterval(timer);cleanups.forEach(f=>f());};
+  return()=>{cancelled=true;window.clearInterval(timer);cleanups.forEach(f=>f());};
   // Subscriptions live for this component; their handlers use refs for current data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
  useEffect(()=>{if(mode!=='recording'||!startedAt.current)return;const tick=()=>setElapsed(Math.max(0,Math.floor((Date.now()-Date.parse(startedAt.current||''))/1000)));tick();const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[mode]);
- useEffect(()=>{
-  if(mode!=='recording'){setLiveSummaryRunning(false);return;}
-  if(!liveSummaryEnabled){setLiveSummaryStatus('요약 꺼짐');return;}
-  const chosen=models.find(item=>modelKey(item)===model);if(!chosen){setLiveSummaryStatus('모델 없음');return;}
-  const finalRows=rows.filter(row=>row.is_partial!==true&&row.text.trim());if(!finalRows.length){setLiveSummaryStatus('확정 문장 대기');return;}
-  const last=finalRows[finalRows.length-1];const signature=`${finalRows.length}:${last.sequence_id??last.id??last.text}:${last.text}`;
-  if(signature===liveSummarySignature.current)return;
-  if(liveSummaryInFlight.current){liveSummaryPending.current=true;return;}
-  liveSummaryInFlight.current=true;liveSummaryPending.current=false;setLiveSummaryRunning(true);setLiveSummaryStatus('요약 갱신 중');
-  const generation=liveSummaryGeneration.current;const source=transcriptText(finalRows);const text=source.length>5600?source.slice(source.length-5600):source;
-  void generateText({model:chosen.id,text,stage:'notes',provider:chosen.provider}).then(result=>{if(!alive.current||generation!==liveSummaryGeneration.current)return;if(!result.trim())throw new Error('실시간 요약 모델이 빈 응답을 반환했습니다.');liveSummarySignature.current=signature;setLiveSummary(result.trim());setLiveSummaryStatus('최신 요약');}).catch(reason=>{if(!alive.current||generation!==liveSummaryGeneration.current)return;setLiveSummaryStatus('요약 실패');setNotice(`전사는 계속됩니다. 실시간 요약 실패: ${messageOf(reason)}`);}).finally(()=>{liveSummaryInFlight.current=false;if(alive.current&&generation===liveSummaryGeneration.current){setLiveSummaryRunning(false);if(liveSummaryPending.current){liveSummaryPending.current=false;setLiveSummaryTick(value=>value+1);}}});
- },[liveSummaryEnabled,liveSummaryTick,mode,model,models,rows]);
  const start=async(inputName:string,successNotice:string)=>{
   if(modeRef.current!=='idle'||!ready||!consent||!inputName)return;
   setMode('starting');setError('');setNotice('입력 장치와 한국어 모델 확인 중');
@@ -148,8 +141,8 @@ export function useMeetingSession(){
  const summarize=async()=>{
   const chosen=models.find(m=>modelKey(m)===model);
   if(modeRef.current!=='idle'||!rowsRef.current.length||!chosen)return;setMode('summarizing');setError('');cancelSummary.current=false;
-  try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,glossary:glossaryRef.current,modelKey:modelKey(chosen),generate:text=>generateText({model:chosen.id,text,stage:'structured',provider:chosen.provider}),progress:setNotice,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);await persist();await exportFile('minutes');setNotice('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
-  catch(e){setError(messageOf(e));}finally{if(chosen.provider==='local'){try{await generateText({model:chosen.id,text:'',stage:'release',provider:'local'});}catch(e){setNotice(`자료는 보존되어 있습니다. 로컬 모델 메모리 해제 실패: ${messageOf(e)}`);}}setMode('idle');}
+  try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,glossary:glossaryRef.current,modelKey:`${modelKey(chosen)}@${chosen.revision??''}`,generate:text=>generateText({model:chosen.id,revision:chosen.revision,text,stage:'structured',provider:chosen.provider}),progress:setNotice,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);await persist();await exportFile('minutes');setNotice('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
+  catch(e){setError(messageOf(e));}finally{if(chosen.provider==='local'){try{await generateText({model:chosen.id,revision:chosen.revision,text:'',stage:'release',provider:'local'});}catch(e){setNotice(`자료는 보존되어 있습니다. 로컬 모델 메모리 해제 실패: ${messageOf(e)}`);}}setMode('idle');}
  };
  const prepareAudio=async(select:boolean)=>{
   if(modeRef.current!=='idle'||!ready)return;setMode('reviewing');setError('');audioElement.current?.pause();
@@ -165,9 +158,10 @@ export function useMeetingSession(){
  const recover=async()=>{
   if(modeRef.current!=='idle'||!audioSource||!consent)return;setMode('recovering');setError('');audioElement.current?.pause();cancelRecovery.current=false;
   try{const c=await whisperConfig();const recovered=await recoverAudio({audio:audioSource,model:c.model,glossary:glossaryRef.current,checkpoint:recoveryDraft.current,decode:(start,duration)=>invoke('ko_transcribe_review_window',{path:audioSource.path,start,duration,model:c.model,glossary:glossaryRef.current}),save:async value=>{recoveryDraft.current=value;dirty.current++;await persist();},progress:setNotice,cancelled:()=>cancelRecovery.current});
-   if(rowsRef.current.length||minutesRef.current)await exportFile('bundle');setEpoch(value=>value+1);setRows(recovered);setMinutes('');summaryDraft.current=null;setPage(0);setQuery('');setEditing(null);await persist();await exportFile('bundle');setNotice(`저장 음성 전체 처리 완료 · ${recovered.length}개 발언 구간. 이전 원문은 JSON으로 보관했습니다. 경계의 누락·오인식은 원음과 대조하세요.`);
+   if(rowsRef.current.length||minutesRef.current)await exportFile('bundle');setEpoch(value=>value+1);setRows(recovered);setMinutes('');summaryDraft.current=null;liveSummaryDraft.current=null;setLiveSummary('');setPage(0);setQuery('');setEditing(null);await persist();await exportFile('bundle');setNotice(`저장 음성 전체 처리 완료 · ${recovered.length}개 발언 구간. 이전 원문은 JSON으로 보관했습니다. 경계의 누락·오인식은 원음과 대조하세요.`);
   }catch(e){setError(messageOf(e));}finally{setMode('idle');}
  };
+ const applyQueueRecovery=async(recovered:TranscriptRow[],complete:boolean)=>{if(modeRef.current!=='idle')throw new Error('진행 중인 작업을 마친 뒤 복구 결과를 여세요.');setMode('recovering');try{await archive();setVideoUrl('');setTitle(complete?'복구된 전사 구간':'복구된 전사 구간 · 일부 미처리');setRows(recovered);await persist();await exportFile('bundle');setNotice('복구 대기열의 전사를 별도 작업으로 열었습니다. 녹음 전체가 아닌 대기열 결과입니다.');}finally{setMode('idle');}};
  const save=(kind:'transcript'|'corrected'|'minutes'|'bundle')=>{if(saveInFlight.current)return;saveInFlight.current=true;setSaving(true);void exportFile(kind).then(()=>persist()).catch(e=>setError(messageOf(e))).finally(()=>{saveInFlight.current=false;setSaving(false);});};
  const confirmExit=async()=>{
   if(exiting)return;setExiting(true);setError('');
@@ -178,9 +172,9 @@ export function useMeetingSession(){
    await invoke('ko_exit_app');
   }catch(e){setError(`종료하지 않았습니다. ${messageOf(e)}`);}finally{setExiting(false);}
  };
- return {correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:(value:string)=>{glossaryRef.current=value;setGlossaryState(value);dirty.current++;},
+ return {applyQueueRecovery,setRecoveryBusy:(busy:boolean)=>setMode(busy?'recovering':'idle'),diarization,correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:(value:string)=>{glossaryRef.current=value;setGlossaryState(value);dirty.current++;},
   recordingKind,setRecordingKind,devices,microphone,setMicrophone,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
-  liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus,liveSummaryRunning,
+  liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
   error,setError,notice,setNotice,savedPath,saving,progress,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,
   refreshDevices,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
   stopFailure,acknowledgeStopFailure,setAcknowledgeStopFailure,elapsed,hasRecordingStart:Boolean(startedAt.current),modelStatus,modelKey,modeLabel:labels[mode],messageOf,

@@ -206,9 +206,11 @@ pub fn start_transcription_task<R: Runtime>(
                                         audio_end_time: chunk_timestamp + chunk_duration,
                                         duration: chunk_duration,
                                     };
-                                    match crate::audio::recording_commands::commit_transcript_update(
-                                        &update,
-                                    ) {
+                                    let persisted = match queue_item.save_result(&update).await {
+                                        Ok(()) => crate::audio::recording_commands::commit_transcript_update(&update),
+                                        Err(error) => Err(error.to_string()),
+                                    };
+                                    match persisted {
                                         Ok(()) => {
                                             update.result_committed = true;
                                             if let Err(error) =
@@ -411,7 +413,7 @@ pub fn start_transcription_task<R: Runtime>(
     })
 }
 
-async fn transcribe_chunk_with_provider<R: Runtime>(
+pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
     engine: &TranscriptionEngine,
     chunk: AudioChunk,
     app: &AppHandle<R>,

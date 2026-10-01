@@ -50,6 +50,7 @@ async function verifyPackage(version){
  assert.equal(await hashFile(installer),receipt.installer.sha256);
  assert.equal(await hashFile(path.join(root,'app/target/release/stream-record.exe')),receipt.builtExeSha256);
  const inputs=await buildSnapshot(root);inputs['runtime-companions']=await treeSnapshot(path.join(root,'app/frontend/src-tauri/binaries'));
+ inputs['bundled-diarization']=await treeSnapshot(path.join(root,'app/frontend/src-tauri/bundled-diarization'));
  for(const file of ['ggml-small-q5_1.bin','manifest.json','WHISPER-LICENSE.txt'])inputs['bundled-models/'+file]=await hashFile(path.join(root,'app/frontend/src-tauri/bundled-models',file));
  assert.deepEqual(inputs,receipt.buildInputs,'Application/build inputs changed after verified package');
  assert.deepEqual(await treeSnapshot(path.join(root,'app/frontend/out')),receipt.frontendOutput,'Frontend output changed after package');
@@ -61,6 +62,7 @@ async function verifyPackage(version){
  assert.equal(await hashFile(installation.installedPath),receipt.installedExeSha256);
  for(const file of ['ggml-small-q5_1.bin','manifest.json','WHISPER-LICENSE.txt'])assert.equal(await hashFile(path.join(path.dirname(installation.installedPath),'bundled-models',file)),inputs['bundled-models/'+file]);
  await verifyInstalledCompanions(path.dirname(installation.installedPath),receipt.buildInputs['runtime-companions']);
+ assert.deepEqual(await treeSnapshot(path.join(path.dirname(installation.installedPath),'bundled-diarization')),receipt.buildInputs['bundled-diarization']);
  const evidenceArg=process.argv.indexOf('--ui-evidence');assert.ok(evidenceArg>0&&process.argv[evidenceArg+1],'--ui-evidence <JSON> required');
  const evidence=JSON.parse(fs.readFileSync(path.resolve(process.argv[evidenceArg+1]),'utf8'));
  assert.equal(evidence.version,version);assert.equal(evidence.status,'passed');assert.equal(evidence.installedExeSha256,receipt.installedExeSha256);

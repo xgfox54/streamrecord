@@ -43,6 +43,7 @@ function harness(options = {}) {
     if (overrides.has(command)) return overrides.get(command)(args);
     if (command === 'ko_load_snapshot') return options.snapshot || null;
     if (command === 'get_audio_devices') return copy(inputDevices);
+    if (command === 'ko_list_transcription_recovery') return [];
     if (command === 'ko_models') return [{id:'local-summary',provider:'local'}];
     if (command === 'is_recording') return active;
     if (command === 'is_import_in_progress_command') return false;
@@ -60,6 +61,7 @@ function harness(options = {}) {
   const modules = new Map();
   function load(filename) {
     filename = path.resolve(filename);
+    if (filename.endsWith('.json')) return JSON.parse(fs.readFileSync(filename,'utf8'));
     if (!path.extname(filename)) filename += fs.existsSync(filename+'.ts') ? '.ts' : '.tsx';
     if (modules.has(filename)) return modules.get(filename).exports;
     const module = {exports:{}}; modules.set(filename,module);
@@ -147,8 +149,18 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     await h.start();
     await h.run(()=>h.session.setLiveSummaryEnabled(true));
     await h.run(()=>h.emit('transcript-update',{sequence_id:1,text:'다음 주에 결과를 다시 검토하겠습니다.',is_partial:false,audio_start_time:0}));
+    for(let i=0;i<50&&!h.session.liveSummary;i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));
     assert.equal(h.calls.filter(call=>call.command==='ko_generate'&&call.args.stage==='notes').length,1);
     assert.equal(h.session.liveSummary,'결정 사항: 다음 주에 검토한다.');
+  }));
+  await test('Editing covered text discards an in-flight cumulative summary response',()=>using({},async h=>{
+    const gate=deferred();h.overrides.set('ko_generate',()=>gate.promise);await h.start();await h.run(()=>h.session.setLiveSummaryEnabled(true));await h.run(()=>h.emit('transcript-update',{sequence_id:1,text:'이전 발언',is_partial:false}));
+    for(let i=0;i<50&&!h.count('ko_generate');i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));
+    assert.equal(h.count('ko_generate'),1);await h.run(()=>h.session.setRows([{sequence_id:1,text:'수정한 원문',is_partial:false}]));await h.run(()=>gate.resolve('이전 발언의 요약'));await h.run(()=>h.session.setLiveSummaryEnabled(false));
+    assert.equal(h.session.liveSummary,'');assert.ok(!h.snapshots.some(snapshot=>snapshot.liveSummary==='이전 발언의 요약'));
+  }));
+  await test('Recovery import locks the session while archiving and preserves original on archive failure',()=>using({snapshot:{version:1,title:'existing',rows:[{text:'보존할 원문'}],minutes:'기존 회의록',startedAt:null}},async h=>{
+    const gate=deferred();h.overrides.set('ko_export',()=>gate.promise);let applying;await h.run(()=>{applying=h.session.applyQueueRecovery([{text:'복구 구간'}],true);});assert.equal(h.session.mode,'recovering');await h.start();assert.equal(h.count('ko_start_recording'),0);await h.run(()=>gate.resolve('saved.json'));await h.run(()=>applying);assert.equal(h.session.rows[0].text,'복구 구간');assert.equal(h.session.minutes,'');assert.equal(h.session.mode,'idle');
   }));
   await test('Native input enumeration retains Stereo Mix, excludes output and never fabricates devices',()=>using({},async h=>{
     assert.deepEqual(copy(h.session.devices),inputDevices.filter(device=>device.device_type==='Input'));

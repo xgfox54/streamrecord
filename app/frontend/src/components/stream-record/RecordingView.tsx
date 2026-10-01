@@ -9,9 +9,8 @@ import styles from './guidance.module.css';
 export function RecordingView({session:s}:{readonly session:MeetingSession}) {
   return <div className={styles.recordingPage}>
     <WorkflowSteps session={s}/><SessionProgress session={s}/>
-    <div className={styles.recordingColumns}>
-      <RecordingPreparation session={s}/>
-      <div className={styles.liveColumn}><LiveTranscriptPanel session={s}/><LiveSummaryPanel session={s}/></div>
-    </div>
+    <RecordingPreparation session={s}/>
+    <LiveTranscriptPanel session={s}/>
+    <LiveSummaryPanel session={s}/>
   </div>;
 }

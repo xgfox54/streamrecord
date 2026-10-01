@@ -6,7 +6,8 @@
       "binaries/cuda": ".",
       "bundled-models/ggml-small-q5_1.bin": "bundled-models/ggml-small-q5_1.bin",
       "bundled-models/manifest.json": "bundled-models/manifest.json",
-      "bundled-models/WHISPER-LICENSE.txt": "bundled-models/WHISPER-LICENSE.txt"
+      "bundled-models/WHISPER-LICENSE.txt": "bundled-models/WHISPER-LICENSE.txt",
+      "bundled-diarization": "bundled-diarization"
     }
   }
 }

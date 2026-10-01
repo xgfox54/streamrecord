@@ -1,0 +1,17 @@
+import{readFile,writeFile}from'node:fs/promises';
+import{createHash}from'node:crypto';
+import{createRequire}from'node:module';
+import{referenceSchema,runSchema,evaluate}from'./quality.mjs';
+const require=createRequire(new URL('../../app/frontend/package.json',import.meta.url));
+const{z}=require('zod');
+const [referencePath,runPath,reportPath]=process.argv.slice(2);
+if(!referencePath||!runPath||!reportPath)throw new TypeError('Usage: node tools/glossary/compare.mjs references.json runs.json report.json');
+const referenceBytes=await readFile(referencePath,'utf8'),runBytes=await readFile(runPath,'utf8');
+const references=z.array(referenceSchema).min(1).parse(JSON.parse(referenceBytes));
+const runs=z.array(runSchema).min(1).parse(JSON.parse(runBytes));
+if(new Set(references.map(r=>r.id)).size!==references.length)throw new TypeError('Duplicate reference ID');
+if(new Set(runs.map(r=>`${r.engine}:${r.model}:${r.id}`)).size!==runs.length)throw new TypeError('Duplicate engine/model/sample result');
+const results=runs.map(run=>{const reference=references.find(r=>r.id===run.id);if(!reference)throw new TypeError('Missing independent reference');return evaluate(reference,run);});
+const groups=[...new Set(results.map(r=>`${r.engine}:${r.model}`))].map(key=>{const rows=results.filter(r=>`${r.engine}:${r.model}`===key);return {key,samples:rows.length,complete:rows.length===references.length};});
+await writeFile(reportPath,JSON.stringify({schemaVersion:1,createdAt:new Date().toISOString(),referenceSha256:createHash('sha256').update(referenceBytes).digest('hex'),runSha256:createHash('sha256').update(runBytes).digest('hex'),scope:'same-audio comparison; no automatic default engine changes',groups,results},null,2)+'\n');
+console.log(JSON.stringify({reportPath,samples:references.length,runs:results.length,groups}));

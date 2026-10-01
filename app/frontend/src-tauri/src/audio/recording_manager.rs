@@ -309,6 +309,9 @@ impl RecordingManager {
 
         self.recording_saver
             .start_accumulation(auto_save, recording_receiver);
+        if let Some(folder) = self.recording_saver.get_meeting_folder() {
+            transcription_receiver.bind_session_folder(folder)?;
+        }
         self.recording_saver.set_device_info(
             microphone_device.as_ref().map(|d| d.name.clone()),
             system_device.as_ref().map(|d| d.name.clone()),

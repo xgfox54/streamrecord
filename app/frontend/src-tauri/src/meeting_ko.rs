@@ -1,5 +1,12 @@
 //! Stream-Record workspace (MIT). Explicit capture input; local and opt-in proxy summaries.
 mod generation;
+pub mod connections;
+pub mod chatgpt;
+pub mod diarization;
+pub mod diarization_commands;
+pub mod recovery_commands;
+mod builtin;
+mod model_catalog;
 
 use serde_json::{json, Value};
 use std::{
@@ -17,25 +24,6 @@ const DEFAULT_PROXY_BASE: &str = "http://127.0.0.1:10100/v1";
 const OLLAMA_BASE: &str = "http://127.0.0.1:11434";
 const VIDEO_WINDOW_LABEL: &str = "ko-video";
 
-#[derive(Clone, Default)]
-pub struct ProxyEndpoint {
-    pub base: String,
-    pub api_key: String,
-}
-
-static PROXY_ENDPOINT: std::sync::RwLock<Option<ProxyEndpoint>> = std::sync::RwLock::new(None);
-
-fn proxy_endpoint() -> ProxyEndpoint {
-    PROXY_ENDPOINT
-        .read()
-        .ok()
-        .and_then(|guard| guard.clone())
-        .unwrap_or(ProxyEndpoint {
-            base: DEFAULT_PROXY_BASE.to_owned(),
-            api_key: String::new(),
-        })
-}
-
 const DATA_DIR_NAME: &str = "Stream-Record";
 const LEGACY_DATA_DIR_NAME: &str = "Meetily-Korean";
 
@@ -51,64 +39,19 @@ fn ko_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, Str
     Ok(current)
 }
 
-fn valid_endpoint(base: &str) -> bool {
-    let base = base.trim();
-    (base.starts_with("http://") || base.starts_with("https://"))
-        && base.len() <= 300
-        && !base.contains(' ')
-}
-
-const PROXY_STORE_FILE: &str = "stream_record_proxy.json";
-const PROXY_STORE_KEY: &str = "endpoint";
-
 pub fn load_proxy_endpoint<R: Runtime>(app: &AppHandle<R>) {
-    use tauri_plugin_store::StoreExt;
-    let Ok(store) = app.store(PROXY_STORE_FILE) else {
-        return;
-    };
-    let Some(value) = store.get(PROXY_STORE_KEY) else {
-        return;
-    };
-    let base = value
-        .get("base")
-        .and_then(|item| item.as_str())
-        .unwrap_or_default()
-        .to_owned();
-    if !valid_endpoint(&base) {
-        return;
+    if connections::migrate_legacy(app).is_err() {
+        log::warn!("Legacy connection migration incomplete; original settings retained");
     }
-    let api_key = value
-        .get("apiKey")
-        .and_then(|item| item.as_str())
-        .unwrap_or_default()
-        .to_owned();
-    if let Ok(mut guard) = PROXY_ENDPOINT.write() {
-        *guard = Some(ProxyEndpoint { base, api_key });
-    }
-}
-
-fn persist_proxy_endpoint<R: Runtime>(
-    app: &AppHandle<R>,
-    endpoint: &ProxyEndpoint,
-) -> Result<(), String> {
-    use tauri_plugin_store::StoreExt;
-    let store = app
-        .store(PROXY_STORE_FILE)
-        .map_err(|e| format!("연결 설정을 저장하지 못했습니다: {e}"))?;
-    store.set(
-        PROXY_STORE_KEY,
-        json!({"base": endpoint.base, "apiKey": endpoint.api_key}),
-    );
-    store
-        .save()
-        .map_err(|e| format!("연결 설정을 저장하지 못했습니다: {e}"))?;
-    Ok(())
 }
 
 #[tauri::command]
-pub async fn ko_get_proxy_endpoint() -> Result<Value, String> {
-    let endpoint = proxy_endpoint();
-    Ok(json!({"base": endpoint.base, "hasApiKey": !endpoint.api_key.is_empty()}))
+pub async fn ko_get_proxy_endpoint<R: Runtime>(app: AppHandle<R>) -> Result<Value, String> {
+    let profile = connections::list(&app)?.into_iter().find(|p| p.profile.id == connections::legacy_id());
+    Ok(match profile {
+        Some(profile) => json!({"base":profile.profile.base,"hasApiKey":profile.has_api_key}),
+        None => json!({"base":DEFAULT_PROXY_BASE,"hasApiKey":false}),
+    })
 }
 
 #[tauri::command]
@@ -117,31 +60,14 @@ pub async fn ko_set_proxy_endpoint<R: Runtime>(
     base: String,
     api_key: Option<String>,
 ) -> Result<Value, String> {
-    let base = base.trim().to_owned();
-    let base = if base.is_empty() {
-        DEFAULT_PROXY_BASE.to_owned()
-    } else {
-        base
-    };
-    if !valid_endpoint(&base) {
-        return Err("http:// 또는 https:// 로 시작하는 주소를 입력하세요.".into());
-    }
-    let api_key = api_key.unwrap_or_default().trim().to_owned();
-    if api_key.len() > 400 {
-        return Err("인증 키가 너무 깁니다.".into());
-    }
-    let endpoint = ProxyEndpoint {
-        base: base.clone(),
-        api_key: api_key.clone(),
-    };
-    persist_proxy_endpoint(&app, &endpoint)?;
-    {
-        let mut guard = PROXY_ENDPOINT
-            .write()
-            .map_err(|_| "설정을 저장할 수 없습니다.".to_string())?;
-        *guard = Some(endpoint);
-    }
-    Ok(json!({"base": base, "hasApiKey": !api_key.is_empty()}))
+    let profile = connections::upsert(&app, connections::ProfileInput {
+        id:Some(connections::legacy_id().into()), label:"OpenCodex 연결".into(),
+        kind:connections::ConnectionKind::Opencodex,
+        base:if base.trim().is_empty() { DEFAULT_PROXY_BASE.into() } else {base},
+        enabled:true, manual_model_ids:Vec::new(), text_only_confirmed:false,
+        username:String::new(), api_key,
+    })?;
+    Ok(json!({"base":profile.profile.base,"hasApiKey":profile.has_api_key}))
 }
 struct BusyGuard;
 impl Drop for BusyGuard {
@@ -520,67 +446,20 @@ async fn ollama_models(client: &reqwest::Client) -> Result<Vec<Value>, String> {
 }
 
 #[tauri::command]
-pub async fn ko_models() -> Result<Vec<Value>, String> {
-    let client = local_client()?;
-    let listing_client = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(2))
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let local_future = ollama_models(&listing_client);
-    let proxy_future = async {
-        let endpoint = proxy_endpoint();
-        let mut request = listing_client.get(format!("{}/models", endpoint.base));
-        if !endpoint.api_key.is_empty() {
-            request = request.bearer_auth(&endpoint.api_key);
-        }
-        let value: Value = request
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
-            .error_for_status()
-            .map_err(|e| e.to_string())?
-            .json()
-            .await
-            .map_err(|e| e.to_string())?;
-        let rows = value
-            .get("data")
-            .and_then(Value::as_array)
-            .ok_or("외부 프록시 모델 목록 형식 오류".to_string())?;
-        Ok::<Vec<Value>, String>(
-            rows.iter()
-                .filter_map(|m| m.get("id").and_then(Value::as_str))
-                .filter(|id| valid_model(id))
-                .map(|id| json!({"id": id, "provider": "subscription"}))
-                .collect(),
-        )
-    };
-    let (local, proxy) = tokio::join!(local_future, proxy_future);
-    drop(client);
-    if local.is_err() && proxy.is_err() {
-        return Err(format!(
-            "모델 목록 조회 실패. Ollama: {}; 외부 프록시: {}",
-            local.unwrap_err(),
-            proxy.unwrap_err()
-        ));
-    }
-    let mut options = local.unwrap_or_default();
-    options.extend(proxy.unwrap_or_default());
-    let mut seen = std::collections::HashSet::new();
-    options.retain(|m| seen.insert(format!("{}:{}", m["provider"], m["id"])));
-    Ok(options)
+pub async fn ko_models(app: AppHandle) -> Result<Vec<Value>, String> {
+    model_catalog::list(&app).await
 }
 
 #[tauri::command]
 pub async fn ko_generate(
+    app: AppHandle,
+    revision: Option<String>,
     model: String,
     text: String,
     stage: String,
     provider: String,
 ) -> Result<String, String> {
-    generation::generate(model, text, stage, provider).await
+    generation::generate(&app, model, text, stage, provider, revision).await
 }
 #[tauri::command]
 pub async fn ko_export<R: Runtime>(
