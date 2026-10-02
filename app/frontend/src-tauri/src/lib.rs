@@ -648,6 +648,8 @@ pub fn run() {
             meeting_ko::ko_export,
             meeting_ko::ko_save_snapshot,
             meeting_ko::ko_load_snapshot,
+            meeting_ko::ko_list_records,
+            meeting_ko::ko_load_record,
             review_audio::ko_open_review_audio,
             review_audio::ko_transcribe_review_window,
             start_recording,

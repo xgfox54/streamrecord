@@ -1,6 +1,9 @@
 import {z} from 'zod';
 import {sourceParts} from './structured-minutes';
 import {splitText,type TranscriptRow} from './core';
+import {correctedText} from './transcript-correction';
+
+export function summarySourceParts(rows:readonly TranscriptRow[]){return sourceParts(rows.map(row=>({...row,text:correctedText(row)??row.text})));}
 
 const checkpointSchema=z.object({version:z.literal(1),key:z.string(),sourceHash:z.string(),end:z.number().int().nonnegative(),summary:z.string(),history:z.array(z.object({end:z.number().int().nonnegative(),text:z.string()}))});
 export type LiveSummaryCheckpoint=z.infer<typeof checkpointSchema>;
@@ -8,9 +11,9 @@ export function readLiveSummaryCheckpoint(value:unknown):LiveSummaryCheckpoint|n
 async function hash(value:unknown){const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));return Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');}
 type Input={rows:readonly TranscriptRow[];modelKey:string;glossary:string;checkpoint:LiveSummaryCheckpoint|null;generate:(text:string)=>Promise<string>;save:(value:LiveSummaryCheckpoint)=>Promise<void>;cancelled:()=>boolean};
 export async function updateLiveSummary(input:Input):Promise<LiveSummaryCheckpoint|null>{
- const parts=sourceParts(input.rows.filter(row=>!row.is_partial)).flatMap(part=>splitText(part.text,120).map((text,index)=>({...part,id:`${part.id}.${index}`,text})));
+ const parts=summarySourceParts(input.rows.filter(row=>!row.is_partial)).flatMap(part=>splitText(part.text,120).map((text,index)=>({...part,id:`${part.id}.${index}`,text})));
  if(!parts.length)return null;
- const key=await hash({version:1,model:input.modelKey,glossary:input.glossary});
+ const key=await hash({version:2,model:input.modelKey,glossary:input.glossary});
  let current=readLiveSummaryCheckpoint(input.checkpoint);
  if(!current||current.key!==key||current.end>parts.length||current.sourceHash!==await hash(parts.slice(0,current.end)))current={version:1,key,sourceHash:await hash([]),end:0,summary:'',history:[]};
  while(current.end<parts.length){

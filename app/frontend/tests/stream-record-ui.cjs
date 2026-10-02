@@ -16,6 +16,7 @@ const flush = async () => {for (let i = 0; i < 50; i++) await Promise.resolve();
 const inputDevices = [{name:'Microphone',device_type:'Input'}, {name:'Stereo Mix',device_type:'Input'}, {name:'Speaker',device_type:'Output'}];
 function harness(options = {}) {
   const calls = [], snapshots = [], listeners = new Map(), subscriptions = new Map(), timers = new Map(), browserListeners = new Map();
+  const records = new Map((options.records||[]).map(record=>[record.recordId,copy(record)]));
   const overrides = new Map(); let active = false, clock = Date.parse('2026-09-17T00:00:00Z'), timerId = 0, session, renderer;
   const document = {activeElement:null,getElementById:id=>{
     const element = renderer?.root.findAll(node=>typeof node.type==='string' && node.props.id===id)[0];
@@ -42,6 +43,8 @@ function harness(options = {}) {
     calls.push({command,args:args === undefined ? undefined : copy(args)});
     if (overrides.has(command)) return overrides.get(command)(args);
     if (command === 'ko_load_snapshot') return options.snapshot || null;
+    if (command === 'ko_list_records') return {records:[...records.values()].map(record=>({id:record.recordId,title:record.title,updatedAt:new Date(clock).toISOString(),rowCount:record.rows.length})),warnings:[]};
+    if (command === 'ko_load_record') {if(!records.has(args.id))throw new Error('record missing');return copy(records.get(args.id));}
     if (command === 'get_audio_devices') return copy(inputDevices);
     if (command === 'ko_list_transcription_recovery') return [];
     if (command === 'ko_models') return [{id:'local-summary',provider:'local'}];
@@ -54,7 +57,7 @@ function harness(options = {}) {
     if (command === 'ko_validate_video') return 'https://www.youtube.com/watch?v=abc12345678';
     if (command === 'ko_generate') return args.stage === 'notes' ? '현재까지의 요약' : '';
     if (command === 'ko_close_video' || command === 'ko_exit_app') return;
-    if (command === 'ko_save_snapshot') {snapshots.push(JSON.parse(args.content)); return 'snapshot.json';}
+    if (command === 'ko_save_snapshot') {const value=JSON.parse(args.content);snapshots.push(value);records.set(value.recordId,value); return 'snapshot.json';}
     if (command === 'ko_export') return `saved.${args.kind}`;
     throw new Error(`Unexpected native call: ${command}`);
   };
@@ -88,7 +91,7 @@ function harness(options = {}) {
   const {AppShell} = load(path.join(root,'src/components/stream-record/AppShell.tsx'));
   function Surface() {
     session = useMeetingSession();
-    return React.createElement(AppShell,{view:session.view,onNavigate:session.navigate,status:session.modeLabel,recording:session.mode==='recording',onStop:session.stop},
+    return React.createElement(AppShell,{session},
       session.view === 'transcript' ? React.createElement(TranscriptView,{session,evidence:null,onEvidenceShown:()=>{}}) : session.view === 'recording' ? React.createElement(RecordingView,{session}) : session.view === 'dictation' ? React.createElement(DictationView,{session}) : session.view === 'youtube' ? React.createElement(YoutubeView,{session}) : React.createElement('div',{'data-view':session.view}));
   }
   return {calls,snapshots,listeners,subscriptions,timers,browserListeners,overrides,emit,load,document,
@@ -110,7 +113,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
   await test('Real RecordingView preserves idle PC choice through every task view',()=>using({},async h=>{
     await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value==='pc').props.onChange());
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix');
-    for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`).props.onClick());
+    for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.session.navigate(view));
     assert.equal(h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.checked).props.value,'pc');
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix'); assert.equal(h.session.mode,'idle'); assert.equal(h.count('ko_start_recording'),0);
   }));
@@ -119,7 +122,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     await h.run(()=>h.session.setConsent(true));
     await h.run(()=>h.renderer.root.findAllByType('button').find(node=>node.props['aria-describedby']==='start-help').props.onClick());
     assert.equal(h.session.mode,'recording'); assert.equal(h.calls.find(call=>call.command==='ko_start_recording').args.micName,'Stereo Mix');
-    for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`).props.onClick());
+    for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.session.navigate(view));
     assert.equal(h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.checked).props.value,'pc');
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix'); assert.equal(h.session.mode,'recording'); assert.equal(h.count('ko_start_recording'),1); assert.equal(h.count('ko_stop_recording'),0);
   }));
@@ -159,6 +162,25 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     assert.equal(h.count('ko_generate'),1);await h.run(()=>h.session.setRows([{sequence_id:1,text:'수정한 원문',is_partial:false}]));await h.run(()=>gate.resolve('이전 발언의 요약'));await h.run(()=>h.session.setLiveSummaryEnabled(false));
     assert.equal(h.session.liveSummary,'');assert.ok(!h.snapshots.some(snapshot=>snapshot.liveSummary==='이전 발언의 요약'));
   }));
+  await test('New AI corrections refresh live summary and reject a late summary of raw text',()=>using({snapshot:{version:1,title:'correction summary',rows:[{sequence_id:1,text:'일일 비하지 않습니다.',is_partial:false}],minutes:'',startedAt:null}},async h=>{
+    const gate=deferred();let notes=0;h.overrides.set('ko_generate',args=>{
+      if(args.stage==='correction')return JSON.stringify({corrections:JSON.parse(args.text).segments.map(part=>({id:part.id,text:'일희일비하지 않습니다.'}))});
+      notes++;return notes===1?gate.promise:'일희일비하지 않기로 했습니다.';
+    });
+    await h.run(()=>h.session.setLiveSummaryEnabled(true));for(let i=0;i<50&&!notes;i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));assert.equal(notes,1);
+    await h.run(()=>h.session.setRows([{...h.session.rows[0],ai_correction:{version:1,source_text:'일일 비하지 않습니다.',model_key:'local:local-summary',glossary:'',text:'일희일비하지 않습니다.'}}]));
+    await h.run(()=>gate.resolve('일일 비하지 않는다는 요약'));await h.advance(5000);
+    for(let i=0;i<50&&h.session.liveSummaryRunning;i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));
+    assert.equal(h.session.liveSummary,'일희일비하지 않기로 했습니다.');assert.equal(notes,2);assert.ok(!h.snapshots.some(value=>value.liveSummary==='일일 비하지 않는다는 요약'));
+    const last=h.calls.filter(call=>call.command==='ko_generate'&&call.args.stage==='notes').at(-1);assert.equal(JSON.parse(last.args.text).newUtterances[0].text,'일희일비하지 않습니다.');
+    assert.equal(h.session.rows[0].text,'일일 비하지 않습니다.');
+  }));
+  await test('The correction hook refreshes an already completed live summary without editing raw rows',()=>using({snapshot:{version:1,title:'correction summary',rows:[{sequence_id:1,text:'일일 비하지 않습니다.',is_partial:false}],minutes:'',startedAt:null}},async h=>{
+    h.overrides.set('ko_generate',async args=>args.stage==='correction'?JSON.stringify({corrections:JSON.parse(args.text).segments.map(part=>({id:part.id,text:'일희일비하지 않습니다.'}))}):JSON.parse(args.text).newUtterances.map(part=>part.text).join(' '));
+    await h.run(()=>h.session.setLiveSummaryEnabled(true));for(let i=0;i<50&&!h.session.liveSummary;i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));assert.equal(h.session.liveSummary,'일일 비하지 않습니다.');
+    await h.run(()=>h.session.correction.setEnabled(true));await h.advance(5000);for(let i=0;i<50&&h.session.liveSummary!=='일희일비하지 않습니다.';i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));
+    assert.equal(h.session.liveSummary,'일희일비하지 않습니다.');assert.equal(h.session.rows[0].text,'일일 비하지 않습니다.');assert.equal(h.session.correction.completed,1);
+  }));
   await test('Recovery import locks the session while archiving and preserves original on archive failure',()=>using({snapshot:{version:1,title:'existing',rows:[{text:'보존할 원문'}],minutes:'기존 회의록',startedAt:null}},async h=>{
     const gate=deferred();h.overrides.set('ko_export',()=>gate.promise);let applying;await h.run(()=>{applying=h.session.applyQueueRecovery([{text:'복구 구간'}],true);});assert.equal(h.session.mode,'recovering');await h.start();assert.equal(h.count('ko_start_recording'),0);await h.run(()=>gate.resolve('saved.json'));await h.run(()=>applying);assert.equal(h.session.rows[0].text,'복구 구간');assert.equal(h.session.minutes,'');assert.equal(h.session.mode,'idle');
   }));
@@ -168,11 +190,10 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     await h.run(()=>h.session.setMicrophone('Stereo Mix')); await h.run(h.session.refreshDevices);
     assert.equal(h.session.microphone,'Stereo Mix');
   }));
-  await test('Every navigation link preserves active recording and exactly one transcript subscription',()=>using({},async h=>{
+  await test('Every view transition preserves active recording and exactly one transcript subscription',()=>using({},async h=>{
     await h.start(); const counts = [...h.subscriptions.entries()];
     for (const [index,view] of ['recording','dictation','youtube','transcript','minutes','ai','settings','recording'].entries()) {
-      const link = h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}` && node.props['aria-current'] !== undefined) || h.renderer.root.findAllByType('a').find(node=>node.props.href===`#${view}`);
-      await h.run(()=>link.props.onClick());
+      await h.run(()=>h.session.navigate(view));
       await h.run(()=>h.emit('transcript-update',{sequence_id:index,text:`구간 ${index}`,is_partial:true}));
       await h.run(()=>h.emit('transcript-update',{sequence_id:index,text:`확정 ${index}`,is_partial:false}));
       assert.equal(h.session.view,view); assert.equal(h.session.mode,'recording'); assert.equal(h.session.rows.length,index+1);
@@ -265,6 +286,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     await h.run(()=>h.session.save('transcript')); const raw = h.calls.filter(call=>call.command==='ko_export').at(-1);
     assert.ok(raw.args.content.includes('3000만원')); assert.ok(!raw.args.content.includes('300만원'));
   }));
+  await require('./record-history.cjs')({test,using,deferred});
   await require('./transcript-correction.cjs')({test,using,deferred});
   const passed = results.filter(result=>result.status==='passed').length, failed = results.length-passed;
   const report = {passed,failed,executedAt:new Date().toISOString(),scope:'Offline React 18 renderer with real session hook, transcript editor, AppShell and helpers; mocked Tauri/browser boundary. StrictMode wrapper plus explicit teardown/remount; no native capture, network, model inference or WebView rendering.',results};

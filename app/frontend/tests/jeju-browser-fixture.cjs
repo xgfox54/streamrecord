@@ -2,7 +2,7 @@
 // Browser QA only. Native commands are simulated; never included in app source.
 module.exports=function nativeFixture(scenario={}){
   const handlers=new Map(),callbacks=new Map();let callbackId=0,active=false,snapshot=scenario.snapshot||null;
-  const calls=[];
+  const calls=[];const records=new Map((scenario.records||[]).map(record=>[record.recordId,record]));if(snapshot){snapshot={...snapshot,recordId:snapshot.recordId||'qa-initial'};records.set(snapshot.recordId,snapshot);}
   if(scenario.fastCorrectionClock){const interval=window.setInterval.bind(window);window.setInterval=(callback,delay,...args)=>interval(callback,delay===3000?10:delay,...args);}
   localStorage.setItem('stream-record.tray-notice','seen');
   window.__qa={calls,emit:(event,payload)=>{for(const id of handlers.get(event)||[])callbacks.get(id)?.({event,id,payload});}};
@@ -15,7 +15,9 @@ module.exports=function nativeFixture(scenario={}){
       if(command==='plugin:event|listen'){const list=handlers.get(args.event)||[];list.push(args.handler);handlers.set(args.event,list);return args.handler;}
       if(command==='plugin:event|unlisten')return;
       if(command==='ko_load_snapshot')return snapshot;
-      if(command==='ko_save_snapshot'){snapshot=JSON.parse(args.content);return 'QA/snapshot.json';}
+      if(command==='ko_list_records')return {records:[...records.values()].map(record=>({id:record.recordId,title:record.title,updatedAt:'2026-10-01T00:00:00Z',rowCount:record.rows.length})),warnings:[]};
+      if(command==='ko_load_record'){if(!records.has(args.id))throw new Error('record missing');return records.get(args.id);}
+      if(command==='ko_save_snapshot'){if(window.__qa.failSave)throw new Error('테스트 저장 실패');snapshot=JSON.parse(args.content);records.set(snapshot.recordId,snapshot);return 'QA/snapshot.json';}
       if(command==='get_audio_devices')return [{name:'테스트 마이크',device_type:'Input'},{name:'Stereo Mix (테스트)',device_type:'Input'}];
       if(command==='ko_models')return scenario.models||[];
       if(command==='ko_generate'){if(window.__qa.failCorrections)throw new Error('테스트 연결 오류');if(args.stage==='correction')return JSON.stringify({corrections:JSON.parse(args.text).segments.map(part=>({id:part.id,text:part.text.replaceAll('회의을','회의를').replaceAll('검토 하겠습니다','검토하겠습니다')}))});return '요약 테스트';}

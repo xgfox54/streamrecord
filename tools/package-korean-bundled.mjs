@@ -94,6 +94,10 @@ async function main(){
  const contrast=JSON.parse(fs.readFileSync(path.join(out,'ui-contrast.json'),'utf8'));assert.equal(contrast.passed,true);report.tests.uiContrast={status:'passed',pairs:contrast.result.length,scope:contrast.scope};
  await run(process.execPath,['tests/stream-record-ui.cjs'],frontend,'ui-session-tests');
  const ui=JSON.parse(fs.readFileSync(path.join(frontend,'test-results/ui-session.json'),'utf8'));assert.equal(ui.failed,0);assert.ok(ui.passed>0);report.tests.uiSession={status:'passed',passed:ui.passed,scope:ui.scope};report.passed+=ui.passed;
+ for(const name of ['record-controls','compact-reader','summary-display','glossary-packs']){
+  await run(process.execPath,['tests/'+name+'.cjs'],frontend,name+'-tests');
+  const checked=JSON.parse(fs.readFileSync(path.join(frontend,'test-results',name+'.json'),'utf8'));assert.equal(checked.failed,0);assert.ok(checked.passed>0);report.tests[name]={status:'passed',passed:checked.passed,scope:checked.scope};report.passed+=checked.passed;
+ }
  await run(process.execPath,['tools/test-release-tools.mjs'],root,'release-tool-tests');
  const releaseTools=JSON.parse(fs.readFileSync(path.join(frontend,'test-results/release-tools.json'),'utf8'));assert.equal(releaseTools.failed,0);report.tests.releaseTools={status:'passed',passed:releaseTools.passed,scope:releaseTools.scope};report.passed+=releaseTools.passed;
 
@@ -103,7 +107,7 @@ async function main(){
  await run(cargo,['check','--locked','--features','cuda'],path.join(frontend,'src-tauri'),'rust-check');report.tests.rustCheck='passed';
  const native=await run(cargo,['test','--lib','stream_record_','--locked','--features','cuda','--','--nocapture'],path.join(frontend,'src-tauri'),'rust-tests');
  const counts=native.text.match(/test result: ok\. (\d+) passed; 0 failed/);assert.ok(counts&&Number(counts[1])>=23,'Offline native tests did not pass');report.tests.rust=Number(counts[1]);report.passed+=Number(counts[1]);
- for(const [name,filter,minimum] of [['connections','meeting_ko::connections',14],['diarization','meeting_ko::diarization::tests',4],['queueRecovery','audio::transcription::queue',13],['builtinLimits','summary::summary_engine::client::tests::bounded',2]]){
+ for(const [name,filter,minimum] of [['recordHistory','meeting_ko::record_history::',4],['connections','meeting_ko::connections',14],['diarization','meeting_ko::diarization::tests',4],['queueRecovery','audio::transcription::queue',13],['builtinLimits','summary::summary_engine::client::tests::bounded',2]]){
   const checked=await run(cargo,['test','--lib',filter,'--locked','--features','cuda','--','--nocapture'],path.join(frontend,'src-tauri'),'rust-'+name);
   const result=[...checked.text.matchAll(/test result: ok. ([0-9]+) passed; 0 failed/g)].at(-1);assert.ok(result&&Number(result[1])>=minimum,'Native '+name+' tests incomplete');report.tests[name]={status:'passed',passed:Number(result[1])};report.passed+=Number(result[1]);
  }

@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useRef,useState,type MutableRefObject} from 'react';
 import type {TranscriptRow} from '../meeting-ko/core';
-import {correctTranscript,correctedText,pendingCorrections,type CorrectionModel} from '../meeting-ko/transcript-correction';
+import {correctTranscript,correctedText,correctionIssue,pendingCorrections,type CorrectionModel} from '../meeting-ko/transcript-correction';
 import {generateText,GenerationCancelled} from '../meeting-ko/generate-text';
 type CorrectionSession={readonly rows:TranscriptRow[];readonly rowsRef:MutableRefObject<TranscriptRow[]>;readonly setRows:(rows:TranscriptRow[])=>void;readonly model:CorrectionModel|undefined;readonly glossary:string;readonly epoch:number;readonly mode:string;readonly persist:()=>Promise<unknown>};
 export function useTranscriptCorrection(input:CorrectionSession){
@@ -24,7 +24,7 @@ export function useTranscriptCorrection(input:CorrectionSession){
   const epoch=input.epoch;const glossary=input.glossary;
   void correctTranscript({batch,rows:input.rows,glossary,modelKey,generate:text=>generateText({model:chosen.id,revision:chosen.revision,provider:chosen.provider,text,stage:'correction'},signal)}).then(async result=>{
    if(signal.aborted||!alive.current||current.current.epoch!==epoch)return;
-   const next=current.current.rowsRef.current.map((row,index)=>{const item=result.find(value=>value.index===index&&value.source.text===row.text&&value.source.id===row.id&&value.source.sequence_id===row.sequence_id&&value.source.audio_start_time===row.audio_start_time&&value.source.chunk_start_time===row.chunk_start_time&&value.source.timestamp===row.timestamp);return item&&!row.is_partial?{...row,ai_correction:item.correction}:row;});
+   const next=current.current.rowsRef.current.map((row,index)=>{const item=result.find(value=>value.index===index&&value.source.text===row.text&&value.source.id===row.id&&value.source.sequence_id===row.sequence_id&&value.source.audio_start_time===row.audio_start_time&&value.source.chunk_start_time===row.chunk_start_time&&value.source.timestamp===row.timestamp);return item&&!row.is_partial?{...row,ai_correction:item.correction,ai_correction_issue:item.issue}:row;});
    current.current.setRows(next);await current.current.persist();
   }).catch(reason=>{if(!signal.aborted&&alive.current&&!(reason instanceof GenerationCancelled))setError(reason instanceof Error?reason.message:String(reason));}).finally(()=>{
    inFlight.current=false;if(alive.current){setRunning(false);}
@@ -32,6 +32,8 @@ export function useTranscriptCorrection(input:CorrectionSession){
  },[enabled,error,tick,modelKey,input]);
  const finalRows=input.rows.filter(row=>!row.is_partial&&row.text.trim());
  const completed=finalRows.filter(row=>correctedText(row)!==null&&row.ai_correction?.model_key===modelKey&&row.ai_correction.glossary===input.glossary).length;
- const status=error?'보정 중단':running?'AI 보정 중':!enabled?'자동 보정 꺼짐':!input.model?'AI 연결 필요':!finalRows.length?'확정 문장 대기':completed===finalRows.length?'전체 보정 완료':'보정 대기';
- return {enabled,setEnabled,running,error,status,completed,total:finalRows.length,retry:()=>{setError('');setTick(value=>value+1);}};
+ const blocked=finalRows.filter(row=>correctionIssue(row,modelKey,input.glossary)).length;
+ const status=error?'보정 중단':running?'AI 보정 중':!enabled?'자동 보정 꺼짐':!input.model?'AI 연결 필요':!finalRows.length?'확정 문장 대기':completed+blocked===finalRows.length?(blocked?`보정 처리 완료 · 원음 확인 ${blocked}구간`:'전체 보정 완료'):'보정 대기';
+ const retry=()=>{const next=current.current.rowsRef.current.map(row=>correctionIssue(row,modelKey,input.glossary)?{...row,ai_correction_issue:undefined}:row);current.current.setRows(next);setError('');setTick(value=>value+1);};
+ return {enabled,setEnabled,running,error,status,completed,blocked,total:finalRows.length,retry};
 }

@@ -30,15 +30,26 @@ module.exports=async function correctionTests({test,using,deferred}){
   await h.run(()=>h.session.correction.setEnabled(false));await h.run(()=>gate.resolve(answer(request)));
   assert.equal(h.session.rows[0].ai_correction,undefined);assert.equal(h.session.rows[0].text,'회의을 시작합니다.');
  }));
- await test('Correction number changes pause retries until the user retries',()=>using({snapshot:snapshot([row('회의을 10시에 시작합니다.')])},async h=>{
+ await test('Rejected number changes preserve the row and continue correcting later batches',()=>using({snapshot:snapshot([row('회의을 10시에 시작합니다.'),...Array.from({length:5},(_,i)=>row(`회의을 진행합니다 ${i+1}.`,i+2))])},async h=>{
   h.overrides.set('ko_generate',async args=>answer(args).replace('10시','11시'));await h.run(()=>h.session.correction.setEnabled(true));
-  assert.ok(h.session.correction.error);assert.equal(h.session.rows[0].ai_correction,undefined);const count=h.count('ko_generate');await h.advance(30000);assert.equal(h.count('ko_generate'),count);
+  assert.equal(h.session.correction.error,'');assert.equal(h.session.rows[0].ai_correction,undefined);assert.equal(h.session.rows[0].text,'회의을 10시에 시작합니다.');assert.equal(h.session.rows[0].ai_correction_issue.reason,'numbers');
+  await h.advance(3000);assert.equal(h.session.correction.completed,5);assert.equal(h.session.correction.blocked,1);assert.equal(h.snapshots.at(-1).rows[0].ai_correction_issue.reason,'numbers');
+  const count=h.count('ko_generate');await h.advance(30000);assert.equal(h.count('ko_generate'),count);
   h.overrides.set('ko_generate',async args=>answer(args));await h.run(()=>h.session.correction.retry());assert.equal(h.session.correction.error,'');assert.ok(h.session.rows[0].ai_correction.text.includes('10시'));
+  assert.equal(h.session.rows[0].ai_correction_issue,undefined);assert.equal(h.session.correction.completed,6);
  }));
  await test('Long utterances are fully corrected across bounded requests',()=>using({snapshot:snapshot([row('오늘 회의을 시작합니다. '.repeat(200))])},async h=>{
   h.overrides.set('ko_generate',async args=>answer(args));await h.run(()=>h.session.correction.setEnabled(true));
   assert.ok(h.count('ko_generate')>=2);assert.equal(h.session.correction.completed,1);assert.ok(h.session.rows[0].ai_correction.text.length>2800);
   assert.ok(h.calls.filter(c=>c.command==='ko_generate').every(c=>Array.from(c.args.text).length<=6000));
+ }));
+ await test('A rejected split part leaves its entire utterance raw while another utterance succeeds',()=>using({snapshot:snapshot([row('오늘 회의을 시작합니다. '.repeat(120)+' 예산 10만원입니다.'),row('회의을 마칩니다.',2)])},async h=>{
+  h.overrides.set('ko_generate',async args=>answer(args).replace('10만원','11만원'));await h.run(()=>h.session.correction.setEnabled(true));await h.advance(3000);
+  assert.equal(h.session.rows[0].ai_correction,undefined);assert.equal(h.session.rows[0].ai_correction_issue.reason,'numbers');assert.equal(h.session.rows[1].ai_correction.text,'회의를 마칩니다.');
+ }));
+ await test('Saved rejected rows are not retried automatically and changed source is reconsidered',()=>using({snapshot:snapshot([{...row('예산 10만원입니다.'),ai_correction_issue:{version:1,source_text:'예산 10만원입니다.',model_key:'local:local-summary',glossary:'',reason:'numbers'}}])},async h=>{
+  h.overrides.set('ko_generate',async args=>answer(args));await h.run(()=>h.session.correction.setEnabled(true));await h.advance(3000);assert.equal(h.count('ko_generate'),0);assert.equal(h.session.correction.blocked,1);
+  await h.run(()=>h.session.setRows([{...h.session.rows[0],text:'예산 20만원입니다.'}]));await h.advance(3000);assert.equal(h.session.rows[0].ai_correction.text,'예산 20만원입니다.');assert.equal(h.session.rows[0].ai_correction_issue,undefined);
  }));
  await test('AI correction schema rejects missing duplicate unknown empty and truncated segments',()=>using({},async h=>{
   const {parseCorrections}=h.load(require('node:path').resolve(__dirname,'../src/components/meeting-ko/transcript-correction.ts'));

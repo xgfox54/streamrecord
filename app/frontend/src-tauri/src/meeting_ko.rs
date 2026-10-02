@@ -7,6 +7,7 @@ pub mod diarization_commands;
 pub mod recovery_commands;
 mod builtin;
 mod model_catalog;
+mod record_history;
 
 use serde_json::{json, Value};
 use std::{
@@ -373,53 +374,28 @@ pub async fn ko_close_video<R: Runtime>(app: AppHandle<R>) -> Result<(), String>
     }
 }
 
+fn history_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("meeting-ko"))
+}
+
 #[tauri::command]
-pub async fn ko_save_snapshot<R: Runtime>(
-    app: AppHandle<R>,
-    content: String,
-) -> Result<(), String> {
-    if content.len() > 8_000_000 {
-        return Err("복구 데이터 용량이 8MB를 초과했습니다. TXT로 저장하세요.".into());
-    }
-    serde_json::from_str::<Value>(&content).map_err(|e| e.to_string())?;
-    let dir = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("meeting-ko");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    // Callers serialize saves; write and fsync before replacing the last snapshot.
-    let temp = dir.join("last-session.tmp");
-    let mut f = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&temp)
-        .map_err(|e| e.to_string())?;
-    f.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
-    f.sync_all().map_err(|e| e.to_string())?;
-    drop(f);
-    std::fs::rename(temp, dir.join("last-session.json")).map_err(|e| e.to_string())
+pub async fn ko_save_snapshot<R: Runtime>(app: AppHandle<R>, content: String) -> Result<(), String> {
+    record_history::save(&history_dir(&app)?, &content)
 }
 
 #[tauri::command]
 pub async fn ko_load_snapshot<R: Runtime>(app: AppHandle<R>) -> Result<Option<Value>, String> {
-    let path = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("meeting-ko")
-        .join("last-session.json");
-    match std::fs::metadata(&path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.to_string()),
-        Ok(m) if m.len() > 8_000_000 => return Err("복구 데이터 크기가 한도를 초과합니다.".into()),
-        _ => {}
-    }
-    let data = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&data)
-        .map(Some)
-        .map_err(|e| format!("복구 파일 형식 오류: {e}"))
+    record_history::current(&history_dir(&app)?)
+}
+
+#[tauri::command]
+pub async fn ko_list_records<R: Runtime>(app: AppHandle<R>) -> Result<record_history::RecordList, String> {
+    record_history::list(&history_dir(&app)?)
+}
+
+#[tauri::command]
+pub async fn ko_load_record<R: Runtime>(app: AppHandle<R>, id: String) -> Result<Value, String> {
+    record_history::load(&history_dir(&app)?, &id)
 }
 
 async fn ollama_models(client: &reqwest::Client) -> Result<Vec<Value>, String> {
