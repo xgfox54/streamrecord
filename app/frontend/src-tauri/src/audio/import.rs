@@ -147,7 +147,7 @@ pub fn validate_audio_file(path: &Path) -> Result<AudioFileInfo> {
     }
 
     // Get file size
-    let metadata = std::fs::metadata(path).map_err(|e| anyhow!("Cannot read file: {}", e))?;
+    let metadata = crate::review_paths::fs::metadata(path).map_err(|e| anyhow!("Cannot read file: {}", e))?;
     let size_bytes = metadata.len();
 
     // Check file size limit
@@ -202,7 +202,7 @@ fn extract_duration_from_metadata(path: &Path) -> Result<f64> {
 
     // Open the file
     let file =
-        std::fs::File::open(path).map_err(|e| anyhow!("Failed to open audio file: {}", e))?;
+        crate::review_paths::fs::open_file(path).map_err(|e| anyhow!("Failed to open audio file: {}", e))?;
 
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -348,7 +348,7 @@ async fn run_import<R: Runtime>(
 
     let src = source.clone();
     let dst = dest_path.clone();
-    tokio::task::spawn_blocking(move || std::fs::copy(&src, &dst))
+    tokio::task::spawn_blocking(move || crate::review_paths::fs::copy(&src, &dst))
         .await
         .map_err(|e| anyhow!("Copy task join error: {}", e))?
         .map_err(|e| anyhow!("Failed to copy audio file: {}", e))?;
@@ -358,7 +358,7 @@ async fn run_import<R: Runtime>(
     // Check for cancellation
     if IMPORT_CANCELLED.load(Ordering::SeqCst) {
         // Cleanup: remove the meeting folder
-        let _ = std::fs::remove_dir_all(&meeting_folder);
+        let _ = crate::review_paths::fs::remove_dir_all(&meeting_folder);
         return Err(anyhow!("Import cancelled"));
     }
 
@@ -389,7 +389,7 @@ async fn run_import<R: Runtime>(
 
     // Check for cancellation
     if IMPORT_CANCELLED.load(Ordering::SeqCst) {
-        let _ = std::fs::remove_dir_all(&meeting_folder);
+        let _ = crate::review_paths::fs::remove_dir_all(&meeting_folder);
         return Err(anyhow!("Import cancelled"));
     }
 
@@ -415,7 +415,7 @@ async fn run_import<R: Runtime>(
 
     // Check for cancellation
     if IMPORT_CANCELLED.load(Ordering::SeqCst) {
-        let _ = std::fs::remove_dir_all(&meeting_folder);
+        let _ = crate::review_paths::fs::remove_dir_all(&meeting_folder);
         return Err(anyhow!("Import cancelled"));
     }
 
@@ -507,7 +507,7 @@ async fn run_import<R: Runtime>(
 
     // Check for cancellation
     if IMPORT_CANCELLED.load(Ordering::SeqCst) {
-        let _ = std::fs::remove_dir_all(&meeting_folder);
+        let _ = crate::review_paths::fs::remove_dir_all(&meeting_folder);
         return Err(anyhow!("Import cancelled"));
     }
 
@@ -558,7 +558,7 @@ async fn run_import<R: Runtime>(
 
     for (i, segment) in processable_segments.iter().enumerate() {
         if IMPORT_CANCELLED.load(Ordering::SeqCst) {
-            let _ = std::fs::remove_dir_all(&meeting_folder);
+            let _ = crate::review_paths::fs::remove_dir_all(&meeting_folder);
             return Err(anyhow!("Import cancelled"));
         }
 
@@ -655,7 +655,7 @@ async fn run_import<R: Runtime>(
 
     // Check for cancellation
     if IMPORT_CANCELLED.load(Ordering::SeqCst) {
-        let _ = std::fs::remove_dir_all(&meeting_folder);
+        let _ = crate::review_paths::fs::remove_dir_all(&meeting_folder);
         return Err(anyhow!("Import cancelled"));
     }
 
@@ -952,8 +952,8 @@ fn write_import_metadata(
     });
 
     let json_string = serde_json::to_string_pretty(&json)?;
-    std::fs::write(&temp_path, &json_string)?;
-    std::fs::rename(&temp_path, &metadata_path)?;
+    crate::review_paths::fs::write(&temp_path, &json_string)?;
+    crate::review_paths::fs::rename(&temp_path, &metadata_path)?;
 
     info!("Wrote metadata.json to {}", metadata_path.display());
     Ok(())
@@ -970,17 +970,24 @@ pub async fn select_and_validate_audio_command<R: Runtime>(
 ) -> Result<Option<AudioFileInfo>, String> {
     info!("Opening file dialog for audio import");
 
+    #[cfg(feature = "review-isolation")]
+    let review_directory = crate::review_paths::home_dir()
+        .ok_or("Review root is unavailable")?
+        .join("Fixtures");
+
     // Use spawn_blocking to avoid blocking async runtime
     let app_clone = app.clone();
     let file_path = tokio::task::spawn_blocking(move || {
-        app_clone
+        let picker = app_clone
             .dialog()
             .file()
             .add_filter(
                 "Audio Files",
                 &AUDIO_EXTENSIONS.iter().map(|s| *s).collect::<Vec<_>>(),
-            )
-            .blocking_pick_file()
+            );
+        #[cfg(feature = "review-isolation")]
+        let picker = picker.set_directory(review_directory);
+        picker.blocking_pick_file()
     })
     .await
     .map_err(|e| format!("File dialog task failed: {}", e))?;
@@ -988,6 +995,7 @@ pub async fn select_and_validate_audio_command<R: Runtime>(
     match file_path {
         Some(path) => {
             let path_str = path.to_string();
+            crate::review_paths::guard_read(&path_str).map_err(|e| e.to_string())?;
             info!("User selected: {}", path_str);
 
             match validate_audio_file(Path::new(&path_str)) {
@@ -1160,7 +1168,7 @@ mod tests {
         // Create a temporary file with wrong extension
         let temp_dir = std::env::temp_dir();
         let temp_file = temp_dir.join("test_audio.txt");
-        let _ = std::fs::write(&temp_file, b"dummy content");
+        let _ = crate::review_paths::fs::write(&temp_file, b"dummy content");
 
         let result = validate_audio_file(&temp_file);
         assert!(result.is_err());
@@ -1170,7 +1178,7 @@ mod tests {
             .contains("Unsupported format"));
 
         // Cleanup
-        let _ = std::fs::remove_file(temp_file);
+        let _ = crate::review_paths::fs::remove_file(temp_file);
     }
 
     #[test]
@@ -1284,7 +1292,7 @@ mod tests {
         let path = dir.path().join("transcripts.json");
         assert!(path.exists());
 
-        let content = std::fs::read_to_string(&path).unwrap();
+        let content = crate::review_paths::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert_eq!(parsed["total_segments"], 2);
         assert_eq!(parsed["version"], "1.0");
@@ -1314,7 +1322,7 @@ mod tests {
         let path = dir.path().join("metadata.json");
         assert!(path.exists());
 
-        let content = std::fs::read_to_string(&path).unwrap();
+        let content = crate::review_paths::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert_eq!(parsed["version"], "1.0");
         assert_eq!(parsed["meeting_id"], "meeting-123");

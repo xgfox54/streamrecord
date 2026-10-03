@@ -164,7 +164,7 @@ pub fn verify_digest(expected: &str, actual: &str) -> Result<()> {
 /// No telemetry, network request, file deletion or settings write occurs here.
 pub async fn verify_file(model: &str, path: &Path) -> Result<()> {
     let expected = expected_sha256(model)?;
-    let mut file = tokio::fs::File::open(path).await?;
+    let mut file = crate::review_paths::async_fs::open_file(path).await?;
     let size = file.metadata().await?.len();
     if size == 0 || size > MAX_MODEL_BYTES {
         bail!("음성 모델 파일 크기가 허용 범위를 벗어났습니다.");
@@ -338,7 +338,7 @@ mod tests {
     async fn stream_record_invalid_file_is_rejected_but_preserved() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ggml-tiny.bin");
-        tokio::fs::write(&path, b"lmggthis-is-not-the-model")
+        crate::review_paths::async_fs::write(&path, b"lmggthis-is-not-the-model")
             .await
             .unwrap();
         assert!(verify_file("tiny", &path).await.is_err());

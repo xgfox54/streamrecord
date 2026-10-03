@@ -207,8 +207,8 @@ async fn legacy_queue_is_visible_but_never_assumed_to_be_current_session() {
     // Given: an old version left audio without session metadata.
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("transcription-spool-legacy");
-    std::fs::create_dir(&root).unwrap();
-    std::fs::write(
+    crate::review_paths::fs::create_dir(&root).unwrap();
+    crate::review_paths::fs::write(
         root.join("00000000000000000001.chunk"),
         encode_chunk(&tests::chunk(1, DeviceType::System)),
     )
@@ -234,7 +234,7 @@ async fn failed_receipt_write_keeps_original_audio_recoverable() {
         .await
         .unwrap();
     let item = receiver.recv().await.unwrap().unwrap();
-    std::fs::create_dir(root.join("00000000000000000004.result.json")).unwrap();
+    crate::review_paths::fs::create_dir(root.join("00000000000000000004.result.json")).unwrap();
     // When: saving inference fails before acknowledging the audio.
     assert!(item.save_result(&vec!["recoverable text"]).await.is_err());
     drop(item);
@@ -254,7 +254,7 @@ async fn partial_write_fragments_prevent_recovery_completion() {
         .await
         .unwrap();
     let root = receiver.directory().to_path_buf();
-    std::fs::write(root.join("00000000000000000001.tmp"), b"partial audio").unwrap();
+    crate::review_paths::fs::write(root.join("00000000000000000001.tmp"), b"partial audio").unwrap();
     drop(sender);
     drop(receiver);
     // When: recovery inspects the remaining disk contents.

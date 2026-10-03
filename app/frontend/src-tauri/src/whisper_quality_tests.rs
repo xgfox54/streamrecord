@@ -21,7 +21,7 @@ async fn stream_record_whisper_public_quality_baseline() {
         std::env::var_os("STREAM_RECORD_QUALITY_DIR").expect("isolated quality directory"),
     );
     let references: Vec<Reference> = serde_json::from_slice(
-        &std::fs::read(directory.join("references.json")).expect("prepared reference manifest"),
+        &crate::review_paths::fs::read(directory.join("references.json")).expect("prepared reference manifest"),
     )
     .expect("valid independent references");
     assert_eq!(references.len(), 3, "bounded published FLEURS smoke corpus");
@@ -47,7 +47,7 @@ async fn stream_record_whisper_public_quality_baseline() {
         .expect("real CUDA model load");
     let mut runs = Vec::new();
     for reference in references {
-        let bytes = std::fs::read(&reference.audio_path).expect("public audio");
+        let bytes = crate::review_paths::fs::read(&reference.audio_path).expect("public audio");
         assert_eq!(
             format!("{:x}", Sha256::digest(&bytes)),
             reference.audio_sha256,
@@ -70,7 +70,7 @@ async fn stream_record_whisper_public_quality_baseline() {
         runs.push(json!({"id":reference.id,"audioSha256":reference.audio_sha256,"engine":"native-whisper-cuda-G0","model":"small-q5_1","text":transcript.text,"elapsedSeconds":elapsed,"firstPartialMs":null,"committedMs":null,"peakRamMiB":null,"peakVramMiB":null}));
     }
     assert!(engine.unload_model().await);
-    std::fs::write(
+    crate::review_paths::fs::write(
         directory.join("native-whisper-runs.json"),
         serde_json::to_vec_pretty(&runs).expect("run JSON"),
     )

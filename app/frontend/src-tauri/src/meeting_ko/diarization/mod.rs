@@ -71,7 +71,7 @@ async fn execute(request: &DiarizationRequest) -> Result<DiarizationResult, Diar
     if !executable.is_file() || !model.is_file() {
         return Err(DiarizationError::Unavailable);
     }
-    let mut file = tokio::fs::File::open(&model).await?;
+    let mut file = crate::review_paths::async_fs::open_file(&model).await?;
     let mut hasher = Sha256::new();
     let mut chunk = vec![0_u8; 65536];
     loop {

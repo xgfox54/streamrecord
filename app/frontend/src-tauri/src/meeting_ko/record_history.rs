@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs, io::Write, path::Path, sync::Mutex};
+use crate::review_paths::fs;
+use std::{io::Write, path::Path, sync::Mutex};
 
 const LIMIT: u64 = 8_000_000;
 static STORE_LOCK: Mutex<()> = Mutex::new(());

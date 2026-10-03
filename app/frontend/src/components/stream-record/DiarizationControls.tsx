@@ -1,4 +1,17 @@
 import type {MeetingSession} from './useMeetingSession';
 import styles from '../meeting-ko/workspace.module.css';
 import compactStyles from './compact-reader.module.css';
-export function DiarizationControls({session:s,compact=false}:{readonly session:MeetingSession;readonly compact?:boolean}){return <details className={compact?compactStyles.options:styles.disclosure}><summary>{compact?'화자 구분 · 녹음 종료 후':'저장 음성 화자분리'}</summary><div className={compact?compactStyles.optionBody:undefined}><p>Nemotron이 녹음 전체에서 목소리를 구분합니다. 녹음 종료 후 사용할 수 있으며, 번호는 이름이나 신원을 뜻하지 않습니다. 한 전사 구간에 여러 화자가 있으면 함께 표시합니다.</p><div className={styles.actions}><button disabled={s.busy} onClick={()=>void s.prepareAudio(false)}>화자분리할 원음 연결</button><button disabled={s.busy||!s.audioSource||!s.rows.length} onClick={()=>void s.diarization.run()}>화자분리 실행</button>{s.diarization.running&&<button onClick={s.diarization.cancel}>화자분리 취소</button>}</div><p role="status">{s.diarization.status}</p></div></details>;}
+export function DiarizationControls({session:s,compact=false}:{readonly session:MeetingSession;readonly compact?:boolean}){
+ return <details className={compact?compactStyles.options:styles.disclosure}>
+  <summary>{compact?'화자 구분':'실시간·저장 음성 화자분리'}</summary>
+  <div className={compact?compactStyles.optionBody:undefined}>
+   <p>녹음 중에는 자동 저장된 30초 음성 구간으로 화자를 구분합니다. 표시되는 번호는 임시 추정이며 이름이나 신원을 뜻하지 않습니다. 녹음 종료 후 저장 음성 전체를 분석해 확인할 수 있습니다. 한 전사 구간에 여러 화자가 있으면 함께 표시합니다.</p>
+   <div className={styles.actions}>
+    <button disabled={s.busy} onClick={()=>void s.prepareAudio(false)}>화자분리할 원음 연결</button>
+    <button disabled={s.busy||!s.audioSource||!s.rows.length} onClick={()=>void s.diarization.run()}>화자분리 실행</button>
+    {s.diarization.running&&<button onClick={s.diarization.cancel}>화자분리 취소</button>}
+   </div>
+   <p role="status">{s.diarization.status}</p>
+  </div>
+ </details>;
+}

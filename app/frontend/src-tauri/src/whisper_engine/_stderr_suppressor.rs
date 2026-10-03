@@ -9,7 +9,7 @@
 /// This suppressor redirects stderr to /dev/null during transcription to silence
 /// the C library's debug output while keeping Rust's log macros working.
 
-use std::fs::OpenOptions;
+use crate::review_paths::fs::OpenOptions;
 // use std::os::fd::{AsRawFd, RawFd};
 
 // pub struct StderrSuppressor {

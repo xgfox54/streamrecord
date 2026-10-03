@@ -17,18 +17,12 @@ use super::devices::AudioDevice;
 use super::live_vad::BoundedLiveVad;
 use super::recording_state::{AudioChunk, AudioError, DeviceType, RecordingState};
 
-/// How long a silence must last before the VAD closes a speech segment, and
-/// therefore how long the audio clips handed to the ASR engine are.
-///
-/// Live-path policy: 500ms (matches the established Meetily Pro live policy).
-/// The batch paths (`import.rs` / `retranscription.rs`) use 2000ms instead —
-/// they have no latency requirement, so they optimize purely for ASR request
-/// length. The live path cannot: with continuous audio (e.g. a podcast played
-/// as system audio) a 2000ms redemption keeps one VAD segment open
-/// indefinitely, withholds live transcript emission, and overruns the
-/// accumulated-speech-buffer warning threshold. Bounded live segmentation
-/// during continuous speech is tracked separately in #756.
-const VAD_REDEMPTION_TIME_MS: u32 = 500;
+/// Keep natural pauses inside each bounded live window. Whisper's encoder has
+/// substantial per-request cost even for very short speech. The hard window
+/// boundary still delivers audio every12seconds and bounds retained samples.
+/// Import and retranscription retain their separate2000ms silence policy.
+pub(super) const VAD_REDEMPTION_TIME_MS: u32 =
+    super::live_vad::LIVE_WINDOW_SECONDS as u32 * 1000;
 
 /// Ring buffer for synchronized audio mixing
 /// Accumulates samples from mic and system streams until we have aligned windows
@@ -1293,10 +1287,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_live_vad_redemption_matches_pro_policy() {
-        // Live uses the established 500ms pause policy; it does not bound
-        // uninterrupted speech. Batch import/retranscription use 2000ms.
-        // See #679 and #756.
-        assert_eq!(VAD_REDEMPTION_TIME_MS, 500);
+    fn test_live_vad_redemption_covers_the_bounded_window() {
+        assert_eq!(VAD_REDEMPTION_TIME_MS, 12000);
     }
 }

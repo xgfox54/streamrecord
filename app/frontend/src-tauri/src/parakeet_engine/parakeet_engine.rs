@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::fs;
+use crate::review_paths::async_fs as fs;
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::{watch, Mutex, RwLock};
 use tokio::time::timeout;
@@ -310,6 +310,7 @@ pub struct ParakeetEngine {
 impl ParakeetEngine {
     /// Create a new Parakeet engine with optional custom models directory
     pub fn new_with_models_dir(models_dir: Option<PathBuf>) -> Result<Self> {
+        let models_dir = crate::review_paths::model_directory(models_dir, "parakeet")?;
         let models_dir = if let Some(dir) = models_dir {
             dir.join("parakeet") // Parakeet models in subdirectory
         } else {
@@ -322,8 +323,8 @@ impl ParakeetEngine {
                 current_dir.join("models").join("parakeet")
             } else {
                 // Production mode
-                dirs::data_dir()
-                    .or_else(|| dirs::home_dir())
+                crate::review_paths::data_dir()
+                    .or_else(|| crate::review_paths::home_dir())
                     .ok_or_else(|| anyhow!("Could not find system data directory"))?
                     .join("Meetily")
                     .join("models")
@@ -338,7 +339,7 @@ impl ParakeetEngine {
 
         // Create directory if it doesn't exist
         if !models_dir.exists() {
-            std::fs::create_dir_all(&models_dir)?;
+            crate::review_paths::fs::create_dir_all(&models_dir)?;
         }
 
         Ok(Self {
@@ -386,7 +387,7 @@ impl ParakeetEngine {
                                 .artifacts
                                 .iter()
                                 .filter_map(|artifact| {
-                                    std::fs::metadata(model_path.join(artifact.filename)).ok()
+                                    crate::review_paths::fs::metadata(model_path.join(artifact.filename)).ok()
                                 })
                                 .map(|metadata| metadata.len())
                                 .sum();
@@ -453,7 +454,7 @@ impl ParakeetEngine {
     fn validate_model_directory(model_dir: &Path, artifacts: &[ArtifactSpec]) -> Result<()> {
         for artifact in artifacts {
             let path = model_dir.join(artifact.filename);
-            let metadata = std::fs::metadata(&path).map_err(|error| {
+            let metadata = crate::review_paths::fs::metadata(&path).map_err(|error| {
                 anyhow!("Failed to read {} metadata: {}", artifact.filename, error)
             })?;
             if metadata.len() != artifact.exact_bytes {

@@ -44,11 +44,11 @@ pub fn get_default_recordings_folder() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         // Windows: %USERPROFILE%\Music\meetily-recordings
-        if let Some(music_dir) = dirs::audio_dir() {
+        if let Some(music_dir) = crate::review_paths::audio_dir() {
             music_dir.join("meetily-recordings")
         } else {
             // Fallback to Documents if Music folder is not available
-            dirs::document_dir()
+            crate::review_paths::document_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join("meetily-recordings")
         }
@@ -57,11 +57,11 @@ pub fn get_default_recordings_folder() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         // macOS: ~/Movies/meetily-recordings
-        if let Some(movies_dir) = dirs::video_dir() {
+        if let Some(movies_dir) = crate::review_paths::video_dir() {
             movies_dir.join("meetily-recordings")
         } else {
             // Fallback to Documents if Movies folder is not available
-            dirs::document_dir()
+            crate::review_paths::document_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join("meetily-recordings")
         }
@@ -70,7 +70,7 @@ pub fn get_default_recordings_folder() -> PathBuf {
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         // Linux/Others: ~/Documents/meetily-recordings
-        dirs::document_dir()
+        crate::review_paths::document_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("meetily-recordings")
     }
@@ -79,7 +79,7 @@ pub fn get_default_recordings_folder() -> PathBuf {
 /// Ensure the recordings directory exists
 pub fn ensure_recordings_directory(path: &PathBuf) -> Result<()> {
     if !path.exists() {
-        std::fs::create_dir_all(path)?;
+        crate::review_paths::fs::create_dir_all(path)?;
         info!("Created recordings directory: {:?}", path);
     }
     Ok(())

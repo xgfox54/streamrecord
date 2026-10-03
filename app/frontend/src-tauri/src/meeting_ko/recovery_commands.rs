@@ -51,6 +51,7 @@ pub async fn ko_resume_transcription_recovery<R: Runtime>(
     let _import_guard = crate::audio::import::ImportGuard::acquire()
         .map_err(|_| "파일 가져오기 또는 음성 분석 작업이 진행 중입니다.".to_owned())?;
     let path = owned_directory(&directory)?;
+    crate::set_language_preference("ko".to_string()).await?;
     runner::resume_session(&app, &path, retry_failed)
         .await
         .map_err(|e| e.to_string())

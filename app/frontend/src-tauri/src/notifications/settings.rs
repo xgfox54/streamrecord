@@ -113,14 +113,14 @@ impl<R: Runtime> ConsentManager<R> {
     /// Get the path where notification settings are stored
     fn get_settings_path() -> Result<PathBuf> {
         let mut path =
-            dirs::config_dir().ok_or_else(|| anyhow!("Could not find config directory"))?;
+            crate::review_paths::config_dir().ok_or_else(|| anyhow!("Could not find config directory"))?;
 
         path.push("meetily");
         path.push("notifications.json");
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            crate::review_paths::fs::create_dir_all(parent)?;
         }
 
         Ok(path)
@@ -133,7 +133,7 @@ impl<R: Runtime> ConsentManager<R> {
             return Ok(NotificationSettings::default());
         }
 
-        let content = tokio::fs::read_to_string(&self.settings_path).await?;
+        let content = crate::review_paths::async_fs::read_to_string(&self.settings_path).await?;
         let settings: NotificationSettings = serde_json::from_str(&content)?;
 
         log_info!("Loaded notification settings from disk");
@@ -143,7 +143,7 @@ impl<R: Runtime> ConsentManager<R> {
     /// Save notification settings to disk
     pub async fn save_settings(&self, settings: &NotificationSettings) -> Result<()> {
         let content = serde_json::to_string_pretty(settings)?;
-        tokio::fs::write(&self.settings_path, content).await?;
+        crate::review_paths::async_fs::write(&self.settings_path, content).await?;
 
         log_info!("Saved notification settings to disk");
         Ok(())

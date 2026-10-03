@@ -52,6 +52,7 @@ pub mod openai;
 pub mod openrouter;
 pub mod parakeet_engine;
 mod review_audio;
+pub mod review_paths;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -224,7 +225,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
             if let Some(parent) = std::path::Path::new(&args.save_path).parent() {
                 if !parent.exists() {
                     log_info!("Creating directory: {:?}", parent);
-                    if let Err(e) = std::fs::create_dir_all(parent) {
+                    if let Err(e) = crate::review_paths::fs::create_dir_all(parent) {
                         let err_msg = format!("Failed to create save directory: {}", e);
                         log_error!("{}", err_msg);
                         return Err(err_msg);
@@ -274,7 +275,7 @@ fn get_transcription_status() -> TranscriptionStatus {
 
 #[tauri::command]
 fn read_audio_file(file_path: String) -> Result<Vec<u8>, String> {
-    match std::fs::read(&file_path) {
+    match crate::review_paths::fs::read(&file_path) {
         Ok(data) => Ok(data),
         Err(e) => Err(format!("Failed to read audio file: {}", e)),
     }
@@ -287,13 +288,13 @@ async fn save_transcript(file_path: String, content: String) -> Result<(), Strin
     // Ensure parent directory exists
     if let Some(parent) = std::path::Path::new(&file_path).parent() {
         if !parent.exists() {
-            std::fs::create_dir_all(parent)
+            crate::review_paths::fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create directory: {}", e))?;
         }
     }
 
     // Write content to file
-    std::fs::write(&file_path, content)
+    crate::review_paths::fs::write(&file_path, content)
         .map_err(|e| format!("Failed to write transcript: {}", e))?;
 
     log_info!("Transcript saved successfully");
@@ -438,6 +439,8 @@ pub fn get_language_preference_internal() -> Option<String> {
 }
 
 pub fn run() {
+    #[cfg(feature = "review-isolation")]
+    if let Err(error) = review_paths::initialize().and_then(|_| review_paths::verify_identity()) { eprintln!("Review isolation failed: {error}"); return; }
     log::set_max_level(log::LevelFilter::Info);
 
     let mut builder = tauri::Builder::default();
@@ -455,12 +458,12 @@ pub fn run() {
         }));
     }
 
+    #[cfg(not(feature = "review-isolation"))]
+    { builder = builder.plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_store::Builder::default().build()).plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init()); }
+    #[cfg(feature = "review-isolation")]
+    { builder = builder.plugin(review_paths::guarded_store::GuardedStore(tauri_plugin_store::Builder::default().build()))
+        .plugin(review_paths::native_dialog::NativeDialog(tauri_plugin_dialog::init())); }
     builder
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(Arc::new(RwLock::new(
             None::<notifications::manager::NotificationManager<tauri::Wry>>,
@@ -470,6 +473,11 @@ pub fn run() {
             tokio::sync::Mutex::new(None),
         )))
         .setup(|_app| {
+            #[cfg(feature = "review-isolation")]
+            {
+                for path in [_app.path().app_data_dir()?, _app.path().app_local_data_dir()?, _app.path().app_cache_dir()?, _app.path().app_log_dir()?, review_paths::document_dir().ok_or("Missing review documents directory")?, review_paths::audio_dir().ok_or("Missing review audio directory")?] { review_paths::guard_write(path)?; }
+                review_paths::guard_read(_app.path().resource_dir()?)?;
+            }
             #[cfg(target_os = "windows")]
             match _app
                 .path()
@@ -509,6 +517,7 @@ pub fn run() {
             // Initialize notification system with proper defaults
             log::info!("Initializing notification system...");
             let app_for_notif = _app.handle().clone();
+            #[cfg(not(feature = "review-isolation"))]
             tauri::async_runtime::spawn(async move {
                 let notif_state = app_for_notif.state::<NotificationManagerState<tauri::Wry>>();
                 match notifications::commands::initialize_notification_manager(
@@ -606,7 +615,7 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+                if window.label() == "main" && !cfg!(feature = "review-isolation") {
                     api.prevent_close();
                     if let Err(e) = window.hide() {
                         log::error!("Failed to hide main window on close request: {}", e);
@@ -616,7 +625,7 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler({ let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
             bundled_whisper::ko_prepare_bundled_whisper,
             meeting_ko::ko_start_recording,
             meeting_ko::ko_stop_recording,
@@ -628,6 +637,7 @@ pub fn run() {
             meeting_ko::ko_close_video,
             meeting_ko::ko_models,
             meeting_ko::diarization_commands::ko_run_diarization,
+            meeting_ko::diarization_commands::ko_poll_live_diarization,
             meeting_ko::diarization_commands::ko_cancel_diarization,
             meeting_ko::connections::ko_list_connections,
             meeting_ko::connections::ko_save_connection,
@@ -872,7 +882,19 @@ pub fn run() {
             audio::import::start_import_audio_command,
             audio::import::cancel_import_command,
             audio::import::is_import_in_progress_command,
-        ])
+        ]; move |invoke: tauri::ipc::Invoke<tauri::Wry>| {
+            #[cfg(feature = "review-isolation")]
+            {
+                let command = invoke.message.command();
+                let checked = match invoke.message.payload() {
+                    tauri::ipc::InvokeBody::Json(value) => review_paths::capture::check_command(command, value)
+                        .and_then(|_| review_paths::check_payload(value)),
+                    _ => Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,"Raw review IPC is disabled")),
+                };
+                if let Err(error) = checked { invoke.resolver.reject(error.to_string()); return true; }
+            }
+            handler(invoke)
+        } })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, event| {

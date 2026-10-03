@@ -22,7 +22,7 @@ pub fn set_models_directory<R: Runtime>(app: &AppHandle<R>) {
 
     // Create directory if it doesn't exist
     if !models_dir.exists() {
-        if let Err(e) = std::fs::create_dir_all(&models_dir) {
+        if let Err(e) = crate::review_paths::fs::create_dir_all(&models_dir) {
             log::error!("Failed to create models directory: {}", e);
             return;
         }
@@ -552,7 +552,7 @@ pub async fn open_parakeet_models_folder() -> Result<(), String> {
 
     // Ensure directory exists before trying to open it
     if !models_dir.exists() {
-        std::fs::create_dir_all(&models_dir)
+        crate::review_paths::fs::create_dir_all(&models_dir)
             .map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 

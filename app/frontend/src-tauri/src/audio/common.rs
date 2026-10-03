@@ -130,8 +130,8 @@ pub(crate) fn write_transcripts_json(folder: &Path, segments: &[TranscriptSegmen
     });
 
     let json_string = serde_json::to_string_pretty(&json)?;
-    std::fs::write(&temp_path, &json_string)?;
-    std::fs::rename(&temp_path, &transcript_path)?;
+    crate::review_paths::fs::write(&temp_path, &json_string)?;
+    crate::review_paths::fs::rename(&temp_path, &transcript_path)?;
 
     info!(
         "Wrote transcripts.json with {} segments to {}",

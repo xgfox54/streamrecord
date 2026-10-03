@@ -1,11 +1,7 @@
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{File, OpenOptions},
-    io::Write,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use crate::review_paths::fs::{File, OpenOptions};
+use std::{io::Write, path::{Path, PathBuf}, sync::Arc};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +40,8 @@ impl RecoverySession {
 }
 
 pub fn persistent_root() -> PathBuf {
+    #[cfg(feature = "review-isolation")]
+    { return crate::review_paths::data_local_dir().expect("validated review root").join(crate::review_paths::IDENTIFIER).join("transcription-spool"); }
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
@@ -79,14 +77,14 @@ pub(crate) fn create(root: &Path, session_id: &str) -> Result<Arc<File>> {
     file.write_all(&serde_json::to_vec(&manifest)?)?;
     file.sync_all()?;
     drop(file);
-    std::fs::rename(root.join("session.tmp"), root.join("session.json"))?;
+    crate::review_paths::fs::rename(root.join("session.tmp"), root.join("session.json"))?;
     Ok(owner)
 }
 
 pub fn inspect(root: &Path) -> Result<RecoverySession> {
     let manifest_path = root.join("session.json");
     let session_id = if manifest_path.exists() {
-        let manifest: SessionManifest = serde_json::from_reader(File::open(manifest_path)?)?;
+        let manifest: SessionManifest = serde_json::from_reader(crate::review_paths::fs::open_file(manifest_path)?)?;
         if manifest.version != 1 {
             bail!("지원하지 않는 전사 복구 형식입니다");
         }
@@ -103,7 +101,7 @@ pub fn inspect(root: &Path) -> Result<RecoverySession> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
         Err(error) => return Err(error.into()),
     };
-    let recording_folder = match std::fs::read(root.join("recording-folder.json")) {
+    let recording_folder = match crate::review_paths::fs::read(root.join("recording-folder.json")) {
         Ok(bytes) => Some(serde_json::from_slice(&bytes)?),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.into()),
@@ -123,7 +121,7 @@ pub fn inspect(root: &Path) -> Result<RecoverySession> {
         partial_writes: 0,
         active,
     };
-    for entry in std::fs::read_dir(root)? {
+    for entry in crate::review_paths::fs::read_dir(root)? {
         let path = entry?.path();
         if path
             .file_name()
@@ -150,7 +148,7 @@ pub fn discover(root: &Path) -> Result<Vec<RecoverySession>> {
         return Ok(Vec::new());
     }
     let mut sessions = Vec::new();
-    for entry in std::fs::read_dir(root)? {
+    for entry in crate::review_paths::fs::read_dir(root)? {
         let entry = entry?;
         if entry.file_type()?.is_dir()
             && entry
@@ -183,7 +181,7 @@ pub fn discover(root: &Path) -> Result<Vec<RecoverySession>> {
 }
 
 pub(crate) fn prepare_retry(root: &Path, retry_failed: bool) -> Result<()> {
-    for entry in std::fs::read_dir(root)? {
+    for entry in crate::review_paths::fs::read_dir(root)? {
         let path = entry?.path();
         let eligible = match path.extension().and_then(|s| s.to_str()) {
             Some("deferred") => true,
@@ -195,7 +193,7 @@ pub(crate) fn prepare_retry(root: &Path, retry_failed: bool) -> Result<()> {
             if target.exists() {
                 bail!("동일 구간의 복구 파일이 중복되어 있습니다");
             }
-            std::fs::rename(path, target)?;
+            crate::review_paths::fs::rename(path, target)?;
         }
     }
     Ok(())

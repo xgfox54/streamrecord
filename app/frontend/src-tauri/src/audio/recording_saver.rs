@@ -306,8 +306,8 @@ impl RecordingSaver {
         let temp_path = folder.join(".metadata.json.tmp");
 
         let json_string = serde_json::to_string_pretty(metadata)?;
-        std::fs::write(&temp_path, json_string)?;
-        std::fs::rename(&temp_path, &metadata_path)?; // Atomic
+        crate::review_paths::fs::write(&temp_path, json_string)?;
+        crate::review_paths::fs::rename(&temp_path, &metadata_path)?; // Atomic
 
         Ok(())
     }
@@ -350,7 +350,7 @@ impl RecordingSaver {
         })?;
 
         // Write to temp file with error handling
-        std::fs::write(&temp_path, &json_string).map_err(|e| {
+        crate::review_paths::fs::write(&temp_path, &json_string).map_err(|e| {
             error!(
                 "Failed to write transcript temp file to {}: {}",
                 temp_path.display(),
@@ -369,7 +369,7 @@ impl RecordingSaver {
         }
 
         // Atomic rename
-        std::fs::rename(&temp_path, &transcript_path).map_err(|e| {
+        crate::review_paths::fs::rename(&temp_path, &transcript_path).map_err(|e| {
             error!(
                 "Failed to rename transcript file from {} to {}: {}",
                 temp_path.display(),
@@ -399,42 +399,14 @@ impl RecordingSaver {
         }
     }
 
-    /// Stop and save using incremental saving approach
-    ///
-    /// # Arguments
-    /// * `app` - Tauri app handle for emitting events
-    /// * `recording_duration` - Actual recording duration in seconds (from RecordingState)
-    pub async fn stop_and_save<R: Runtime>(
-        &mut self,
-        app: &AppHandle<R>,
-        recording_duration: Option<f64>,
-    ) -> Result<Option<String>, String> {
-        info!("Stopping recording saver");
-
-        // Stop accumulation
-        if let Ok(mut is_saving) = self.is_saving.lock() {
-            *is_saving = false;
-        }
-
-        // Give time for final chunks
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-        // Check if incremental saver exists (indicates auto_save was enabled)
-        let should_save_audio = self.incremental_saver.is_some();
-
-        if !should_save_audio {
-            info!("⚠️  No audio saver initialized (auto-save was disabled) - skipping audio finalization");
-            info!("✅ Transcripts and metadata already saved incrementally");
-            return Ok(None);
-        }
-
+    async fn finalize_recording(&mut self) -> Result<PathBuf, String> {
         // Finalize incremental saver (merge checkpoints into final audio.mp4)
-        let final_audio_path = if let Some(saver_arc) = &self.incremental_saver {
+        let final_audio = if let Some(saver_arc) = &self.incremental_saver {
             let mut saver = saver_arc.lock().await;
             match saver.finalize().await {
-                Ok(path) => {
-                    info!("✅ Successfully finalized audio: {}", path.display());
-                    path
+                Ok(audio) => {
+                    info!("✅ Successfully finalized audio: {}", audio.path.display());
+                    audio
                 }
                 Err(e) => {
                     error!("❌ Failed to finalize incremental saver: {}", e);
@@ -473,15 +445,7 @@ impl RecordingSaver {
             metadata.status = "completed".to_string();
             metadata.completed_at = Some(chrono::Utc::now().to_rfc3339());
 
-            // Use actual recording duration from RecordingState (more accurate than transcript segments)
-            // Falls back to last transcript segment if duration not provided
-            metadata.duration_seconds = recording_duration.or_else(|| {
-                if let Ok(segments) = self.transcript_segments.lock() {
-                    segments.last().map(|seg| seg.audio_end_time)
-                } else {
-                    None
-                }
-            });
+            metadata.duration_seconds = Some(final_audio.duration_seconds);
 
             if let Err(e) = self.write_metadata(folder, &metadata) {
                 error!("❌ Failed to update metadata to completed: {}", e);
@@ -493,6 +457,38 @@ impl RecordingSaver {
                 metadata.duration_seconds
             );
         }
+
+        Ok(final_audio.path)
+    }
+
+    /// Stop and save using incremental saving approach
+    ///
+    /// # Arguments
+    /// * `app` - Tauri app handle for emitting events
+    pub async fn stop_and_save<R: Runtime>(
+        &mut self,
+        app: &AppHandle<R>,
+    ) -> Result<Option<String>, String> {
+        info!("Stopping recording saver");
+
+        // Stop accumulation
+        if let Ok(mut is_saving) = self.is_saving.lock() {
+            *is_saving = false;
+        }
+
+        // Give time for final chunks
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+        // Check if incremental saver exists (indicates auto_save was enabled)
+        let should_save_audio = self.incremental_saver.is_some();
+
+        if !should_save_audio {
+            info!("⚠️  No audio saver initialized (auto-save was disabled) - skipping audio finalization");
+            info!("✅ Transcripts and metadata already saved incrementally");
+            return Ok(None);
+        }
+
+        let final_audio_path = self.finalize_recording().await?;
 
         // Only this successfully saved file is eligible for review playback.
         if let Err(error) = crate::review_audio::register(&final_audio_path) {
@@ -561,11 +557,57 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn completed_metadata_preserves_audio_after_last_transcript() {
+        let sample_count = 120_007usize;
+        for with_transcript in [true, false] {
+            let temp = tempfile::tempdir().unwrap();
+            let folder = temp.path().to_path_buf();
+            crate::review_paths::fs::create_dir_all(folder.join(".checkpoints")).unwrap();
+            let mut audio = IncrementalAudioSaver::new(folder.clone(), 48_000).unwrap();
+            audio.add_chunk(AudioChunk {
+                data: vec![0.0; sample_count],
+                sample_rate: 48_000,
+                timestamp: 0.0,
+                chunk_id: 0,
+                device_type: super::super::recording_state::DeviceType::Microphone,
+            }).unwrap();
+            let mut saver = RecordingSaver::new();
+            saver.meeting_folder = Some(folder.clone());
+            saver.incremental_saver = Some(Arc::new(AsyncMutex::new(audio)));
+            saver.metadata = Some(MeetingMetadata {
+                version: "1.0".to_string(),
+                meeting_id: None,
+                meeting_name: Some("duration regression".to_string()),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                completed_at: None,
+                duration_seconds: None,
+                devices: DeviceInfo { microphone: None, system_audio: None },
+                audio_file: "audio.mp4".to_string(),
+                transcript_file: "transcripts.json".to_string(),
+                sample_rate: 48_000,
+                status: "recording".to_string(),
+            });
+            if with_transcript {
+                saver.commit_transcript_segment(segment()).unwrap();
+            }
+            let path = saver.finalize_recording().await.unwrap();
+            let metadata: MeetingMetadata = serde_json::from_str(
+                &crate::review_paths::fs::read_to_string(folder.join("metadata.json")).unwrap()
+            ).unwrap();
+            assert!(path.exists());
+            assert_eq!(metadata.status, "completed");
+            assert!(metadata.completed_at.is_some());
+            assert_eq!(metadata.duration_seconds, Some(sample_count as f64 / 48_000.0),
+                "saved audio duration must include silence and must not depend on transcript or wall clock");
+        }
+    }
+
     #[test]
     fn failed_disk_commit_does_not_advance_memory_state() {
         let temp = tempfile::tempdir().unwrap();
         let blocker = temp.path().join("not-a-directory");
-        std::fs::write(&blocker, b"block").unwrap();
+        crate::review_paths::fs::write(&blocker, b"block").unwrap();
         let mut saver = RecordingSaver::new();
         saver.meeting_folder = Some(blocker);
 
@@ -580,7 +622,7 @@ mod tests {
         saver.meeting_folder = Some(temp.path().to_path_buf());
 
         saver.commit_transcript_segment(segment()).unwrap();
-        let payload = std::fs::read_to_string(temp.path().join("transcripts.json")).unwrap();
+        let payload = crate::review_paths::fs::read_to_string(temp.path().join("transcripts.json")).unwrap();
         assert!(payload.contains("raw_engine_output_status"));
         assert!(payload.contains("captured"));
         assert_eq!(saver.get_transcript_segments().len(), 1);

@@ -1,6 +1,6 @@
 [package]
 name = "meetily"
-version = "0.6.3"
+version = "0.6.4"
 description = "A Tauri App for meeting minutes"
 authors = ["Sujith S"]
 license = "MIT"
@@ -40,6 +40,11 @@ default = ["platform-default"]  # Automatically enables best backend per platfor
 
 # Platform-appropriate defaults - see target-specific dependencies below
 platform-default = []
+
+# Explicit review-only root; default builds keep their existing paths.
+review-isolation = ["dep:dirs_tauri"]
+# Explicit, nonce-scoped Stereo Mix validation; never enabled by default.
+review-capture-validation = ["review-isolation"]
 
 # Manual GPU acceleration options (for power users to override defaults)
 metal = ["whisper-rs/metal"]       # macOS: Apple Metal GPU (Auto-enabled on macOS)
@@ -124,6 +129,7 @@ dashmap = "6.1.0"
 
 # Directories
 dirs = "5.0.1"
+dirs_tauri = { package = "dirs", version = "6.0.0", optional = true }
 
 # Additional dependencies for notification system
 url = "2.5.0"

@@ -24,7 +24,7 @@ pub fn set_models_directory<R: Runtime>(app: &AppHandle<R>) {
 
     // Create directory if it doesn't exist
     if !models_dir.exists() {
-        if let Err(e) = std::fs::create_dir_all(&models_dir) {
+        if let Err(e) = crate::review_paths::fs::create_dir_all(&models_dir) {
             log::error!("Failed to create models directory: {}", e);
             return;
         }
@@ -95,7 +95,7 @@ fn discover_models_standalone() -> Result<Vec<ModelInfo>, String> {
     for &(name, filename, size_mb, accuracy, speed, description) in model_configs {
         let model_path = whisper_dir.join(filename);
         let status = if model_path.exists() {
-            match std::fs::metadata(&model_path) {
+            match crate::review_paths::fs::metadata(&model_path) {
                 Ok(metadata) => {
                     let file_size_mb = metadata.len() / (1024 * 1024);
                     if file_size_mb >= 1 {
@@ -540,7 +540,7 @@ pub async fn open_models_folder() -> Result<(), String> {
 
     // Ensure directory exists before trying to open it
     if !models_dir.exists() {
-        std::fs::create_dir_all(&models_dir)
+        crate::review_paths::fs::create_dir_all(&models_dir)
             .map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 

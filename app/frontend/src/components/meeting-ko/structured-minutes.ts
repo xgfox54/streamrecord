@@ -56,7 +56,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   if(options.rows.some(row=>row.is_partial&&reviewText(row).trim()))throw new Error('미확정 전사 구간이 남아 있습니다. 마지막 음성을 처리해 확정한 뒤 회의록을 만드세요. 원문은 유지됩니다.');
   const parts=sourceParts(options.rows);if(!parts.length)throw new Error('확정된 전사문이 없습니다. 마지막 음성 처리가 끝났는지 확인하세요.');
   const reference=Array.from(options.glossary).slice(0,500).join('');
-  const source=JSON.stringify({version:1,parts,reference,model:options.modelKey});
+  const source=JSON.stringify({version:3,parts,reference,model:options.modelKey});
   if(source.length>2_000_000)throw new Error('전사문이 너무 큽니다. 회의를 나누어 처리하세요.');
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(source));
   const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');

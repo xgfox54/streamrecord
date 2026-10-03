@@ -9,11 +9,8 @@ use std::{
     },
     time::{SystemTime, UNIX_EPOCH},
 };
-use tokio::{
-    fs,
-    io::AsyncWriteExt,
-    sync::{mpsc, Notify},
-};
+use crate::review_paths::async_fs as fs;
+use tokio::{io::AsyncWriteExt, sync::{mpsc, Notify}};
 
 const MAGIC: &[u8; 4] = b"SRQ1";
 const HEADER_BYTES: usize = 4 + 4 + 8 + 8 + 1 + 8;
@@ -24,19 +21,19 @@ static QUEUE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub struct DiskQueueSender {
     root: PathBuf,
     wake: mpsc::Sender<()>,
-    _owner: Arc<std::fs::File>,
+    _owner: Arc<crate::review_paths::fs::File>,
 }
 
 pub struct DiskQueueReceiver {
     root: PathBuf,
-    owner: Arc<std::fs::File>,
+    owner: Arc<crate::review_paths::fs::File>,
     wake: mpsc::Receiver<()>,
     in_flight: Arc<Mutex<HashSet<PathBuf>>>,
     released: Arc<Notify>,
 }
 
 pub struct DiskQueueItem {
-    _owner: Arc<std::fs::File>,
+    _owner: Arc<crate::review_paths::fs::File>,
     chunk: AudioChunk,
     path: PathBuf,
     in_flight: Arc<Mutex<HashSet<PathBuf>>>,

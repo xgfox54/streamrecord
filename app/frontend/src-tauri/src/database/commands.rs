@@ -114,7 +114,7 @@ pub async fn check_homebrew_database(path: String) -> Result<Option<DatabaseChec
     // Check if file exists and is a regular file
     if db_path.exists() && db_path.is_file() {
         // Get file metadata to check size
-        match std::fs::metadata(&db_path) {
+        match crate::review_paths::fs::metadata(&db_path) {
             Ok(metadata) => {
                 let size = metadata.len();
                 info!("Found Homebrew database: {} ({} bytes)", path, size);
@@ -224,7 +224,7 @@ pub async fn open_database_folder(app: AppHandle) -> Result<(), String> {
 
     // Ensure directory exists before trying to open it
     if !app_data_dir.exists() {
-        std::fs::create_dir_all(&app_data_dir)
+        crate::review_paths::fs::create_dir_all(&app_data_dir)
             .map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 

@@ -43,12 +43,12 @@ pub fn create_meeting_folder(
     let meeting_folder = base_path.join(folder_name);
 
     // Create main meeting folder
-    std::fs::create_dir_all(&meeting_folder)?;
+    crate::review_paths::fs::create_dir_all(&meeting_folder)?;
 
     // Only create .checkpoints subdirectory if requested (when auto_save is true)
     if create_checkpoints_dir {
         let checkpoints_dir = meeting_folder.join(".checkpoints");
-        std::fs::create_dir_all(&checkpoints_dir)?;
+        crate::review_paths::fs::create_dir_all(&checkpoints_dir)?;
         log::info!(
             "Created meeting folder with checkpoints: {}",
             meeting_folder.display()
@@ -663,7 +663,7 @@ pub fn write_audio_to_file_with_meeting_name(
 
         // Create the meeting folder if it doesn't exist
         if !meeting_folder.exists() {
-            std::fs::create_dir_all(&meeting_folder)?;
+            crate::review_paths::fs::create_dir_all(&meeting_folder)?;
         }
 
         meeting_folder
@@ -704,7 +704,7 @@ pub fn write_transcript_to_file(
 
         // Create the meeting folder if it doesn't exist
         if !meeting_folder.exists() {
-            std::fs::create_dir_all(&meeting_folder)?;
+            crate::review_paths::fs::create_dir_all(&meeting_folder)?;
         }
 
         meeting_folder
@@ -715,7 +715,7 @@ pub fn write_transcript_to_file(
     let file_path = final_output_path.join(format!("transcript_{}.txt", timestamp));
 
     // Write transcript to file
-    std::fs::write(&file_path, transcript_text)?;
+    crate::review_paths::fs::write(&file_path, transcript_text)?;
 
     Ok(file_path.to_string_lossy().to_string())
 }
@@ -738,7 +738,7 @@ pub fn write_transcript_json_to_file(
         let meeting_folder = output_path.join(&sanitized_meeting_name);
 
         if !meeting_folder.exists() {
-            std::fs::create_dir_all(&meeting_folder)?;
+            crate::review_paths::fs::create_dir_all(&meeting_folder)?;
         }
 
         meeting_folder
@@ -761,7 +761,7 @@ pub fn write_transcript_json_to_file(
 
     // Write JSON to file with pretty formatting
     let json_string = serde_json::to_string_pretty(&transcript_json)?;
-    std::fs::write(&file_path, json_string)?;
+    crate::review_paths::fs::write(&file_path, json_string)?;
 
     Ok(file_path.to_string_lossy().to_string())
 }

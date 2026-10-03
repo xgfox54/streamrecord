@@ -65,6 +65,20 @@ fn session_live(s: &Arc<super::RecordingState>) -> bool {
             .map_or(false, |m| Arc::ptr_eq(m.get_state(), s))
 }
 
+/// Snapshot the current recording's internally created folder without holding the
+/// manager lock across FFmpeg/model inference. A later Stop/Start is detected with
+/// `live_diarization_session_matches` before any result is returned to the UI.
+pub(crate) fn live_diarization_session() -> Option<(std::path::PathBuf, Arc<super::RecordingState>)> {
+    if !recording_live() { return None; }
+    let manager = RECORDING_MANAGER.lock().ok()?;
+    let manager = manager.as_ref()?;
+    Some((manager.get_meeting_folder()?, Arc::clone(manager.get_state())))
+}
+
+pub(crate) fn live_diarization_session_matches(state: &Arc<super::RecordingState>) -> bool {
+    session_live(state)
+}
+
 /// RAII guard for the stop-tail flag. Sets `IS_RECORDING_STOPPING` true on
 /// construction and clears it on Drop — including during unwind — so a panic
 /// anywhere in the ~320-line stop tail can't leave the flag stuck true and

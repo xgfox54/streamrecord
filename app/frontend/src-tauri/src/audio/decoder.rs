@@ -377,7 +377,7 @@ fn convert_to_wav_with_ffmpeg(
     }
 
     // Verify output file exists and has content
-    let output_meta = std::fs::metadata(&temp_path)
+    let output_meta = crate::review_paths::fs::metadata(&temp_path)
         .map_err(|e| anyhow!("FFmpeg output file not found: {}", e))?;
 
     if output_meta.len() == 0 {
@@ -431,7 +431,7 @@ pub fn decode_audio_file_with_progress(
         };
 
     // Open the file (use decode_path which may be the temp WAV)
-    let file = std::fs::File::open(decode_path.as_ref()).map_err(|e| {
+    let file = crate::review_paths::fs::open_file(decode_path.as_ref()).map_err(|e| {
         anyhow!(
             "Failed to open audio file '{}': {}",
             decode_path.display(),

@@ -1,5 +1,5 @@
 use sqlx::{migrate::MigrateDatabase, Result, Sqlite, SqlitePool, Transaction};
-use std::fs;
+use crate::review_paths::fs;
 use std::path::Path;
 use tauri::Manager;
 
@@ -10,6 +10,8 @@ pub struct DatabaseManager {
 
 impl DatabaseManager {
     pub async fn new(tauri_db_path: &str, backend_db_path: &str) -> Result<Self> {
+        crate::review_paths::guard_write(tauri_db_path).map_err(sqlx::Error::Io)?;
+        crate::review_paths::guard_read(backend_db_path).map_err(sqlx::Error::Io)?;
         if let Some(parent_dir) = Path::new(tauri_db_path).parent() {
             if !parent_dir.exists() {
                 fs::create_dir_all(parent_dir).map_err(|e| sqlx::Error::Io(e))?;

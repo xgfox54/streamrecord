@@ -71,9 +71,11 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
  await test('All decision rows survive deterministic final rendering',()=>{const result=structured.renderMinutes([note(),note()],parts,'회의');assert.equal(result.split('예산 300만원 확정').length-1,2);assert.ok(result.includes('S000001'));});
  let snapshot=null;let requests=0;
  const opts={rows:[{text:'예산 300만원을 확정한다.',audio_start_time:1}],title:'시험',glossary:'',modelKey:'local:test',generate:async()=>{requests++;return JSON.stringify(note());},progress:()=>{},cancelled:()=>false,checkpoint:null,save:async value=>{snapshot=copy(value);}};
+ await test('Array summaries cannot become completed minutes or checkpoints',async()=>{let generated=0;let saved=0;const malformed={...note(),summary:['예산을 논의했다.']};await assert.rejects(()=>structured.createStructuredMinutes({...opts,generate:async()=>{generated++;return JSON.stringify(malformed);},save:async()=>{saved++;}}),/Expected string, received array/);assert.equal(generated,2);assert.equal(saved,0);});
  await test('Structured summary persists a resumable checkpoint',async()=>{const value=await structured.createStructuredMinutes(opts);assert.ok(value.includes('확정 결정사항'));assert.equal(requests,1);assert.ok(snapshot.key);});
  await test('Unchanged completed chunk is reused without another model request',async()=>{await structured.createStructuredMinutes({...opts,checkpoint:snapshot});assert.equal(requests,1);});
  await test('Changed model invalidates previous checkpoint',async()=>{await structured.createStructuredMinutes({...opts,modelKey:'local:other',checkpoint:snapshot});assert.equal(requests,2);});
+ await test('Earlier structured prompt policy cannot reuse its completed checkpoint',async()=>{for(const version of [1,2]){const source=JSON.stringify({version,parts:structured.sourceParts(opts.rows),reference:'',model:opts.modelKey});const digest=await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode(source));const key=Buffer.from(digest).toString('hex');let regenerated=0;await structured.createStructuredMinutes({...opts,checkpoint:{key,notes:{'0':note()}},generate:async()=>{regenerated++;return JSON.stringify(note());},save:async()=>{}});assert.equal(regenerated,1);}});
  await test('Cancellation does not make a model request',async()=>{const before=requests;await assert.rejects(()=>structured.createStructuredMinutes({...opts,cancelled:()=>true}),/취소/);assert.equal(requests,before);});
  await test('No summary for partial-only transcripts',async()=>await assert.rejects(()=>structured.createStructuredMinutes({...opts,rows:[{text:'진행중',is_partial:true}]}),/확정/));
  await test('Mixed final and partial rows cannot produce a falsely complete summary',async()=>await assert.rejects(()=>structured.createStructuredMinutes({...opts,rows:[{text:'완료된 발언'},{text:'진행중',is_partial:true}]}),/미확정/));
@@ -121,6 +123,40 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
  await test('Model connection revision invalidates cumulative checkpoint',async()=>{let checkpoint=null;let calls=0;const options={rows:[{text:'논의'}],modelKey:'connection:a:m@1',glossary:'',checkpoint:null,cancelled:()=>false,generate:async()=>{calls++;return '요약';},save:async value=>{checkpoint=copy(value);}};await cumulative.updateLiveSummary(options);await cumulative.updateLiveSummary({...options,modelKey:'connection:a:m@2',checkpoint});assert.equal(calls,2);});
  await test('Cancelled summary cannot commit a late response',async()=>{let cancelled=false;let saved=false;await assert.rejects(()=>cumulative.updateLiveSummary({rows:[{text:'논의'}],modelKey:'test',glossary:'',checkpoint:null,cancelled:()=>cancelled,generate:async()=>{cancelled=true;return '결과';},save:async()=>{saved=true;}}),/취소/);assert.equal(saved,false);});
  await test('Speaker assignment preserves raw utterances and overlapping voices without guessed split',()=>{const rows=[{text:'원문 발언',audio_start_time:0,audio_end_time:3},{text:'끝을 모름',audio_start_time:5}];const result={modelId:'Nemotron',modelRevision:'r',engineRevision:'e',audioSha256:'a'.repeat(64),segments:[{start:0,end:2,speaker:1},{start:1,end:3,speaker:2}]};const assigned=speakers.assignSpeakers(rows,result,10);assert.equal(assigned[0].text,rows[0].text);assert.deepEqual(copy(speakers.speakerNumbers(assigned[0])),[1,2]);assert.deepEqual(copy(speakers.speakerNumbers(assigned[1])),[]);assert.equal(speakers.speakerLabel({...assigned[0],text:'다른 원문'}),'');assert.equal(rows[0].speaker_assignment,undefined);});
+ const liveSpeakers=load('live-speakers');
+ const liveWindow=(checkpointIndex,windowStartSeconds,windowEndSeconds,segments)=>({checkpointIndex,windowStartSeconds,windowEndSeconds,modelId:'Nemotron',modelRevision:'r',engineRevision:'e',segments});
+ await test('Live speaker IDs survive a two-speaker swap between overlapping checkpoints',()=>{
+  const first=liveSpeakers.mergeLiveSpeakers([{text:'first',audio_start_time:2,audio_end_time:3},{text:'second',audio_start_time:14,audio_end_time:15}],liveWindow(0,0,30,[{start:1,end:10,speaker:1},{start:12,end:20,speaker:2}]),null);
+  assert.deepEqual(copy(speakers.speakerNumbers(first.rows[0])),[1]);assert.deepEqual(copy(speakers.speakerNumbers(first.rows[1])),[2]);
+  const rows=[...first.rows,{text:'first again',audio_start_time:32,audio_end_time:33},{text:'second again',audio_start_time:44,audio_end_time:45}];
+  const second=liveSpeakers.mergeLiveSpeakers(rows,liveWindow(1,0,60,[{start:1,end:10,speaker:2},{start:12,end:20,speaker:1},{start:31,end:40,speaker:2},{start:42,end:50,speaker:1}]),first.state);
+  assert.deepEqual(copy(speakers.speakerNumbers(second.rows[2])),[1]);assert.deepEqual(copy(speakers.speakerNumbers(second.rows[3])),[2]);
+  assert.ok(speakers.speakerLabel(second.rows[2]).includes('실시간 임시'));
+  assert.equal(second.rows[2].text,'first again');assert.equal(rows[2].speaker_assignment,undefined);
+  assert.equal(speakers.speakerNumbers({...second.rows[2],text:'edited'}).length,0);
+  const late=liveSpeakers.applyLiveSpeakerState([...second.rows,{text:'late',audio_start_time:35,audio_end_time:36}],second.state);
+  assert.deepEqual(copy(speakers.speakerNumbers(late.at(-1))),[1]);
+  assert.deepEqual(copy(speakers.speakerNumbers({...late.at(-1),is_partial:true})),[]);
+  const verified={...late[0],speaker_assignment:{sourceText:late[0].text,audioSha256:'a'.repeat(64),modelId:'verified',speakers:[2]}};
+  assert.equal(liveSpeakers.applyLiveSpeakerState([verified],second.state)[0],verified);
+ });
+ await test('Three-hour checkpoint simulation keeps one provisional identity and rejects stale results',()=>{
+  let state=null;let last;
+  for(let i=0;i<360;i++){
+   const start=Math.max(0,(i-1)*30),end=(i+1)*30,local=i%2+1;
+   const segments=i===0?[{start:1,end:20,speaker:local}]:[{start:start+1,end:start+20,speaker:local},{start:start+31,end:start+50,speaker:local}];
+   const row={text:`utterance ${i}`,audio_start_time:end-25,audio_end_time:end-20};
+   last=liveSpeakers.mergeLiveSpeakers([row],liveWindow(i,start,end,segments),state);
+   assert.deepEqual(copy(speakers.speakerNumbers(last.rows[0])),[1]);state=last.state;
+  }
+  assert.equal(state.windowEndSeconds,10800);
+  assert.equal(liveSpeakers.mergeLiveSpeakers(last.rows,liveWindow(358,10710,10770,[]),state).state,state);
+ });
+ await test('Malformed live inference cannot change original transcript rows',()=>{
+  const rows=[{text:'original',audio_start_time:1,audio_end_time:2}];
+  assert.throws(()=>liveSpeakers.mergeLiveSpeakers(rows,liveWindow(0,0,30,[{start:1,end:45,speaker:1}]),null),/exceed/);
+  assert.equal(rows[0].text,'original');assert.equal(rows[0].speaker_assignment,undefined);
+ });
  const report={passed,failed:0,executedAt:new Date().toISOString(),scope:'Offline mocked regression tests; no microphone, GPU, network or real inference.',results};
  const reports=path.join(root,'test-results');fs.mkdirSync(reports,{recursive:true});fs.writeFileSync(path.join(reports,'stream-record.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 })().catch(error=>{console.error(error);process.exitCode=1;});

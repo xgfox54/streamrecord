@@ -22,6 +22,8 @@ pub fn find_ffmpeg_path() -> Option<PathBuf> {
 }
 
 fn find_ffmpeg_path_internal() -> Option<PathBuf> {
+    #[cfg(feature = "review-isolation")]
+    { return crate::review_paths::bundled_binary(EXECUTABLE_NAME).ok(); }
     debug!("Starting search for ffmpeg executable");
 
     // ============================================================
@@ -138,7 +140,7 @@ fn find_ffmpeg_path_internal() -> Option<PathBuf> {
     #[cfg(windows)]
     {
         debug!("Searching for nested ffmpeg in {:?}", installation_dir);
-        if let Ok(entries) = std::fs::read_dir(&installation_dir) {
+        if let Ok(entries) = crate::review_paths::fs::read_dir(&installation_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
@@ -193,14 +195,14 @@ fn handle_ffmpeg_installation() -> Result<(), anyhow::Error> {
 
 #[cfg(target_os = "macos")]
 fn get_ffmpeg_install_dir() -> Result<PathBuf, anyhow::Error> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("couldn't find home directory"))?;
+    let home = crate::review_paths::home_dir().ok_or_else(|| anyhow::anyhow!("couldn't find home directory"))?;
 
     let local_bin = home.join(".local").join("bin");
 
     // Create directory if it doesn't exist
     if !local_bin.exists() {
         debug!("creating .local/bin directory");
-        std::fs::create_dir_all(&local_bin)?;
+        crate::review_paths::fs::create_dir_all(&local_bin)?;
 
         // Check both .bashrc and .zshrc
         let shell_configs = vec![
@@ -211,10 +213,10 @@ fn get_ffmpeg_install_dir() -> Result<PathBuf, anyhow::Error> {
 
         for config in shell_configs {
             if config.exists() {
-                let content = std::fs::read_to_string(&config)?;
+                let content = crate::review_paths::fs::read_to_string(&config)?;
                 if !content.contains(".local/bin") {
                     debug!("adding .local/bin to PATH in {:?}", config);
-                    std::fs::write(
+                    crate::review_paths::fs::write(
                         config,
                         format!("{}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n", content),
                     )?;

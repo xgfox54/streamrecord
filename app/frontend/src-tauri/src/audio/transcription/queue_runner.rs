@@ -89,7 +89,7 @@ pub async fn resume_session<R: Runtime>(
         }
     }
     let mut rows = Vec::new();
-    for entry in std::fs::read_dir(directory)? {
+    for entry in crate::review_paths::fs::read_dir(directory)? {
         let path = entry?.path();
         let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
             continue;
@@ -98,7 +98,7 @@ pub async fn resume_session<R: Runtime>(
             continue;
         };
         let id: u64 = id.parse()?;
-        let mut update: TranscriptUpdate = serde_json::from_slice(&std::fs::read(path)?)?;
+        let mut update: TranscriptUpdate = serde_json::from_slice(&crate::review_paths::fs::read(path)?)?;
         update.result_committed = true;
         rows.push(RecoveredRow {
             source_id: format!("{session_id}:{id}"),

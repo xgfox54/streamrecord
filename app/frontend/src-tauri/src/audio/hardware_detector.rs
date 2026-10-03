@@ -350,8 +350,8 @@ mod tests {
     fn hardware_detector_finds_windows_vulkan_loader_in_system32() {
         let temp_dir = tempfile::tempdir().unwrap();
         let system32 = temp_dir.path().join("System32");
-        std::fs::create_dir(&system32).unwrap();
-        std::fs::write(system32.join("vulkan-1.dll"), []).unwrap();
+        crate::review_paths::fs::create_dir(&system32).unwrap();
+        crate::review_paths::fs::write(system32.join("vulkan-1.dll"), []).unwrap();
 
         assert!(HardwareProfile::has_windows_vulkan_loader(temp_dir.path()));
     }

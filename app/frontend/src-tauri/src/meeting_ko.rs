@@ -10,12 +10,8 @@ mod model_catalog;
 mod record_history;
 
 use serde_json::{json, Value};
-use std::{
-    fs::OpenOptions,
-    io::Write,
-    sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use crate::review_paths::fs::OpenOptions;
+use std::{io::Write, sync::atomic::{AtomicBool, Ordering}, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tauri::{AppHandle, Manager, Runtime};
 
 static GENERATING: AtomicBool = AtomicBool::new(false);
@@ -28,16 +24,45 @@ const VIDEO_WINDOW_LABEL: &str = "ko-video";
 const DATA_DIR_NAME: &str = "Stream-Record";
 const LEGACY_DATA_DIR_NAME: &str = "Meetily-Korean";
 
-fn ko_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, String> {
-    let documents = app.path().document_dir().map_err(|e| e.to_string())?;
+fn ko_data_dir<R: Runtime>(_app: &AppHandle<R>) -> Result<std::path::PathBuf, String> {
+    #[cfg(feature = "review-isolation")]
+    let documents = crate::review_paths::document_dir().ok_or("Missing review documents directory")?;
+    #[cfg(not(feature = "review-isolation"))]
+    let documents = _app.path().document_dir().map_err(|e| e.to_string())?;
+    ko_data_dir_from_documents(documents)
+}
+
+fn ko_data_dir_from_documents(documents: std::path::PathBuf) -> Result<std::path::PathBuf, String> {
     let current = documents.join(DATA_DIR_NAME);
     let legacy = documents.join(LEGACY_DATA_DIR_NAME);
     if !current.exists() && legacy.is_dir() {
-        if std::fs::rename(&legacy, &current).is_err() {
+        if crate::review_paths::fs::rename(&legacy, &current).is_err() {
             return Ok(legacy);
         }
     }
     Ok(current)
+}
+
+#[cfg(all(test, feature = "review-isolation"))]
+mod review_export_tests {
+    use super::*;
+
+    #[test]
+    fn export_directory_and_file_stay_in_review_documents() {
+        crate::review_paths::initialize().unwrap();
+        let documents = crate::review_paths::document_dir().unwrap();
+        let dir = ko_data_dir_from_documents(documents.clone()).unwrap().join("Exports");
+        assert_eq!(dir, crate::review_paths::home_dir().unwrap().join("Documents/Stream-Record/Exports"));
+        crate::review_paths::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("review-export-regression.txt");
+        let mut file = OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
+        file.write_all(b"synthetic export").unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+        assert_eq!(crate::review_paths::fs::read(&path).unwrap(), b"synthetic export");
+        crate::review_paths::fs::remove_file(path).unwrap();
+        assert!(crate::review_paths::guard_write("C:/Users/USER/Documents/Stream-Record/Exports/forbidden.txt").is_err());
+    }
 }
 
 pub fn load_proxy_endpoint<R: Runtime>(app: &AppHandle<R>) {
@@ -180,7 +205,7 @@ pub async fn ko_stop_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), Stri
         .try_lock()
         .map_err(|_| "녹음 상태를 변경하고 있습니다. 잠시 기다려 주세요.")?;
     let dir = ko_data_dir(&app)?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    crate::review_paths::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
@@ -239,7 +264,7 @@ pub fn ko_app_info<R: Runtime>(app: AppHandle<R>) -> Value {
 #[tauri::command]
 pub fn ko_open_exports_folder<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let dir = ko_data_dir(&app)?.join("Exports");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;
+    crate::review_paths::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;
     #[cfg(target_os = "windows")]
     let program = "explorer";
     #[cfg(target_os = "macos")]
@@ -454,7 +479,7 @@ pub async fn ko_export<R: Runtime>(
         return Err("저장할 내용이 너무 큽니다.".into());
     }
     let dir = ko_data_dir(&app)?.join("Exports");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;
+    crate::review_paths::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;
     let safe: String = title
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')

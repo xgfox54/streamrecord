@@ -34,7 +34,7 @@ impl DiskQueueItem {
 impl DiskQueueReceiver {
     pub fn bind_session_folder(&self, folder: &Path) -> Result<()> {
         use std::io::Write;
-        let mut file = std::fs::OpenOptions::new()
+        let mut file = crate::review_paths::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(self.root.join("recording-folder.json"))?;

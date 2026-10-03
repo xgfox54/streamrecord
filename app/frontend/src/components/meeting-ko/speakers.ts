@@ -3,9 +3,9 @@ import type {TranscriptRow} from './core';
 const segmentSchema=z.object({start:z.number().finite().nonnegative(),end:z.number().finite().positive(),speaker:z.number().int().min(1).max(8)}).refine(segment=>segment.end>segment.start);
 export const diarizationSchema=z.object({modelId:z.string(),modelRevision:z.string(),engineRevision:z.string(),audioSha256:z.string().regex(/^[a-f0-9]{64}$/),segments:z.array(segmentSchema)});
 export type DiarizationResult=z.infer<typeof diarizationSchema>;
-const assignmentSchema=z.object({sourceText:z.string(),audioSha256:z.string(),modelId:z.string(),speakers:z.array(z.number().int().min(1).max(8)).min(1)});
+const assignmentSchema=z.object({sourceText:z.string(),audioSha256:z.string(),modelId:z.string(),speakers:z.array(z.number().int().min(1).max(8)).min(1),provisional:z.boolean().optional()});
 export function speakerNumbers(row:TranscriptRow):number[]{const parsed=assignmentSchema.safeParse(row.speaker_assignment);return !row.is_partial&&parsed.success&&parsed.data.sourceText===row.text?parsed.data.speakers:[];}
-export function speakerLabel(row:TranscriptRow):string{const ids=speakerNumbers(row);return ids.length?`${ids.map(id=>`화자 ${id}`).join(' · ')}${ids.length>1?' (구간 내 복수 화자)':''} · 추정`:'';}
+export function speakerLabel(row:TranscriptRow):string{const ids=speakerNumbers(row);if(!ids.length)return '';const parsed=assignmentSchema.safeParse(row.speaker_assignment);return `${ids.map(id=>`화자 ${id}`).join(' · ')}${ids.length>1?' (구간 내 복수 화자)':''}${parsed.success&&parsed.data.provisional?' (실시간 임시)':''} · 추정`;}
 export function assignSpeakers(rows:readonly TranscriptRow[],input:unknown,duration:number):TranscriptRow[]{
  const result=diarizationSchema.parse(input);
  if(!Number.isFinite(duration)||duration<=0||result.segments.some(segment=>segment.end>duration+.1))throw new Error('화자분리 시간정보가 원음 길이와 다릅니다.');

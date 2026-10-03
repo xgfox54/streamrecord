@@ -420,7 +420,6 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
 ) -> std::result::Result<TranscriptResult, TranscriptionError> {
     let chunk_id = chunk.chunk_id;
     let prompt_ticket = crate::whisper_engine::stt_context::for_chunk(
-        chunk.chunk_id,
         chunk.timestamp,
         chunk.data.len() as f64 / chunk.sample_rate as f64,
     );
@@ -465,11 +464,6 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
                 .await
             {
                 Ok(result) => {
-                    crate::whisper_engine::stt_context::completed(
-                        &prompt_ticket,
-                        &result.text,
-                        result.is_partial,
-                    );
                     info!(
                         "Whisper completed chunk {} with {} spans and score kind {:?}",
                         chunk_id,
@@ -552,11 +546,6 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
                 .await
             {
                 Ok(result) => {
-                    crate::whisper_engine::stt_context::completed(
-                        &prompt_ticket,
-                        &result.text,
-                        result.is_partial,
-                    );
                     info!(
                         "{} completed chunk {} with {} spans and score kind {:?}",
                         provider.provider_name(),

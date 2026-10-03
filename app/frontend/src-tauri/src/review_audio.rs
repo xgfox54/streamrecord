@@ -89,7 +89,7 @@ pub async fn ko_open_review_audio<R: Runtime>(
     {
         return Err("음성 길이를 확인하지 못했거나 24시간을 초과합니다.".into());
     }
-    let mut source = tokio::fs::File::open(&file.path)
+    let mut source = crate::review_paths::async_fs::open_file(&file.path)
         .await
         .map_err(|e| e.to_string())?;
     let mut buffer = vec![0; 1024 * 1024];
@@ -283,11 +283,11 @@ mod tests {
     #[test]
     fn stream_record_review_requires_native_file_authorization() {
         let temp = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(temp.path(), b"not-a-real-recording").unwrap();
+        crate::review_paths::fs::write(temp.path(), b"not-a-real-recording").unwrap();
         assert!(authorized(temp.path().to_str().unwrap()).is_err());
         register(temp.path()).unwrap();
         assert!(authorized(temp.path().to_str().unwrap()).is_ok());
-        std::fs::write(temp.path(), b"changed").unwrap();
+        crate::review_paths::fs::write(temp.path(), b"changed").unwrap();
         assert!(authorized(temp.path().to_str().unwrap()).is_err());
     }
 }

@@ -23,7 +23,7 @@ pub fn set_bundled_templates_dir(path: PathBuf) {
 /// - Windows: %APPDATA%\Meetily\templates\
 /// - Linux: ~/.config/Meetily/templates/
 fn get_custom_templates_dir() -> Option<PathBuf> {
-    let mut path = dirs::data_dir()?;
+    let mut path = crate::review_paths::data_dir()?;
     path.push("Meetily");
     path.push("templates");
     Some(path)
@@ -42,7 +42,7 @@ fn load_bundled_template(template_id: &str) -> Option<String> {
 
     debug!("Checking for bundled template at: {:?}", template_path);
 
-    match std::fs::read_to_string(&template_path) {
+    match crate::review_paths::fs::read_to_string(&template_path) {
         Ok(content) => {
             info!(
                 "Loaded bundled template '{}' from {:?}",
@@ -70,7 +70,7 @@ fn load_custom_template(template_id: &str) -> Option<String> {
 
     debug!("Checking for custom template at: {:?}", template_path);
 
-    match std::fs::read_to_string(&template_path) {
+    match crate::review_paths::fs::read_to_string(&template_path) {
         Ok(content) => {
             info!(
                 "Loaded custom template '{}' from {:?}",
@@ -155,7 +155,7 @@ pub fn list_template_ids() -> Vec<String> {
     if let Ok(bundled_dir_lock) = BUNDLED_TEMPLATES_DIR.read() {
         if let Some(bundled_dir) = bundled_dir_lock.as_ref() {
             if bundled_dir.exists() {
-                match std::fs::read_dir(bundled_dir) {
+                match crate::review_paths::fs::read_dir(bundled_dir) {
                     Ok(entries) => {
                         for entry in entries.flatten() {
                             if let Some(filename) = entry.file_name().to_str() {
@@ -179,7 +179,7 @@ pub fn list_template_ids() -> Vec<String> {
     // Add custom templates if directory exists
     if let Some(custom_dir) = get_custom_templates_dir() {
         if custom_dir.exists() {
-            match std::fs::read_dir(&custom_dir) {
+            match crate::review_paths::fs::read_dir(&custom_dir) {
                 Ok(entries) => {
                     for entry in entries.flatten() {
                         if let Some(filename) = entry.file_name().to_str() {

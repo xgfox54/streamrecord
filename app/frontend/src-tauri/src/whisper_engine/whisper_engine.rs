@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::fs;
+use crate::review_paths::async_fs as fs;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{watch, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -120,6 +120,7 @@ impl WhisperEngine {
     /// Create a new WhisperEngine with optional custom models directory
     /// If models_dir is None, uses default location (app data dir for production, local for dev)
     pub fn new_with_models_dir(models_dir: Option<PathBuf>) -> Result<Self> {
+        let models_dir = crate::review_paths::model_directory(models_dir, "whisper")?;
         // PERFORMANCE: Suppress verbose whisper.cpp and Metal logs
         // These C library logs bypass Rust logging and clutter output
         // Set environment variables to reduce C library verbosity
@@ -159,8 +160,8 @@ impl WhisperEngine {
             } else {
                 // Production mode fallback (shouldn't reach here, caller should provide path)
                 log::warn!("WhisperEngine: No models directory provided, using fallback path");
-                dirs::data_dir()
-                    .or_else(|| dirs::home_dir())
+                crate::review_paths::data_dir()
+                    .or_else(|| crate::review_paths::home_dir())
                     .ok_or_else(|| anyhow!("Could not find system data directory"))?
                     .join("Meetily")
                     .join("models")
@@ -234,7 +235,7 @@ impl WhisperEngine {
             let model_path = models_dir.join(filename);
             let status = if model_path.exists() {
                 // Check if file size is reasonable (at least 1MB for a valid model)
-                match std::fs::metadata(&model_path) {
+                match crate::review_paths::fs::metadata(&model_path) {
                     Ok(metadata) => {
                         let file_size_bytes = metadata.len();
                         let file_size_mb = file_size_bytes / (1024 * 1024);
@@ -529,6 +530,7 @@ impl WhisperEngine {
         // 0.55 is balanced - prevents hallucinations while preserving quiet speech
         params.set_no_speech_thold(0.55);
         params.set_max_len(200);
+        params.set_split_on_word(true);
         params.set_single_segment(false);
 
         // Set thread count based on hardware (if supported by whisper.cpp)
@@ -670,6 +672,7 @@ impl WhisperEngine {
 
         // Reasonable length limits
         params.set_max_len(200); // Reasonable length
+        params.set_split_on_word(true);
         params.set_single_segment(false); // Allow multiple segments for better accuracy
 
         // Note: compression_ratio_threshold would be ideal but not available in current whisper-rs
@@ -816,7 +819,7 @@ impl WhisperEngine {
     async fn validate_model_file(&self, model_path: &PathBuf) -> Result<()> {
         use tokio::io::AsyncReadExt;
 
-        let mut file = fs::File::open(model_path)
+        let mut file = fs::open_file(model_path)
             .await
             .map_err(|e| anyhow!("Failed to open model file: {}", e))?;
 
@@ -1208,7 +1211,7 @@ impl WhisperEngine {
         if total_size > super::model_integrity::MAX_MODEL_BYTES {
             return Err(anyhow!("음성 모델 다운로드 크기 한도 초과"));
         }
-        let mut file = fs::File::create(file_path)
+        let mut file = fs::create_file(file_path)
             .await
             .map_err(|e| anyhow!("Failed to create file: {}", e))?;
 
@@ -1343,6 +1346,231 @@ mod tests {
     use tokio::sync::oneshot;
     use tokio::time::{timeout, Duration};
 
+    #[tokio::test]
+    #[ignore = "requires local model and STREAM_RECORD_PROMPT_FIXTURE mono 16k f32 PCM"]
+    async fn stream_record_actual_prompt_feedback_comparison() {
+        let model_dir = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_MODELS").unwrap());
+        let fixture = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_FIXTURE").unwrap());
+        let bytes = crate::review_paths::fs::read(&fixture).unwrap();
+        assert_eq!(bytes.len() % 4, 0);
+        let samples: Vec<f32> = bytes.chunks_exact(4)
+            .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect();
+        assert_eq!(samples.len(), 12 * 16000);
+        let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
+        engine.discover_models().await.unwrap();
+        engine.load_model("small-q5_1").await.unwrap();
+        crate::whisper_engine::stt_context::begin("").unwrap();
+        let configured = crate::whisper_engine::stt_context::for_chunk(1092.0, 12.0)
+            .map(|ticket| ticket.text);
+        let mut results = Vec::new();
+        for (label, prompt) in [
+            ("none", None),
+            ("static", Some("한국어 회의 발언.")),
+            ("previous", Some("한국어 회의 발언. 이전 발언: 이에 대해 전해 드릴 수 있습니다.")),
+            ("configured", configured.as_deref()),
+        ] {
+            let started = std::time::Instant::now();
+            let result = engine.transcribe_audio_with_prompt(samples.clone(), Some("ko".into()),
+                prompt.map(str::to_owned)).await.unwrap();
+            results.push(serde_json::json!({"condition": label, "seconds": started.elapsed().as_secs_f64(),
+                "text": result.text, "raw": result.raw_text}));
+        }
+        let output = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_RESULT").unwrap());
+        crate::review_paths::fs::write(output, serde_json::to_vec_pretty(&results).unwrap()).unwrap();
+        engine.unload_model().await;
+        crate::whisper_engine::stt_context::end();
+        assert_eq!(results[2]["text"], "이에 대해 전해 드릴 수 있습니다.");
+        let configured_text = results[3]["text"].as_str().unwrap();
+        assert!(!configured_text.contains("이에 대해 전해 드릴 수 있습니다"));
+        assert_eq!(results[3]["text"], results[0]["text"]);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires an exact preserved live queue input and local multilingual model"]
+    async fn stream_record_exact_utf8_wrapping() {
+        let root = PathBuf::from(std::env::var("STREAM_RECORD_UTF8_ROOT").unwrap());
+        let model_dir = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_MODELS").unwrap());
+        let input = crate::review_paths::fs::read(root.join("input.chunk")).unwrap();
+        assert_eq!(&input[..4], b"SRQ1");
+        assert_eq!(u32::from_le_bytes(input[4..8].try_into().unwrap()), 16_000);
+        let sample_count = u64::from_le_bytes(input[25..33].try_into().unwrap()) as usize;
+        assert_eq!(input.len(), 33 + sample_count * 4);
+        let samples: Vec<f32> = input[33..].chunks_exact(4)
+            .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect();
+        assert_eq!(samples.len(), 12 * 16_000);
+        let original: serde_json::Value = serde_json::from_slice(
+            &crate::review_paths::fs::read(root.join("original-result.json")).unwrap()).unwrap();
+        let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
+        engine.discover_models().await.unwrap();
+        engine.load_model("small-q5_1").await.unwrap();
+        let configured = engine.transcribe_audio_with_prompt(
+            samples.clone(), Some("ko".into()), None).await.unwrap();
+        let configured_file = engine.transcribe_audio(samples.clone(), Some("ko".into())).await.unwrap();
+        let adaptive = crate::audio::HardwareProfile::detect().get_whisper_config();
+        let lock = engine.current_context.read().await;
+        let context = lock.as_ref().unwrap();
+        let mut controls = Vec::new();
+        for split_on_word in [false, true] {
+            let mut params = FullParams::new(SamplingStrategy::BeamSearch {
+                beam_size: adaptive.beam_size as i32, patience: 1.0,
+            });
+            params.set_language(Some("ko"));
+            params.set_translate(false);
+            params.set_no_timestamps(true);
+            params.set_token_timestamps(true);
+            params.set_print_special(false);
+            params.set_print_progress(false);
+            params.set_print_realtime(false);
+            params.set_print_timestamps(false);
+            params.set_suppress_blank(true);
+            params.set_suppress_non_speech_tokens(true);
+            params.set_temperature(adaptive.temperature);
+            params.set_max_initial_ts(1.0);
+            params.set_entropy_thold(2.4);
+            params.set_logprob_thold(-1.0);
+            params.set_no_speech_thold(0.55);
+            params.set_max_len(200);
+            params.set_split_on_word(split_on_word);
+            params.set_single_segment(false);
+            let mut state = context.create_state().unwrap();
+            state.full(params, &samples).unwrap();
+            let bytes: Vec<Vec<u8>> = (0..state.full_n_segments().unwrap())
+                .map(|i| state.full_get_segment_bytes(i).unwrap()).collect();
+            let joined = bytes.concat();
+            let joined_text = String::from_utf8(joined).unwrap();
+            let valid_segments = bytes.iter().all(|segment| std::str::from_utf8(segment).is_ok());
+            let lossy_text = bytes.iter().map(|segment| String::from_utf8_lossy(segment).into_owned())
+                .collect::<Vec<_>>().concat();
+            controls.push(serde_json::json!({
+                "split_on_word": split_on_word,
+                "all_segments_valid_utf8": valid_segments,
+                "segment_bytes": bytes,
+                "joined_utf8": joined_text,
+                "lossy_per_segment": lossy_text,
+            }));
+        }
+        let results = serde_json::json!({
+            "samples": sample_count,
+            "configured_raw": configured.raw_text,
+            "configured_text": configured.text,
+            "configured_spans": configured.spans,
+            "configured_file_text": configured_file,
+            "controls": controls,
+        });
+        crate::review_paths::fs::write(root.join("results.json"),
+            serde_json::to_vec_pretty(&results).unwrap()).unwrap();
+        assert_eq!(controls[0]["lossy_per_segment"], original["raw_engine_output"]);
+        assert_eq!(controls[0]["all_segments_valid_utf8"], false);
+        assert_eq!(controls[1]["all_segments_valid_utf8"], true);
+        assert_eq!(controls[0]["joined_utf8"], controls[1]["joined_utf8"],
+            "word-boundary wrapping must not change decoded text bytes");
+        assert_eq!(results["configured_raw"], controls[1]["joined_utf8"],
+            "live transcription must preserve complete UTF-8 characters");
+        assert!(!results["configured_text"].as_str().unwrap().contains('\u{fffd}'));
+        assert!(!results["configured_file_text"].as_str().unwrap().contains('\u{fffd}'));
+        assert!(results["configured_spans"].as_array().unwrap().iter()
+            .all(|span| !span["text"].as_str().unwrap().contains('\u{fffd}')));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires preserved meeting fixtures and local multilingual model"]
+    async fn stream_record_actual_decoder_quality_matrix() {
+        let root = PathBuf::from(std::env::var("STREAM_RECORD_QUALITY_ROOT").unwrap());
+        let model_dir = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_MODELS").unwrap());
+        let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
+        engine.discover_models().await.unwrap();
+        engine.load_model("small-q5_1").await.unwrap();
+        let mut results = Vec::new();
+        for seconds in [72, 96, 156, 180] {
+            let bytes = crate::review_paths::fs::read(root.join(format!("quality-{seconds}.f32"))).unwrap();
+            let source: Vec<f32> = bytes.chunks_exact(4)
+                .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect();
+            assert_eq!(source.len(), 12 * 48000);
+            let samples = crate::audio::audio_processing::resample_audio(&source, 48000, 16000);
+            for (label, temperature, prompt) in [
+                ("current-static", 0.2, Some("한국어 회의 발언.")),
+                ("zero-static", 0.0, Some("한국어 회의 발언.")),
+                ("current-none", 0.2, None),
+                ("zero-none", 0.0, None),
+            ] {
+                let started = std::time::Instant::now();
+                let lock = engine.current_context.read().await;
+                let ctx = lock.as_ref().unwrap();
+                let mut params = FullParams::new(SamplingStrategy::BeamSearch { beam_size: 2, patience: 1.0 });
+                params.set_language(Some("ko"));
+                params.set_translate(false);
+                if let Some(prompt) = prompt { params.set_initial_prompt(prompt); }
+                params.set_no_timestamps(true);
+                params.set_token_timestamps(true);
+                params.set_print_special(false);
+                params.set_print_progress(false);
+                params.set_print_realtime(false);
+                params.set_print_timestamps(false);
+                params.set_suppress_blank(true);
+                params.set_suppress_non_speech_tokens(true);
+                params.set_temperature(temperature);
+                params.set_max_initial_ts(1.0);
+                params.set_entropy_thold(2.4);
+                params.set_logprob_thold(-1.0);
+                params.set_no_speech_thold(0.55);
+                params.set_max_len(200);
+                params.set_single_segment(false);
+                let mut state = ctx.create_state().unwrap();
+                state.full(params, &samples).unwrap();
+                let text = (0..state.full_n_segments().unwrap())
+                    .map(|i| state.full_get_segment_text_lossy(i).unwrap())
+                    .collect::<Vec<_>>().join(" ");
+                results.push(serde_json::json!({"start":seconds,"condition":label,
+                    "elapsed":started.elapsed().as_secs_f64(),"text":text,"samples":samples.len()}));
+                crate::review_paths::fs::write(root.join("quality-results.json"),
+                    serde_json::to_vec_pretty(&results).unwrap()).unwrap();
+            }
+        }
+        assert_eq!(results.len(), 16);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires lossless PCM copied from an approved live queue"]
+    async fn stream_record_exact_prompt_comparison() {
+        let root = PathBuf::from(std::env::var("STREAM_RECORD_EXACT_ROOT").unwrap());
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &crate::review_paths::fs::read(root.join("fixtures.json")).unwrap()).unwrap();
+        let model_dir = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_MODELS").unwrap());
+        let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
+        engine.discover_models().await.unwrap();
+        engine.load_model("small-q5_1").await.unwrap();
+        crate::whisper_engine::stt_context::begin("").unwrap();
+        let mut results = Vec::new();
+        for fixture in manifest.as_array().unwrap() {
+            let bytes = crate::review_paths::fs::read(root.join(fixture["file"].as_str().unwrap())).unwrap();
+            assert_eq!(bytes.len() % 4, 0);
+            let samples: Vec<f32> = bytes.chunks_exact(4)
+                .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect();
+            assert_eq!(samples.len() as u64, fixture["samples"].as_u64().unwrap());
+            let ticket = crate::whisper_engine::stt_context::for_chunk(
+                fixture["start"].as_f64().unwrap(), samples.len() as f64 / 16000.0);
+            let configured = ticket.map(|ticket| ticket.text);
+            for (label, prompt) in [
+                ("configured", configured),
+                ("static", Some("한국어 회의 발언.".to_owned())),
+                ("none", None),
+            ] {
+                let started = std::time::Instant::now();
+                let result = engine.transcribe_audio_with_prompt(samples.clone(), Some("ko".into()), prompt).await.unwrap();
+                results.push(serde_json::json!({"sequence":fixture["sequence"],"condition":label,
+                    "elapsed":started.elapsed().as_secs_f64(),"text":result.text,"raw":result.raw_text}));
+                crate::review_paths::fs::write(root.join("results.json"),
+                    serde_json::to_vec_pretty(&results).unwrap()).unwrap();
+            }
+        }
+        crate::whisper_engine::stt_context::end();
+        assert!(!results.is_empty());
+        for comparison in results.chunks_exact(3) {
+            assert_eq!(comparison[0]["text"], comparison[2]["text"],
+                "an empty user glossary must not inject generated meeting prose");
+        }
+    }
+
     fn tiny_model(models: &[ModelInfo]) -> &ModelInfo {
         models
             .iter()
@@ -1375,14 +1603,14 @@ mod tests {
             ModelStatus::Downloading { progress: 42 }
         ));
 
-        std::fs::write(dir.path().join("ggml-tiny.bin"), b"").unwrap();
+        crate::review_paths::fs::write(dir.path().join("ggml-tiny.bin"), b"").unwrap();
         let zero_byte = engine.discover_models().await.unwrap();
         assert!(matches!(
             tiny_model(&zero_byte).status,
             ModelStatus::Downloading { progress: 42 }
         ));
 
-        std::fs::write(dir.path().join("ggml-tiny.bin"), [0_u8; 32]).unwrap();
+        crate::review_paths::fs::write(dir.path().join("ggml-tiny.bin"), [0_u8; 32]).unwrap();
         let partial = engine.discover_models().await.unwrap();
         assert!(matches!(
             tiny_model(&partial).status,
@@ -1396,14 +1624,14 @@ mod tests {
         let engine = WhisperEngine::new_with_models_dir(Some(dir.path().to_path_buf())).unwrap();
 
         let model_path = dir.path().join("ggml-tiny.bin");
-        std::fs::write(&model_path, b"").unwrap();
+        crate::review_paths::fs::write(&model_path, b"").unwrap();
         let missing_models = engine.discover_models().await.unwrap();
         assert!(matches!(
             tiny_model(&missing_models).status,
             ModelStatus::Missing
         ));
 
-        std::fs::write(&model_path, vec![0_u8; 2 * 1024 * 1024]).unwrap();
+        crate::review_paths::fs::write(&model_path, vec![0_u8; 2 * 1024 * 1024]).unwrap();
         let corrupted_models = engine.discover_models().await.unwrap();
 
         assert!(matches!(
@@ -1418,8 +1646,8 @@ mod tests {
         let engine = WhisperEngine::new_with_models_dir(Some(dir.path().to_path_buf())).unwrap();
         let model_path = dir.path().join("ggml-tiny.bin");
 
-        std::fs::write(&model_path, b"ggml\0\0\0\0").unwrap();
-        std::fs::OpenOptions::new()
+        crate::review_paths::fs::write(&model_path, b"ggml\0\0\0\0").unwrap();
+        crate::review_paths::fs::OpenOptions::new()
             .write(true)
             .open(&model_path)
             .unwrap()
@@ -1463,7 +1691,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let engine = WhisperEngine::new_with_models_dir(Some(dir.path().to_path_buf())).unwrap();
         let model_path = dir.path().join("ggml-tiny.bin");
-        std::fs::write(&model_path, b"not-a-model").unwrap();
+        crate::review_paths::fs::write(&model_path, b"not-a-model").unwrap();
 
         engine.discover_models().await.unwrap();
         let active_download = engine.reserve_active_download("tiny").await.unwrap();
@@ -1614,8 +1842,8 @@ mod tests {
         let engine = WhisperEngine::new_with_models_dir(Some(dir.path().to_path_buf())).unwrap();
         let model_path = dir.path().join("ggml-tiny.bin");
 
-        std::fs::write(&model_path, b"ggml\0\0\0\0").unwrap();
-        std::fs::OpenOptions::new()
+        crate::review_paths::fs::write(&model_path, b"ggml\0\0\0\0").unwrap();
+        crate::review_paths::fs::OpenOptions::new()
             .write(true)
             .open(&model_path)
             .unwrap()
@@ -1858,7 +2086,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let engine = WhisperEngine::new_with_models_dir(Some(dir.path().to_path_buf())).unwrap();
         let model_path = dir.path().join("ggml-tiny.bin");
-        std::fs::write(&model_path, vec![0_u8; 2 * 1024 * 1024]).unwrap();
+        crate::review_paths::fs::write(&model_path, vec![0_u8; 2 * 1024 * 1024]).unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
 

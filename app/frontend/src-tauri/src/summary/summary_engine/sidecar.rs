@@ -192,7 +192,7 @@ impl SidecarManager {
 
                 // Fuzzy match in exe dir
                 log::info!("Attempting fuzzy match in exe dir: {}", exe_dir.display());
-                if let Ok(entries) = std::fs::read_dir(exe_dir) {
+                if let Ok(entries) = crate::review_paths::fs::read_dir(exe_dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -275,7 +275,7 @@ impl SidecarManager {
             }
 
             // Fuzzy match in RESOURCE_DIR
-            if let Ok(entries) = std::fs::read_dir(&resource_path) {
+            if let Ok(entries) = crate::review_paths::fs::read_dir(&resource_path) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {

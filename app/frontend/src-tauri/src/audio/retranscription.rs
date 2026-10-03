@@ -186,7 +186,7 @@ fn find_audio_file(folder: &Path) -> Result<PathBuf> {
     }
 
     // Fallback: scan folder for any file with an audio extension
-    if let Ok(entries) = std::fs::read_dir(folder) {
+    if let Ok(entries) = crate::review_paths::fs::read_dir(folder) {
         for entry in entries.flatten() {
             let path = entry.path();
             if let Some(ext) = path.extension() {
@@ -649,7 +649,7 @@ fn write_transcription_run_json(
     segments: &[VersionedTranscript],
 ) -> Result<()> {
     let runs_dir = folder.join("transcription-runs");
-    std::fs::create_dir_all(&runs_dir)?;
+    crate::review_paths::fs::create_dir_all(&runs_dir)?;
     let destination = runs_dir.join(format!("{}.json", run_id));
     let temporary = runs_dir.join(format!(".{}.json.tmp", run_id));
     let payload = serde_json::json!({
@@ -658,8 +658,8 @@ fn write_transcription_run_json(
         "created_at": chrono::Utc::now().to_rfc3339(),
         "segments": segments,
     });
-    std::fs::write(&temporary, serde_json::to_vec_pretty(&payload)?)?;
-    std::fs::rename(&temporary, &destination)?;
+    crate::review_paths::fs::write(&temporary, serde_json::to_vec_pretty(&payload)?)?;
+    crate::review_paths::fs::rename(&temporary, &destination)?;
     Ok(())
 }
 
@@ -925,7 +925,7 @@ fn write_retranscription_metadata(
 
     // Try to read existing metadata and update it
     let json = if metadata_path.exists() {
-        let existing = std::fs::read_to_string(&metadata_path)?;
+        let existing = crate::review_paths::fs::read_to_string(&metadata_path)?;
         let mut value: serde_json::Value = serde_json::from_str(&existing)?;
         if let Some(obj) = value.as_object_mut() {
             obj.insert(
@@ -957,8 +957,8 @@ fn write_retranscription_metadata(
     };
 
     let json_string = serde_json::to_string_pretty(&json)?;
-    std::fs::write(&temp_path, &json_string)?;
-    std::fs::rename(&temp_path, &metadata_path)?;
+    crate::review_paths::fs::write(&temp_path, &json_string)?;
+    crate::review_paths::fs::rename(&temp_path, &metadata_path)?;
 
     info!("Wrote metadata.json to {}", metadata_path.display());
     Ok(())
@@ -1139,7 +1139,7 @@ mod tests {
         assert!(find_audio_file(dir.path()).is_err());
 
         // Create audio.mp4 — should be found first
-        std::fs::write(dir.path().join("audio.mp4"), b"fake").unwrap();
+        crate::review_paths::fs::write(dir.path().join("audio.mp4"), b"fake").unwrap();
         let found = find_audio_file(dir.path()).unwrap();
         assert_eq!(found.file_name().unwrap(), "audio.mp4");
     }
@@ -1149,7 +1149,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         // Create audio.wav (imported as .wav, not .mp4)
-        std::fs::write(dir.path().join("audio.wav"), b"fake").unwrap();
+        crate::review_paths::fs::write(dir.path().join("audio.wav"), b"fake").unwrap();
         let found = find_audio_file(dir.path()).unwrap();
         assert_eq!(found.file_name().unwrap(), "audio.wav");
     }
@@ -1159,9 +1159,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         // Create a file with an audio extension but non-standard name
-        std::fs::write(dir.path().join("my_recording.flac"), b"fake").unwrap();
+        crate::review_paths::fs::write(dir.path().join("my_recording.flac"), b"fake").unwrap();
         // Also add a non-audio file that should be ignored
-        std::fs::write(dir.path().join("notes.txt"), b"text").unwrap();
+        crate::review_paths::fs::write(dir.path().join("notes.txt"), b"text").unwrap();
 
         let found = find_audio_file(dir.path()).unwrap();
         assert_eq!(found.file_name().unwrap(), "my_recording.flac");
@@ -1172,8 +1172,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
 
         // Create both audio.m4a and audio.mp4 — mp4 should win (listed first in candidates)
-        std::fs::write(dir.path().join("audio.m4a"), b"fake").unwrap();
-        std::fs::write(dir.path().join("audio.mp4"), b"fake").unwrap();
+        crate::review_paths::fs::write(dir.path().join("audio.m4a"), b"fake").unwrap();
+        crate::review_paths::fs::write(dir.path().join("audio.mp4"), b"fake").unwrap();
         let found = find_audio_file(dir.path()).unwrap();
         assert_eq!(found.file_name().unwrap(), "audio.mp4");
     }
@@ -1218,7 +1218,7 @@ mod tests {
     fn retranscription_metadata_replaces_stale_duration_without_losing_existing_fields() {
         let dir = tempfile::tempdir().unwrap();
         let metadata_path = dir.path().join("metadata.json");
-        std::fs::write(
+        crate::review_paths::fs::write(
             &metadata_path,
             serde_json::to_string_pretty(&serde_json::json!({
                 "meeting_id": "existing-meeting",
@@ -1241,7 +1241,7 @@ mod tests {
         .unwrap();
 
         let metadata: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(metadata_path).unwrap()).unwrap();
+            serde_json::from_str(&crate::review_paths::fs::read_to_string(metadata_path).unwrap()).unwrap();
         assert_eq!(metadata["duration_seconds"], 5046.4);
         assert_eq!(metadata["meeting_id"], "existing-meeting");
         assert_eq!(metadata["audio_file"], "recording.m4a");

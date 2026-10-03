@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tokio::fs::{self, OpenOptions};
+use crate::review_paths::async_fs::{self as fs, OpenOptions};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
@@ -132,6 +132,7 @@ impl ModelManager {
 
     /// Create a new model manager with custom models directory
     pub fn new_with_models_dir(models_dir: Option<PathBuf>) -> Result<Self> {
+        let models_dir = crate::review_paths::model_directory(models_dir, "summary")?;
         let models_dir = if let Some(dir) = models_dir {
             dir
         } else {
@@ -145,8 +146,8 @@ impl ModelManager {
             } else {
                 // Production mode fallback (caller should provide path)
                 log::warn!("ModelManager: No models directory provided, using fallback path");
-                dirs::data_dir()
-                    .or_else(|| dirs::home_dir())
+                crate::review_paths::data_dir()
+                    .or_else(|| crate::review_paths::home_dir())
                     .ok_or_else(|| anyhow!("Could not find system data directory"))?
                     .join("Meetily")
                     .join("models")
@@ -523,7 +524,7 @@ impl ModelManager {
                 .await
                 .map_err(|e| anyhow!("Failed to open file for append: {}", e))?
         } else {
-            fs::File::create(&file_path)
+            fs::create_file(&file_path)
                 .await
                 .map_err(|e| anyhow!("Failed to create file: {}", e))?
         };
@@ -783,7 +784,7 @@ impl ModelManager {
 
     /// Validate that a file is a valid GGUF model
     async fn validate_gguf_file(&self, path: &PathBuf) -> Result<()> {
-        let mut file = fs::File::open(path).await?;
+        let mut file = fs::open_file(path).await?;
 
         // Read first 4 bytes to check for GGUF magic number
         use tokio::io::AsyncReadExt;

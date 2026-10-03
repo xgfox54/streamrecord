@@ -9,7 +9,7 @@ struct LegacyFile {
 
 /// Missing files identify new installs; existing empty files identify the implicit old default.
 pub(super) fn read(path: &Path) -> Result<Option<Value>, String> {
-    let bytes = match std::fs::read(path) {
+    let bytes = match crate::review_paths::fs::read(path) {
         Ok(bytes) => bytes,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err("이전 연결 설정을 읽지 못했습니다.".into()),
@@ -35,7 +35,7 @@ mod tests {
         // Given the exact observed installed configuration shape: an existing two-byte {} file.
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("stream_record_proxy.json");
-        std::fs::write(&path, b"{}").unwrap();
+        crate::review_paths::fs::write(&path, b"{}").unwrap();
         // When startup reads the old connection, then it obtains the previous implicit default.
         let value = read(&path)
             .unwrap()
@@ -59,7 +59,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("stream_record_proxy.json");
         let marker = json!({"base":"http://127.0.0.1:10100/v1","connectionId":"migrated"});
-        std::fs::write(
+        crate::review_paths::fs::write(
             &path,
             serde_json::to_vec(&json!({"endpoint":marker})).unwrap(),
         )
@@ -74,7 +74,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("stream_record_proxy.json");
         let endpoint = json!({"base":"https://example.test/v1","apiKey":"fixture-secret"});
-        std::fs::write(
+        crate::review_paths::fs::write(
             &path,
             serde_json::to_vec(&json!({"endpoint":endpoint})).unwrap(),
         )

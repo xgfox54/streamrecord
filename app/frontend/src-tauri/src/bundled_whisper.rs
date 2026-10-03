@@ -9,11 +9,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager, Runtime};
-use tokio::{
-    fs,
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::Mutex,
-};
+use crate::review_paths::async_fs as fs;
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, sync::Mutex};
 
 pub const DEFAULT_MODEL: &str = "small-q5_1";
 
@@ -29,8 +26,8 @@ pub fn models_dir(app_data_dir: &Path) -> PathBuf {
     if legacy.is_dir() {
         match current.parent() {
             Some(parent)
-                if std::fs::create_dir_all(parent).is_ok()
-                    && std::fs::rename(&legacy, &current).is_ok() =>
+                if crate::review_paths::fs::create_dir_all(parent).is_ok()
+                    && crate::review_paths::fs::rename(&legacy, &current).is_ok() =>
             {
                 current
             }
@@ -51,7 +48,7 @@ async fn verify_regular(path: &Path, expected: &str) -> Result<()> {
     if !metadata.file_type().is_file() || metadata.len() == 0 || metadata.len() > MAX_MODEL_BYTES {
         bail!("음성 모델은 크기가 유효한 일반 파일이어야 합니다");
     }
-    let mut file = fs::File::open(path).await?;
+    let mut file = fs::open_file(path).await?;
     let mut buffer = vec![0u8; 1024 * 1024];
     let mut hash = Sha256::new();
     let mut count = 0u64;
@@ -102,7 +99,7 @@ async fn copy_verified(source: &Path, destination: &Path, expected: &str) -> Res
         .open(&temp)
         .await?;
     let result: Result<bool> = async {
-        let mut reader = fs::File::open(source).await?.take(MAX_MODEL_BYTES + 1);
+        let mut reader = fs::open_file(source).await?.take(MAX_MODEL_BYTES + 1);
         let count = tokio::io::copy(&mut reader, &mut writer).await?;
         writer.flush().await?;
         writer.sync_all().await?;

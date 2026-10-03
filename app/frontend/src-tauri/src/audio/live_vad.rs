@@ -1,8 +1,8 @@
 //! Stream-Record live-only bounded segmentation (MIT).
 //!
-//! Natural silence still closes speech within a window. Uninterrupted speech is
-//! flushed at a hard 12-second input boundary. Import/retranscription retain their
-//! original VAD policy. This is NOT overlapping or quietest-point segmentation.
+//! Speech is flushed at a hard12-second input boundary. The live caller keeps
+//! natural pauses inside that window to avoid repeated short ASR requests.
+//! Import/retranscription retain their original VAD policy. Windows do not overlap.
 //! Resetting a bounded VAD session also bounds its internal retained audio; model
 //! reinitialization cost and recognition quality must be measured on real audio.
 use super::vad::{ContinuousVadProcessor, SpeechSegment};
@@ -185,6 +185,38 @@ impl BoundedLiveVad {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires STREAM_RECORD_VAD_FIXTURE containing actual mono 16kHz f32le audio"]
+    fn stream_record_actual_meeting_has_at_most_one_request_per_window() {
+        let path = std::env::var("STREAM_RECORD_VAD_FIXTURE").expect("actual audio fixture path");
+        let bytes = std::fs::read(path).expect("read actual audio fixture");
+        assert_eq!(bytes.len() % 4, 0);
+        let samples: Vec<f32> = bytes.chunks_exact(4)
+            .map(|b| f32::from_le_bytes(b.try_into().unwrap())).collect();
+        assert!(samples.len() > 16000 * 60, "fixture must exceed one minute");
+        assert!(samples.iter().all(|s| s.is_finite()));
+        let mut vad = BoundedLiveVad::new(16000, super::super::pipeline::VAD_REDEMPTION_TIME_MS).unwrap();
+        let mut rows = Vec::new();
+        for chunk in samples.chunks(9600) {
+            rows.extend(vad.process_audio(chunk).unwrap());
+        }
+        rows.extend(vad.flush().unwrap());
+        assert!(vad.flush().unwrap().is_empty());
+        assert!(!rows.is_empty(), "actual meeting must contain detected speech");
+        let window_samples = 16000 * LIVE_WINDOW_SECONDS;
+        let windows = samples.len().div_ceil(window_samples);
+        println!("actual fixture: {} samples, {} windows, {} requests", samples.len(), windows, rows.len());
+        assert!(rows.len() <= windows, "short pauses must not multiply ASR requests");
+        let mut prior_end = 0;
+        for row in rows {
+            let start = (row.start_timestamp_ms * 16.0).round() as usize;
+            let end = (row.end_timestamp_ms * 16.0).round() as usize;
+            assert!(start >= prior_end && end <= samples.len() && end > start);
+            assert!(end - start <= window_samples);
+            assert_eq!(row.samples, samples[start..end], "preserve real samples, silence and timing");
+            prior_end = end;
+        }
+    }
     // Deterministic buffering backend: verifies partitioning/clock logic, not ASR.
     struct EchoWindow {
         rate: u32,

@@ -42,7 +42,7 @@ fn read_language_field_from_metadata(folder: &Path, field: &str) -> Result<Optio
         return Ok(None);
     }
 
-    let raw = std::fs::read_to_string(&metadata_path)
+    let raw = crate::review_paths::fs::read_to_string(&metadata_path)
         .with_context(|| format!("Failed to read {}", metadata_path.display()))?;
     let value = parse_metadata_json(&raw)?;
 
@@ -68,7 +68,7 @@ fn write_language_field_to_metadata(
     let temp_path = metadata_temp_path(folder);
 
     let mut value = if metadata_path.exists() {
-        let raw = std::fs::read_to_string(&metadata_path)
+        let raw = crate::review_paths::fs::read_to_string(&metadata_path)
             .with_context(|| format!("Failed to read {}", metadata_path.display()))?;
         parse_metadata_json(&raw)?
     } else {
@@ -94,9 +94,9 @@ fn write_language_field_to_metadata(
 
     let json_string =
         serde_json::to_string_pretty(&value).context("Failed to serialize metadata.json")?;
-    std::fs::write(&temp_path, json_string)
+    crate::review_paths::fs::write(&temp_path, json_string)
         .with_context(|| format!("Failed to write {}", temp_path.display()))?;
-    std::fs::rename(&temp_path, &metadata_path).with_context(|| {
+    crate::review_paths::fs::rename(&temp_path, &metadata_path).with_context(|| {
         format!(
             "Failed to replace {} with {}",
             metadata_path.display(),
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn summary_language_missing_field_returns_none() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
+        crate::review_paths::fs::write(
             dir.path().join("metadata.json"),
             serde_json::to_string_pretty(&json!({
                 "version": "1.0",
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn summary_language_write_preserves_existing_metadata_fields() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
+        crate::review_paths::fs::write(
             dir.path().join("metadata.json"),
             serde_json::to_string_pretty(&json!({
                 "version": "1.0",
@@ -180,7 +180,7 @@ mod tests {
 
         write_summary_language_to_metadata(dir.path(), Some("fr")).unwrap();
 
-        let raw = std::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
+        let raw = crate::review_paths::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(parsed["version"], "1.0");
         assert_eq!(parsed["meeting_id"], "meeting-123");
@@ -220,7 +220,7 @@ mod tests {
     fn concurrent_summary_language_writes_preserve_both_fields() {
         for _ in 0..50 {
             let dir = tempfile::tempdir().unwrap();
-            std::fs::write(
+            crate::review_paths::fs::write(
                 dir.path().join("metadata.json"),
                 serde_json::to_string_pretty(&json!({
                     "version": "1.0",
@@ -245,7 +245,7 @@ mod tests {
             summary_thread.join().unwrap();
             detected_thread.join().unwrap();
 
-            let raw = std::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
+            let raw = crate::review_paths::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
             let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
             assert_eq!(parsed["summary_language"], "fr");
             assert_eq!(parsed["detected_summary_language"], "es");
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn summary_language_null_removes_existing_field() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
+        crate::review_paths::fs::write(
             dir.path().join("metadata.json"),
             serde_json::to_string_pretty(&json!({
                 "version": "1.0",
@@ -280,7 +280,7 @@ mod tests {
 
         write_summary_language_to_metadata(dir.path(), None).unwrap();
 
-        let raw = std::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
+        let raw = crate::review_paths::fs::read_to_string(dir.path().join("metadata.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.get("summary_language").is_none());
     }
@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn summary_language_rejects_unsupported_code() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("metadata.json"), "{}").unwrap();
+        crate::review_paths::fs::write(dir.path().join("metadata.json"), "{}").unwrap();
 
         let err = write_summary_language_to_metadata(dir.path(), Some("xx")).unwrap_err();
 
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn summary_language_malformed_metadata_returns_error() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("metadata.json"), "{").unwrap();
+        crate::review_paths::fs::write(dir.path().join("metadata.json"), "{").unwrap();
 
         let err = read_summary_language_from_metadata(dir.path()).unwrap_err();
 

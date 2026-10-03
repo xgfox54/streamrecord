@@ -1,12 +1,14 @@
-# Stream-Record v0.6.3
+# Stream-Record v0.6.4
+
+v0.6.4 CPU 호환 배포판은 한국어 Whisper 모델과 저장 음성 화자분리 자료를 동봉합니다. 전사는 CPU에서 처리하며 CUDA 가속을 사용하지 않습니다. 이 PC의 검토 프로필 문서 경로 초기화·TXT 내보내기를 수정했고, 이관된 VAD 창 처리·내구성 있는 대기열·원음 체크포인트·UTF-8 한국어 처리 개선을 포함합니다. 원음·최초 전사·검토본을 유지합니다. 장시간 전사 공백의 정확도 평가는 아직 완료하지 않았습니다.
 
 Windows x64용 한국어 녹음·전사·회의록 앱입니다. 마이크 또는 실제 Stereo Mix 입력 하나를 사용하며, 한국어 음성 인식 모델을 설치파일에 포함합니다. 기록 목록·대화·회의록과 선택적 실시간 요약을 한 작업 화면에서 사용하고 Jeju 디자인 가이드를 적용했습니다. YouTube는 상시 펼친 최대 1280×720 영상과 그 아래 원문/AI 보정본을 표시합니다. v0.6.3은 숫자·길이 보호에 걸린 구간의 원문과 확인 사유를 유지하면서 나머지 보정을 계속하며, 유효한 AI 보정본을 실시간 요약에 반영합니다.
 
-소스·검사·설치파일 생성·설치본 교체·GitLab 게시 결과는 각각 구분합니다. 현재 실행의 확인 결과는 [UI 수용 검사](docs/UI_ACCEPTANCE_REPORT.md)와 설치파일 옆 `BUILD_VERIFICATION.json`, `package-result.json`, `installation-result.json`, `deployment-result.json`을 확인하세요. 파일이 없거나 해당 단계가 미실행이면 완료된 것이 아닙니다.
+소스·검사·설치파일 생성·설치본 교체·GitLab 게시 결과는 각각 구분합니다. 이번 CPU판의 확인 결과는 설치파일 옆 `BUILD_VERIFICATION.json`, `RELEASE_VALIDATION.md`, `SOURCE_MANIFEST.json`, `SHA256SUMS.txt`에서 확인하세요. 이전 버전 검사 자료는 해당 버전 결과이며 이번 배포 검증을 대신하지 않습니다.
 
 ## 설치
 
-[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases)에서 `Stream-Record-0.6.3-korean-bundled-windows-x64-setup.exe`와 `SHA256SUMS.txt`를 받습니다. 해당 버전 릴리스가 게시되기 전에는 내려받을 수 없습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
+[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.6.4)에서 `Stream-Record-0.6.4-korean-bundled-cpu-windows-x64-setup.exe`와 `SHA256SUMS.txt`를 받습니다. 해당 버전 릴리스가 게시되기 전에는 내려받을 수 없습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
 
 설치 프로그램은 미서명입니다. SHA-256은 파일 무결성 확인이며 게시자 코드 서명을 대신하지 않습니다. Windows WebView2 등 선행 런타임이 없는 PC에서는 최초 런타임 설치에 인터넷이 필요할 수 있습니다. 음성모델의 오프라인 사용과 선행 런타임 설치는 별개입니다.
 
@@ -38,7 +40,7 @@ PC 소리와 YouTube 전사는 Windows의 Stereo Mix 입력이 필요합니다. 
 
 동봉 모델은 `ggml-small-q5_1.bin` 190,085,487바이트이며, `manifest.json`과 `WHISPER-LICENSE.txt`를 함께 배포합니다. 출처는 고정 revision의 [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp)입니다. 실제 기준 해시는 `app/frontend/src-tauri/src/whisper_engine/model_integrity.rs`와 동봉 manifest에 기록됩니다. 설치 리소스와 사용자 모델 폴더 각각에 저장하므로 추가 디스크 공간이 필요합니다. 요약용 대형 언어모델은 동봉하지 않습니다.
 
-Windows x64 설치본은 native Whisper CUDA 빌드와 CUDA 12.3 실행 DLL을 함께 배포합니다. 별도 CUDA Toolkit 설치 없이 NVIDIA GPU 드라이버가 있는 지원 장치에서 동작하도록 구성하며, CUDA 빌드가 실제 NVIDIA 장치를 찾지 못하면 CPU로 조용히 전환하지 않고 오류를 표시합니다.
+v0.6.4의 이번 Windows x64 설치본은 native Whisper CPU 빌드입니다. NVIDIA GPU나 CUDA Toolkit이 없어도 CPU에서 전사합니다. 기존 CUDA 빌드 옵션과 이전 GPU판 릴리스는 유지하며, 이번 CPU 설치본의 성능 결과와 이전 GPU판 결과를 구분합니다.
 
 ## 전사 검토와 회의록
 
@@ -91,15 +93,15 @@ cd app/frontend
 npm run test:stream-record
 node tests/stream-record-ui.cjs
 npm run typecheck
-# 프로젝트 루트에서 모델 포함 새 설치파일 생성
-cd ../..
-node tools/package-korean-bundled.mjs --build
+# 동봉 모델·실행 자료를 준비한 뒤 CPU판 생성
+npm run tauri -- build --no-bundle --config ../../tools/tauri.cpu-release.conf.json -- --locked
+npm run tauri -- bundle --config ../../tools/tauri.cpu-release.conf.json --bundles nsis --verbose --no-sign
 ```
 
-모델을 포함한 새 설치파일, 원본/리소스 해시와 검증 기록은 `outputs/korean-bundled-0.6.0/`에 생성합니다. 실제 설치본 교체와 GitLab 게시는 별도 명령과 검증 단계입니다. 이전 버전 EXE를 새 UI 설치파일로 재사용하지 않습니다.
+빌드 결과는 Cargo target의 `release/`와 `release/bundle/nsis/`에 생성됩니다. 한국어 모델과 바이너리 자원은 소스 ZIP에 포함하지 않으며, 고정 해시로 준비한 자원을 설치파일에 동봉합니다. 이번 CPU 배포판은 CUDA DLL을 제외하는 `tools/tauri.cpu-release.conf.json`을 사용합니다. 기존 `tools/package-korean-bundled.mjs`는 CUDA Toolkit과 GPU 검증을 요구하는 별도 GPU판 도구입니다. 실제 설치본 교체와 GitLab 게시는 별도 단계입니다.
 
 ## 검증 한계
 
 자동 회귀검사, 실제 동봉 모델 적재, Tauri 화면 조작, 실제 마이크/Stereo Mix 녹음, 장시간 안정성은 서로 다른 시험입니다. 실행하지 않은 항목은 `NOT_RUN`으로 표시합니다. 자동 접근성 검사만으로 화면 낭독기·Windows 배율·고대비 모드 전체가 검증된 것으로 보고하지 않습니다.
 
-MIT 원저작권과 라이선스는 유지합니다. [라이선스](LICENSE). 이전 버전 기록은 현재 v0.6.0 검증 결과를 대신하지 않습니다.
+MIT 원저작권과 라이선스는 유지합니다. [라이선스](LICENSE). 이전 버전 기록은 현재 v0.6.4 검증 결과를 대신하지 않습니다.

@@ -7,7 +7,7 @@ use ort::session::Session;
 use ort::value::TensorRef;
 use regex::Regex;
 
-use std::fs;
+use crate::review_paths::fs;
 use std::path::Path;
 
 pub type DecoderState = (Array3<f32>, Array3<f32>);
