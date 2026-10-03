@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Net.Http;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
@@ -21,7 +20,7 @@ namespace StreamRecordSetup {
         public static Release Embedded() {
             using (var stream = typeof(Release).Assembly.GetManifestResourceStream("release.json")) {
                 var release = (Release)new DataContractJsonSerializer(typeof(Release)).ReadObject(stream);
-                if ((release.version != "0.6.4" && release.version != "0.6.5") || release.variant != "cpu" || release.parts.Length != 5)
+                if (release.version != "0.6.5" || release.variant != "cpu" || release.parts.Length != 5)
                     throw new InvalidDataException("지원하지 않는 배포 정보입니다.");
                 return release;
             }
@@ -34,7 +33,6 @@ namespace StreamRecordSetup {
         public DownloadProgress(long bytes, long total, string stage) { Bytes=bytes; Total=total; Stage=stage; }
     }
     internal sealed class Download {
-        private string BaseUrl { get { return "https://gitlab.aigov.go.kr/api/v4/projects/1092/packages/generic/stream-record/"+release.version+"/"; } }
         private readonly Release release;
         private readonly string directory;
         private readonly IProgress<DownloadProgress> progress;
@@ -64,17 +62,13 @@ namespace StreamRecordSetup {
         public async Task<string> Prepare(CancellationToken token) {
             PlainPath(directory); Directory.CreateDirectory(directory);
             long completed=0;
-            using(var handler=new HttpClientHandler { AllowAutoRedirect=false })
-            using(var client=new HttpClient(handler)) {
-                client.Timeout=TimeSpan.FromMinutes(10);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("StreamRecord-OnlineSetup/1.0");
+            {
                 foreach(var part in release.parts) {
                     token.ThrowIfCancellationRequested();
                     var file=Path.Combine(directory,part.name);
                     if(!Cached(file,part)) {
                         for(var attempt=0; ; attempt++) {
-                            try { await Fetch(client,part,completed,token); break; }
-                            catch(HttpRequestException) { if(attempt>=2) throw; }
+                            try { await Fetch(part,completed,token); break; }
                             catch(IOException) { if(attempt>=2) throw; }
                             await Task.Delay(1000*(attempt+1),token);
                         }
@@ -102,31 +96,9 @@ namespace StreamRecordSetup {
             File.Move(assembling,installer);
             return installer;
         }
-        private async Task Fetch(HttpClient client, Artifact part, long completed, CancellationToken token) {
+        private async Task Fetch(Artifact part, long completed, CancellationToken token) {
             var temporary=Path.Combine(directory,part.name)+".download";
-            using(var response=await client.GetAsync(BaseUrl+Uri.EscapeDataString(part.name),HttpCompletionOption.ResponseHeadersRead,token)) {
-                response.EnsureSuccessStatusCode();
-                if(response.Content.Headers.ContentLength.HasValue && response.Content.Headers.ContentLength.Value!=part.bytes)
-                    throw new InvalidDataException("다운로드 크기가 일치하지 않습니다.");
-                using(var input=await response.Content.ReadAsStreamAsync())
-                using(var output=new FileStream(temporary,FileMode.Create,FileAccess.Write,FileShare.None)) {
-                    var buffer=new byte[65536]; long received=0;
-                    while(true) {
-                        int count;
-                        using(var timeout=CancellationTokenSource.CreateLinkedTokenSource(token)) {
-                            timeout.CancelAfter(TimeSpan.FromSeconds(45));
-                            try { count=await input.ReadAsync(buffer,0,buffer.Length,timeout.Token); }
-                            catch(OperationCanceledException) { token.ThrowIfCancellationRequested(); throw new IOException("다운로드 응답 시간이 초과되었습니다."); }
-                        }
-                        if(count==0) break;
-                        received+=count;
-                        if(received>part.bytes) throw new InvalidDataException("다운로드 파일이 예상 크기를 초과했습니다.");
-                        await output.WriteAsync(buffer,0,count,token);
-                        progress.Report(new DownloadProgress(completed+received,release.installer.bytes,"다운로드"));
-                    }
-                    output.Flush(true);
-                }
-            }
+            await NativeTransport.Fetch(release.version,part,directory,temporary,bytes=>progress.Report(new DownloadProgress(completed+bytes,release.installer.bytes,"다운로드")),token);
             using(var input=File.OpenRead(temporary)) Verify(input,part);
             var final=Path.Combine(directory,part.name);
             if(File.Exists(final)) File.Delete(final);

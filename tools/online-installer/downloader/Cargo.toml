@@ -1,0 +1,16 @@
+[package]
+name = "streamrecord-download"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Pinned Stream-Record installer downloads over Rustls TLS"
+
+[workspace]
+
+[dependencies]
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
+tokio = { version = "=1.52.3", features = ["rt", "macros"] }
+
+[profile.release]
+strip = true
+opt-level = "s"

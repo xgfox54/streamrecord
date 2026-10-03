@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -24,12 +23,22 @@ namespace StreamRecordSetup {
         public SetupWindow(bool verifyOnly,bool installerUi) {
             this.verifyOnly=verifyOnly; this.installerUi=installerUi;
             cache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StreamRecordInstaller",release.version,Guid.NewGuid().ToString("N"));
-            Text="Stream-Record 온라인 설치 · CPU"; ClientSize=new Size(558,295);
+            Text="Stream-Record 온라인 설치 · Windows 10 / 11 · CPU"; ClientSize=new Size(558,295);
             Font=new Font("맑은 고딕",10); FormBorderStyle=FormBorderStyle.FixedDialog;
             MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
             Controls.Add(new Label { Text="Stream-Record v"+release.version,Left=24,Top=24,Width=510,Height=35,Font=new Font(Font.FontFamily,17,FontStyle.Bold) });
             Controls.Add(new Label { Text="한국어 모델 포함 · CPU 호환판 · 약 313 MB 다운로드",Left=24,Top=67,Width=510,Height=30 });
             Controls.AddRange(new Control[]{status,bar,retry,cancel});
+            var license=new LinkLabel { Text="오픈소스 라이선스",Left=24,Top=235,Width=180,Height=25 };
+            license.LinkClicked+=(sender,args)=>{
+                using(var dialog=new Form { Text="오픈소스 라이선스",Width=720,Height=550,StartPosition=FormStartPosition.CenterParent }) {
+                    var text=new TextBox { Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Both,Dock=DockStyle.Fill,Text=NativeTransport.LicenseText().Replace("\r\n","\n").Replace("\n",Environment.NewLine) };
+                    dialog.Controls.Add(text);
+                    dialog.Shown+=(owner,eventArgs)=>{text.Select(0,0);text.ScrollToCaret();};
+                    dialog.ShowDialog(this);
+                }
+            };
+            Controls.Add(license);
             Shown+=async(sender,args)=>await Start();
             retry.Click+=async(sender,args)=>await Start();
             cancel.Click+=(sender,args)=>{ if(busy) cancellation.Cancel(); else Close(); };
@@ -63,9 +72,6 @@ namespace StreamRecordSetup {
     }
     internal static class Program {
         [STAThread] private static int Main(string[] args) {
-            AppContext.SetSwitch("Switch.System.Net.DontEnableSystemDefaultTlsVersions",false);
-            AppContext.SetSwitch("Switch.System.Net.DontEnableSchUseStrongCrypto",false);
-            ServicePointManager.SecurityProtocol=(SecurityProtocolType)0;
             if(!Environment.Is64BitOperatingSystem) { MessageBox.Show("Windows 64비트 PC에서 실행해 주세요.");return 1; }
             if(args.Contains("--headless-verify")) {
                 try {

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,7 +10,7 @@ namespace StreamRecordSetup {
             using(var hash=SHA256.Create()) return new Artifact { name="fixture",bytes=bytes.Length,sha256=BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant() };
         }
         private static int Main() {
-            try { Run().GetAwaiter().GetResult(); Console.WriteLine("PASS: 7 checks (hash, size, cancellation, reconstruction, preservation, silent arguments, failed exit)");return 0; }
+            try { Run().GetAwaiter().GetResult(); Console.WriteLine("PASS: 12 checks (7 installer checks; native pipe success, failed exit, oversized output, child cancellation, helper tampering)");return 0; }
             catch(Exception error) { Console.Error.WriteLine(error);return 1; }
         }
         private static async Task Run() {
@@ -48,6 +49,20 @@ namespace StreamRecordSetup {
             // Given an installer that exits with failure, when run, then installation is not reported as completed.
             File.WriteAllText(Path.Combine(root,"fail"),"failure");
             try { await Install.Run(child,childRelease,false);throw new Exception("Failed installer accepted"); } catch(IOException) {}
+            var destination=Path.Combine(root,"native.download");
+            await NativeTransport.CopyProcess(new ProcessStartInfo(child,"/download-complete"),destination,artifact,_=>{},CancellationToken.None);
+            using(var stream=File.OpenRead(destination)) Download.Verify(stream,artifact);
+            try { await NativeTransport.CopyProcess(new ProcessStartInfo(child,"/download-fail"),destination,artifact,_=>{},CancellationToken.None);throw new Exception("Failed download child accepted"); } catch(IOException) {}
+            try { await NativeTransport.CopyProcess(new ProcessStartInfo(child,"/download-long"),destination,artifact,_=>{},CancellationToken.None);throw new Exception("Oversized child accepted"); } catch(InvalidDataException) {}
+            using(var cancellation=new CancellationTokenSource()) {
+                try { await NativeTransport.CopyProcess(new ProcessStartInfo(child,"/download-hang"),destination,artifact,_=>cancellation.Cancel(),cancellation.Token);throw new Exception("Child cancellation ignored"); } catch(OperationCanceledException) {}
+                var id=int.Parse(File.ReadAllText(Path.Combine(root,"child.pid")));
+                try { using(var process=Process.GetProcessById(id)) { if(!process.WaitForExit(5000)) throw new Exception("Cancelled child is still alive"); } } catch(ArgumentException) {}
+            }
+            var helper=NativeTransport.Helper(Path.Combine(root,"helper"));
+            using(var stream=new FileStream(helper,FileMode.Open,FileAccess.Write)) stream.WriteByte(0);
+            try { NativeTransport.Helper(Path.GetDirectoryName(helper));throw new Exception("Tampered helper accepted"); } catch(InvalidDataException) {}
+            if(File.ReadAllBytes(helper)[0]!=0) throw new Exception("Tampered helper was overwritten");
         }
     }
 }
