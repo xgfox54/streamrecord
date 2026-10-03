@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "stream-record",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "identifier": "local.meetily.korean.workspace",
   "build": {
     "frontendDist": "../out",
@@ -62,6 +62,7 @@
             "core:menu:default",
             "core:tray:default",
             "core:window:allow-set-title",
+            "core:window:allow-hide",
             "store:default",
             "notification:default",
             "notification:allow-is-permission-granted",

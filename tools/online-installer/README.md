@@ -1,6 +1,6 @@
 # 온라인 CPU 설치 EXE
 
-`Stream-Record-0.6.4-online-cpu-setup.exe` 하나를 실행하면 GitLab에서 v0.6.4 CPU 설치파일을 내려받아 검증한 뒤 자동 설치하고 앱 실행을 요청합니다. 기존 녹음·모델·설정은 삭제하지 않습니다. 실행 중인 Stream-Record가 있으면 먼저 종료하도록 안내합니다.
+`Stream-Record-0.6.5-online-cpu-setup.exe` 하나를 실행하면 GitLab에서 v0.6.5 CPU 설치파일을 내려받아 검증한 뒤 자동 설치하고 앱 실행을 요청합니다. 기존 녹음·모델·설정은 삭제하지 않습니다. 실행 중인 Stream-Record가 있으면 먼저 종료하도록 안내합니다.
 
 Windows 11과 .NET Framework 4.8에서 검증했습니다. 현재 GitLab 서버는 TLS 1.3을 요구하므로 Windows 10에서는 이 온라인 설치기의 기본 .NET 네트워크 경로를 사용할 수 없습니다. Windows 10은 기존 전체 CPU 설치파일을 사용하세요. Windows 보안·인증서 설정을 변경하지 않습니다.
 
@@ -8,7 +8,7 @@ EXE에 고정한 공개 HTTPS 주소·조각별 크기와 SHA-256·최종 SHA-25
 
 다운로드 중 취소할 수 있고 실패 후 다시 시도하면 같은 실행에서 검증된 조각을 재사용합니다. 각 조각은 최대 3회 요청합니다. 인증서·해시 오류는 검증을 완화하지 않고 중단합니다. 설치가 시작된 뒤에는 설치파일을 강제 종료하지 않습니다.
 
-다운로드는 사용자 LocalAppData/StreamRecordInstaller/0.6.4 아래 실행별 폴더에 보관합니다. 앱의 데이터 폴더와 구분하며 자동 삭제하지 않습니다. 여유 공간은 약 1.2 GB 이상을 권장합니다. 설치파일과 온라인 설치 EXE는 미서명입니다.
+다운로드는 사용자 LocalAppData/StreamRecordInstaller/<버전> 아래 실행별 폴더에 보관합니다. 앱의 데이터 폴더와 구분하며 자동 삭제하지 않습니다. 여유 공간은 약 1.2 GB 이상을 권장합니다. 설치파일과 온라인 설치 EXE는 미서명입니다.
 
 빌드: PowerShell에서 `./build.ps1 -OutputDirectory <출력폴더>`. Windows의 .NET Framework C# 컴파일러를 사용하며 외부 패키지 설치는 없습니다.
 

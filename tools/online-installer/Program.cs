@@ -15,7 +15,7 @@ namespace StreamRecordSetup {
         private readonly Button retry=new Button { Text="다시 시도",Left=325,Top=230,Width=100,Enabled=false };
         private readonly Button cancel=new Button { Text="취소",Left=434,Top=230,Width=100 };
         private readonly Release release=Release.Embedded();
-        private readonly string cache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StreamRecordInstaller","0.6.4",Guid.NewGuid().ToString("N"));
+        private readonly string cache;
         private readonly bool verifyOnly;
         private readonly bool installerUi;
         private CancellationTokenSource cancellation;
@@ -23,10 +23,11 @@ namespace StreamRecordSetup {
         private bool installing;
         public SetupWindow(bool verifyOnly,bool installerUi) {
             this.verifyOnly=verifyOnly; this.installerUi=installerUi;
+            cache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StreamRecordInstaller",release.version,Guid.NewGuid().ToString("N"));
             Text="Stream-Record 온라인 설치 · CPU"; ClientSize=new Size(558,295);
             Font=new Font("맑은 고딕",10); FormBorderStyle=FormBorderStyle.FixedDialog;
             MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
-            Controls.Add(new Label { Text="Stream-Record v0.6.4",Left=24,Top=24,Width=510,Height=35,Font=new Font(Font.FontFamily,17,FontStyle.Bold) });
+            Controls.Add(new Label { Text="Stream-Record v"+release.version,Left=24,Top=24,Width=510,Height=35,Font=new Font(Font.FontFamily,17,FontStyle.Bold) });
             Controls.Add(new Label { Text="한국어 모델 포함 · CPU 호환판 · 약 313 MB 다운로드",Left=24,Top=67,Width=510,Height=30 });
             Controls.AddRange(new Control[]{status,bar,retry,cancel});
             Shown+=async(sender,args)=>await Start();

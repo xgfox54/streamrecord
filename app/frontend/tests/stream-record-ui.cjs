@@ -73,7 +73,7 @@ function harness(options = {}) {
     const requireModule = id => {
       if (id === '@tauri-apps/api/core') return {invoke,convertFileSrc:value=>value};
       if (id === '@tauri-apps/api/event') return {listen};
-      if (id === '@tauri-apps/api/window') return {getCurrentWindow:()=>({onCloseRequested:handler=>listen('window-close',handler)})};
+      if (id === '@tauri-apps/api/window') return {getCurrentWindow:()=>({onCloseRequested:handler=>listen('window-close',event=>handler(event.payload)),hide:async()=>{calls.push({command:'window-hide'});if(options.hideFails)throw new Error('hide failed');}})};
       if (id === '@/lib/whisper') return {WhisperAPI:{init:async()=>{},getAvailableModels:async()=>options.modelFails ? [] : [{name:'base',status:'Available'}],loadModel:async()=>{calls.push({command:'loadModel'});}}};
       if (id.endsWith('.css')) return {};
       if (id.startsWith('@/')) return load(path.join(root,'src',id.slice(2)));
@@ -110,6 +110,21 @@ async function test(name,fn) {
 }
 async function using(options,fn) {const h = harness(options); await h.mount(); try {await fn(h);} finally {await h.unmount();}}
 (async()=>{
+  for(const recording of [false,true]) await test(`X hides to tray while ${recording?'recording':'idle'} without stopping or exiting`,()=>using({},async h=>{
+    if(recording)await h.start();
+    let prevented=false;
+    await h.run(()=>h.emit('window-close',{preventDefault:()=>{prevented=true;}}));
+    assert.equal(prevented,true);assert.equal(h.count('window-hide'),1);assert.equal(h.count('ko_stop_recording'),0);assert.equal(h.count('ko_exit_app'),0);
+    assert.equal(h.session.mode,recording?'recording':'idle');assert.equal(h.session.exitOpen,false);
+    if(recording){await h.run(()=>h.emit('transcript-update',{sequence_id:1,text:'트레이에서 계속 전사',is_partial:false}));assert.equal(h.session.rows[0].text,'트레이에서 계속 전사');}
+  }));
+  await test('Hide failure retains the session and reports the error without quitting',()=>using({hideFails:true},async h=>{
+    let prevented=false;await h.run(()=>h.emit('window-close',{preventDefault:()=>{prevented=true;}}));
+    assert.equal(prevented,true);assert.match(h.session.notice,/hide failed/);assert.equal(h.count('ko_exit_app'),0);assert.equal(h.session.exitOpen,false);
+  }));
+  await test('Explicit tray quit still opens the safe exit dialog',()=>using({},async h=>{
+    await h.run(()=>h.emit('ko-exit-requested',null));assert.equal(h.session.exitOpen,true);assert.equal(h.count('window-hide'),0);assert.equal(h.count('ko_exit_app'),0);
+  }));
   await test('Real RecordingView preserves idle PC choice through every task view',()=>using({},async h=>{
     await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value==='pc').props.onChange());
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix');

@@ -98,7 +98,8 @@ export function useMeetingSession(){
    await register<ImportResult>('import-complete',v=>{if(modeRef.current!=='importing')return;void(async()=>{try{setRows(await loadImported(v.meeting_id));setTitle(v.title);setProgress(100);await persist();await exportFile('transcript');setNotice(`파일 전사 완료 · ${rowsRef.current.length}구간. 회의록 생성 버튼으로 요약하세요.`);}catch(e){setError(messageOf(e));}finally{if(!cancelled)setMode('idle');}})();});
    await register<{error:string}>('import-error',v=>{if(modeRef.current==='importing'){setError(v.error||'녹음파일 변환 실패');setMode('idle');}});
    await register<{warning:string}>('import-warning',v=>setNotice(v.warning));
-   const close=await getCurrentWindow().onCloseRequested(e=>{if(['starting','recording','stopping','importing','summarizing','reviewing','recovering','diarizing'].includes(modeRef.current)){e.preventDefault();setExitOpen(true);}});if(cancelled)close();else cleanups.push(close);
+   const appWindow=getCurrentWindow();
+   const close=await appWindow.onCloseRequested(async e=>{e.preventDefault();try{await appWindow.hide();}catch(error){if(!cancelled)setNotice(`트레이로 숨기지 못했습니다: ${messageOf(error)}`);}});if(cancelled)close();else cleanups.push(close);
    try{await recordHistory.initialize();setNotice('기록을 불러왔습니다. 왼쪽 목록에서 저장한 기록을 다시 열 수 있습니다.');}
    catch(e){setNotice(`복구 파일을 열지 못했지만 새 녹음·파일 전사는 사용할 수 있습니다: ${messageOf(e)}`);}
    await refreshDevices().catch(e=>setNotice(`입력 장치를 읽지 못했습니다. 파일 전사는 사용할 수 있습니다: ${messageOf(e)}`));

@@ -21,7 +21,7 @@ namespace StreamRecordSetup {
         public static Release Embedded() {
             using (var stream = typeof(Release).Assembly.GetManifestResourceStream("release.json")) {
                 var release = (Release)new DataContractJsonSerializer(typeof(Release)).ReadObject(stream);
-                if (release.version != "0.6.4" || release.variant != "cpu" || release.parts.Length != 5)
+                if ((release.version != "0.6.4" && release.version != "0.6.5") || release.variant != "cpu" || release.parts.Length != 5)
                     throw new InvalidDataException("지원하지 않는 배포 정보입니다.");
                 return release;
             }
@@ -34,7 +34,7 @@ namespace StreamRecordSetup {
         public DownloadProgress(long bytes, long total, string stage) { Bytes=bytes; Total=total; Stage=stage; }
     }
     internal sealed class Download {
-        private const string BaseUrl="https://gitlab.aigov.go.kr/api/v4/projects/1092/packages/generic/stream-record/0.6.4/";
+        private string BaseUrl { get { return "https://gitlab.aigov.go.kr/api/v4/projects/1092/packages/generic/stream-record/"+release.version+"/"; } }
         private readonly Release release;
         private readonly string directory;
         private readonly IProgress<DownloadProgress> progress;
