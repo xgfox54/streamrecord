@@ -18,6 +18,7 @@ function harness(options = {}) {
   const calls = [], snapshots = [], listeners = new Map(), subscriptions = new Map(), timers = new Map(), browserListeners = new Map();
   const records = new Map((options.records||[]).map(record=>[record.recordId,copy(record)]));
   const overrides = new Map(); let active = false, clock = Date.parse('2026-09-17T00:00:00Z'), timerId = 0, session, renderer;
+  for (const [command,handler] of Object.entries(options.overrides || {})) overrides.set(command,handler);
   let stereo = options.stereoStatus || {state:'unsupported',id:null,name:null};
   const document = {activeElement:null,getElementById:id=>{
     const element = renderer?.root.findAll(node=>typeof node.type==='string' && node.props.id===id)[0];
@@ -29,7 +30,8 @@ function harness(options = {}) {
     return node;
   };
   class ClockDate extends Date {constructor(...args) {super(...(args.length ? args : [clock]));} static now() {return clock;}}
-  const window = {location:{hash:''}, localStorage:{getItem:()=>null,setItem:()=>{}}, confirm:()=>true,
+  const storage = options.storage;
+  const window = {location:{hash:''}, localStorage:storage?{getItem:key=>storage.has(key)?storage.get(key):null,setItem:(key,value)=>storage.set(key,String(value))}:{getItem:()=>null,setItem:()=>{}}, confirm:()=>true,
     setInterval:(fn,delay)=>{const id = ++timerId; timers.set(id,{fn,delay}); return id;}, clearInterval:id=>timers.delete(id),
     addEventListener:(name,fn)=>{if (!browserListeners.has(name)) browserListeners.set(name,new Set()); browserListeners.get(name).add(fn);},
     removeEventListener:(name,fn)=>browserListeners.get(name)?.delete(fn)};
@@ -212,6 +214,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     assert.equal(h.session.rows[0].text,'일일 비하지 않습니다.');
   }));
   await test('The correction hook refreshes an already completed live summary without editing raw rows',()=>using({snapshot:{version:1,title:'correction summary',rows:[{sequence_id:1,text:'일일 비하지 않습니다.',is_partial:false}],minutes:'',startedAt:null}},async h=>{
+    await h.run(()=>h.session.correction.setEnabled(false));
     h.overrides.set('ko_generate',async args=>args.stage==='correction'?JSON.stringify({corrections:JSON.parse(args.text).segments.map(part=>({id:part.id,text:'일희일비하지 않습니다.'}))}):JSON.parse(args.text).newUtterances.map(part=>part.text).join(' '));
     await h.run(()=>h.session.setLiveSummaryEnabled(true));for(let i=0;i<50&&!h.session.liveSummary;i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));assert.equal(h.session.liveSummary,'일일 비하지 않습니다.');
     await h.run(()=>h.session.correction.setEnabled(true));await h.advance(5000);for(let i=0;i<50&&h.session.liveSummary!=='일희일비하지 않습니다.';i++)await h.run(()=>new Promise(resolve=>setTimeout(resolve,10)));
@@ -220,7 +223,17 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
   await test('Recovery import locks the session while archiving and preserves original on archive failure',()=>using({snapshot:{version:1,title:'existing',rows:[{text:'보존할 원문'}],minutes:'기존 회의록',startedAt:null}},async h=>{
     const gate=deferred();h.overrides.set('ko_export',()=>gate.promise);let applying;await h.run(()=>{applying=h.session.applyQueueRecovery([{text:'복구 구간'}],true);});assert.equal(h.session.mode,'recovering');await h.start();assert.equal(h.count('ko_start_recording'),0);await h.run(()=>gate.resolve('saved.json'));await h.run(()=>applying);assert.equal(h.session.rows[0].text,'복구 구간');assert.equal(h.session.minutes,'');assert.equal(h.session.mode,'idle');
   }));
-  await test('Native enumeration retains real inputs and outputs without fabricating devices',()=>using({},async h=>{
+  await test('Option choices survive an app restart',async()=>{
+    const storage=new Map();
+    await using({storage},async h=>{
+      assert.equal(h.session.correction.enabled,true);assert.equal(h.session.diarization.enabled,true);assert.equal(h.session.liveSummaryEnabled,false);
+      await h.run(()=>h.session.correction.setEnabled(false));await h.run(()=>h.session.diarization.setEnabled(false));await h.run(()=>h.session.setLiveSummaryEnabled(true));
+    });
+    await using({storage},async h=>{
+      assert.equal(h.session.correction.enabled,false);assert.equal(h.session.diarization.enabled,false);assert.equal(h.session.liveSummaryEnabled,true);
+      await h.start();await h.advance(3000);assert.equal(h.count('ko_poll_live_diarization'),0);
+    });
+  });  await test('Native enumeration retains real inputs and outputs without fabricating devices',()=>using({},async h=>{
     assert.deepEqual(copy(h.session.devices),inputDevices);
     assert.equal(h.session.systemDevice,'Output:Speaker');
     assert.equal(h.session.microphone,'Microphone');

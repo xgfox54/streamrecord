@@ -533,11 +533,8 @@ impl WhisperEngine {
         params.set_split_on_word(true);
         params.set_single_segment(false);
 
-        // Set thread count based on hardware (if supported by whisper.cpp)
-        if let Some(_max_threads) = adaptive_config.max_threads {
-            // Note: whisper.cpp may or may not expose thread control through params
-            // Removed debug log to reduce I/O overhead in transcription hot path
-        }
+        // Keep whisper.cpp's default of 4 threads: ggml's spin barrier slows down sharply
+        // when its threads exceed the cores left free by capture, VAD and other programs.
 
         // full() decodes the entire supplied window. Short windows are final
         // too; marking <15s as partial stranded every bounded live segment.

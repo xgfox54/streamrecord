@@ -38,3 +38,7 @@
 .aiOptions[open] { flex-basis: 100%; order: 3; }
 .aiOptions > div { padding: var(--jeju-space-3); background: var(--jeju-surface-inset); }
 .readingTools .search { flex-direction: row; }
+.transcriptOptions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jeju-space-2) var(--jeju-space-4); min-width: 0; }
+.modelSelect { display: flex; align-items: center; gap: var(--jeju-space-2); min-width: 0; }
+.modelSelect select { max-width: var(--sr-field-min); }
+.optionNotes > p, .optionNotes > div { margin-block: var(--jeju-space-2) !important; }

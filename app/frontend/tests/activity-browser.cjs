@@ -1,5 +1,5 @@
 'use strict';
-// Real Chromium QA of start loading, live transcription dots, fixed transcript settings and Stereo Mix enabling. Native commands are simulated.
+// Real Chromium QA of start loading, live transcription dots, inline transcript options and Stereo Mix enabling. Native commands are simulated.
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 const {chromium}=require('playwright-core'),fixture=require('./jeju-browser-fixture.cjs');
 const root=path.resolve(__dirname,'../out'),out=path.resolve(process.env.STREAM_RECORD_QA_OUTPUT||path.join(__dirname,'../test-results/activity-browser'));fs.mkdirSync(out,{recursive:true});
@@ -73,22 +73,20 @@ const server=http.createServer((request,res)=>{const name=decodeURIComponent(new
   await page.emulateMedia({reducedMotion:'no-preference'});
   checks.push('three dots below the last sentence move up and down in sequence; with reduced motion they stay still and keep the text label');
 
-  // Transcript settings stay in place; conversation search is always visible.
+  // Transcript options sit on the view switcher line, default on; conversation search is always visible.
   for(const width of [1280,768,375]){
    await page.setViewportSize({width,height:960});
    const search=page.getByRole('searchbox',{name:'대화 내용 검색',exact:true});await search.scrollIntoViewIfNeeded();assert.equal(await search.isVisible(),true,'search visible at '+width);
    assert.equal(await page.getByText('대화 검색',{exact:true}).count(),0);
-   const toggle=page.getByRole('button',{name:'전사 설정',exact:true});await toggle.scrollIntoViewIfNeeded();
-   const before=await toggle.boundingBox(),searchBefore=await search.boundingBox();
-   await toggle.click();await page.locator('#transcript-settings').waitFor();
-   const after=await toggle.boundingBox(),searchAfter=await search.boundingBox();
-   assert.deepEqual([after.x,after.y,after.width,after.height],[before.x,before.y,before.width,before.height],'settings button moved at '+width);
-   assert.deepEqual([searchAfter.x,searchAfter.y],[searchBefore.x,searchBefore.y],'search moved at '+width);
-   await capture('settings-open-'+width);await axeCheck('settings-open-'+width);
-   await toggle.click();await page.locator('#transcript-settings').waitFor({state:'detached'});
-   const closed=await toggle.boundingBox();assert.deepEqual([closed.x,closed.y],[before.x,before.y]);
+   assert.equal(await page.getByRole('button',{name:'전사 설정',exact:true}).count(),0);
+   const ai=page.getByRole('checkbox',{name:'AI 보정',exact:true}),speaker=page.getByRole('checkbox',{name:'화자 구분',exact:true});
+   assert.equal(await ai.isChecked(),true);assert.equal(await speaker.isChecked(),true);
+   assert.equal(await page.getByRole('group',{name:'전사 설정',exact:true}).evaluate(node=>node.parentElement===document.querySelector('[aria-label="대화 표시 방식"]').parentElement),true);
+   if(width===1280){const switcher=await page.getByRole('group',{name:'대화 표시 방식',exact:true}).boundingBox(),box=await ai.boundingBox();assert.ok(Math.abs((box.y+box.height/2)-(switcher.y+switcher.height/2))<16,'options share the switcher line at 1280');}
+   await page.getByText('AI 후보정 모델이 지정되지 않아',{exact:false}).waitFor();await page.getByTestId('option-speed-note').waitFor();
+   await speaker.scrollIntoViewIfNeeded();await capture('options-'+width);await axeCheck('options-'+width);
   }
-  checks.push('전사 설정 button and 대화 내용 검색 field keep their position at 1280, 768 and 375 px');
+  checks.push('AI 보정 and 화자 구분 are on by default beside 실시간 원문/AI 보정본, with no-model and speaker guidance, at 1280, 768 and 375 px');
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(out,'activity-browser.json'),JSON.stringify({passed:true,checks,captures,scope:'Production Chromium; native commands simulated.'},null,2));
   console.log('PASS activity browser: '+checks.length+' groups');

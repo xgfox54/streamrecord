@@ -3,9 +3,10 @@ import {useEffect,useRef,useState,type MutableRefObject} from 'react';
 import type {TranscriptRow} from '../meeting-ko/core';
 import {correctTranscript,correctedText,correctionIssue,pendingCorrections,type CorrectionModel} from '../meeting-ko/transcript-correction';
 import {generateText,GenerationCancelled} from '../meeting-ko/generate-text';
+import {useStoredFlag} from './useStoredFlag';
 type CorrectionSession={readonly rows:TranscriptRow[];readonly rowsRef:MutableRefObject<TranscriptRow[]>;readonly setRows:(rows:TranscriptRow[])=>void;readonly model:CorrectionModel|undefined;readonly glossary:string;readonly epoch:number;readonly mode:string;readonly persist:()=>Promise<unknown>};
 export function useTranscriptCorrection(input:CorrectionSession){
- const [enabled,setEnabled]=useState(false);const [running,setRunning]=useState(false);const [error,setError]=useState('');const [tick,setTick]=useState(0);
+ const [enabled,setEnabled]=useStoredFlag('ai-correction',true);const [running,setRunning]=useState(false);const [error,setError]=useState('');const [tick,setTick]=useState(0);
  const current=useRef(input);current.current=input;
  const inFlight=useRef(false);const controller=useRef<AbortController|null>(null);const lastTick=useRef(-1);const alive=useRef(true);
  const modelKey=input.model?`${input.model.provider}:${input.model.id}${input.model.revision?`@${input.model.revision}`:''}`:'';

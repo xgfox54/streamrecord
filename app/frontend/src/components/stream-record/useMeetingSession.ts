@@ -16,6 +16,7 @@ import {deviceKey,systemAudioDevices,selectedSystemDevice,type StereoMixStatus} 
 import {createStructuredMinutes,reviewText,type SummaryCheckpoint} from '../meeting-ko/structured-minutes';
 import {playbackRange,recoverAudio,type ReviewAudio,type RecoveryCheckpoint} from '../meeting-ko/review-core';
 import {type WorkspaceView} from '../stream-record/AppShell';
+import {useStoredFlag} from './useStoredFlag';
 type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'importing'|'summarizing'|'reviewing'|'recovering'|'diarizing';
 type Config={provider:string;model:string};
 export type ModelOption={id:string;provider:string;connectionId?:string;connectionLabel?:string;destination?:string;revision?:string};
@@ -49,7 +50,7 @@ export function useMeetingSession(){
  const [rows,setRowsState]=useState<TranscriptRow[]>([]);const rowsRef=useRef<TranscriptRow[]>([]);
  const [minutes,setMinutesState]=useState('');const minutesRef=useRef('');const startedAt=useRef<string|null>(null);
  const [models,setModels]=useState<ModelOption[]>([]);const [model,setModel]=useState('');
- const [liveSummaryEnabled,setLiveSummaryEnabled]=useState(false);const [liveSummary,setLiveSummaryState]=useState('');const liveSummaryRef=useRef('');
+ const [liveSummaryEnabled,setLiveSummaryEnabled]=useStoredFlag('live-summary',false);const [liveSummary,setLiveSummaryState]=useState('');const liveSummaryRef=useRef('');
  const liveSummaryDraft=useRef<LiveSummaryCheckpoint|null>(null);
  const [saving,setSaving]=useState(false);const saveInFlight=useRef(false);
  const [error,setError]=useState('');const [notice,setNotice]=useState('');const [savedPath,setSavedPath]=useState('');

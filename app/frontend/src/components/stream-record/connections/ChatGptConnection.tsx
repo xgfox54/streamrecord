@@ -33,7 +33,7 @@ export function ChatGptConnection({session:s}:{readonly session:MeetingSession})
  const login=(consent:boolean)=>run(async()=>{setStatus(statusSchema.parse(await invoke('ko_chatgpt_login',{accountId:account||null,requestConsent:consent})));});
  return <article className={styles.connectionCard} aria-label="ChatGPT 계정 연결">
   <span className={styles.badge}>공식 OAuth 로그인</span><h3>ChatGPT 계정</h3>
-  <p>브라우저에서 ChatGPT 계정으로 로그인합니다. 로컬 요약 모델을 내려받지 않고 사용할 수 있습니다.</p>
+  <p>브라우저에서 ChatGPT 계정으로 로그인합니다. 로컬 요약 모델을 내려받지 않고 사용할 수 있습니다.</p><p role="note" className={styles.hint}>ChatGPT Plus 이상 유료 계정만 지원합니다. 무료 계정은 로그인은 되지만 요약·AI 보정에 사용할 수 없습니다. 무료 계정이면 이 PC의 모델이나 서버·API 연결을 사용하세요.</p>
   <dl className={styles.facts}>
    <div><dt>계정 연결</dt><dd>{status?.pending?'브라우저 로그인 대기 중':active?.connected?'로그인됨':status?'로그인 필요':'상태 확인 중'}</dd></div>
    <div><dt>요약 사용 동의</dt><dd>{active?.planEnabled?'허용됨':active?'동의 필요':'로그인 후 확인'}</dd></div>
