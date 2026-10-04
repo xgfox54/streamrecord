@@ -11,8 +11,8 @@ import {readLiveSummaryCheckpoint,type LiveSummaryCheckpoint} from '../meeting-k
 import {listen,type UnlistenFn} from '@tauri-apps/api/event';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 import {ensureKoreanWhisper} from '../meeting-ko/korean-model';
-import {loadAllTranscriptRows,microphoneInputs,readRows,rowTime,transcriptText,upsertRow,type AudioInput,type TranscriptRow} from '../meeting-ko/core';
-import {deviceKey,systemAudioDevices,selectedSystemDevice} from './recording-source';
+import {isStereoMix,loadAllTranscriptRows,microphoneInputs,readRows,rowTime,transcriptText,upsertRow,type AudioInput,type TranscriptRow} from '../meeting-ko/core';
+import {deviceKey,systemAudioDevices,selectedSystemDevice,type StereoMixStatus} from './recording-source';
 import {createStructuredMinutes,reviewText,type SummaryCheckpoint} from '../meeting-ko/structured-minutes';
 import {playbackRange,recoverAudio,type ReviewAudio,type RecoveryCheckpoint} from '../meeting-ko/review-core';
 import {type WorkspaceView} from '../stream-record/AppShell';
@@ -45,6 +45,7 @@ export function useMeetingSession(){
  const [glossary,setGlossaryState]=useState('');const glossaryRef=useRef('');const summaryDraft=useRef<SummaryCheckpoint|null>(null);
  const [query,setQuery]=useState('');const [page,setPage]=useState(0);const [editing,setEditing]=useState<number|null>(null);
  const [devices,setDevices]=useState<AudioInput[]>([]);const [microphone,setMicrophone]=useState('');const [systemDevice,setSystemDevice]=useState('');
+  const [stereoMix,setStereoMix]=useState<StereoMixStatus|null>(null);const [stereoMixBusy,setStereoMixBusy]=useState(false);
  const [rows,setRowsState]=useState<TranscriptRow[]>([]);const rowsRef=useRef<TranscriptRow[]>([]);
  const [minutes,setMinutesState]=useState('');const minutesRef=useRef('');const startedAt=useRef<string|null>(null);
  const [models,setModels]=useState<ModelOption[]>([]);const [model,setModel]=useState('');
@@ -76,7 +77,9 @@ export function useMeetingSession(){
   const path=await invoke<string>('ko_export',{title:kind==='corrected'?`${titleRef.current}-AI보정본`:titleRef.current,kind:kind==='corrected'?'transcript':kind,content});setSavedPath(path);return path;
  };
  const archive=async()=>{if(rowsRef.current.length||minutesRef.current||recoveryDraft.current)await exportFile('bundle');await recordHistory.rotate();liveSummaryDraft.current=null;audioElement.current?.pause();diarization.resetStatus();setError('');audioPath.current='';audioSha256.current='';recoveryDraft.current=null;setAudioSource(null);setEpoch(value=>value+1);setRows([]);setMinutes('');setLiveSummary('');startedAt.current=null;setElapsed(0);summaryDraft.current=null;setPage(0);setQuery('');setEditing(null);};
- const refreshDevices=async()=>{const list=await invoke<AudioInput[]>('get_audio_devices');if(!Array.isArray(list))throw new Error('소리 장치 목록 형식 오류');const defaultName=await invoke<string|null>('ko_default_playback_device').catch(()=>null);const preferred=systemAudioDevices(list).find(device=>device.name===defaultName)??systemAudioDevices(list)[0];setDevices(list);setMicrophone(value=>value||microphoneInputs(list)[0]?.name||'');setSystemDevice(value=>value||(preferred?deviceKey(preferred):''));};
+  const refreshStereoMix=async()=>{try{const status=await invoke<StereoMixStatus>('ko_stereo_mix_status');setStereoMix(status&&typeof status.state==='string'?status:null);}catch{setStereoMix(null);}};
+ const refreshDevices=async()=>{const list=await invoke<AudioInput[]>('get_audio_devices');if(!Array.isArray(list))throw new Error('소리 장치 목록 형식 오류');const defaultName=await invoke<string|null>('ko_default_playback_device').catch(()=>null);const preferred=systemAudioDevices(list).find(device=>device.name===defaultName)??systemAudioDevices(list)[0];setDevices(list);setMicrophone(value=>value||microphoneInputs(list)[0]?.name||'');setSystemDevice(value=>value||(preferred?deviceKey(preferred):''));await refreshStereoMix();return list;};
+  const enableStereoMix=async()=>{if(stereoMixBusy||modeRef.current!=='idle')return;setStereoMixBusy(true);setError('');setNotice('스테레오 믹스를 켜는 중입니다. 권한 확인 창이 나오면 예를 눌러 주세요.');try{const status=await invoke<StereoMixStatus>('ko_enable_stereo_mix');setStereoMix(status);const list=await refreshDevices();const mix=list.find(isStereoMix);if(mix){setSystemDevice(deviceKey(mix));setRecordingKind('pc');setNotice('스테레오 믹스를 켰습니다. 녹음 장치로 선택했습니다.');}else setError('Windows에서는 켜졌지만 앱의 장치 목록에는 아직 없습니다. 소리 장치 새로고침을 눌러 주세요.');}catch(e){setError(messageOf(e));await refreshStereoMix();}finally{setStereoMixBusy(false);}};
  const refreshModels=async()=>{const list=await invoke<ModelOption[]>('ko_models');if(!Array.isArray(list))throw new Error('요약 모델 목록 형식 오류');setModels(list);let previous='';try{previous=window.localStorage.getItem('stream-record.summary-model')||'';}catch{}setModel(v=>list.some(m=>modelKey(m)===v)?v:list.some(m=>modelKey(m)===previous)?previous:modelKeyOrEmpty(list.find(m=>m.provider==='builtin'||m.provider==='local')));};
  const whisperConfig=async():Promise<Config>=>{const config=await ensureKoreanWhisper(value=>{setNotice(value);setModelStatus(value);});return config;};
  const loadImported=(meetingId:string)=>loadAllTranscriptRows(meetingId,
@@ -181,7 +184,7 @@ export function useMeetingSession(){
   recordingKind,setRecordingKind,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
   liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
   error,setError,notice,setNotice,savedPath,saving,progress,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,
-  refreshDevices,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
+  refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
   stopFailure,acknowledgeStopFailure,setAcknowledgeStopFailure,elapsed,hasRecordingStart:Boolean(startedAt.current),modelStatus,modelKey,modeLabel:labels[mode],messageOf,
  };
 }

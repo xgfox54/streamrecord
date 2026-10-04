@@ -21,14 +21,14 @@ function load(filename){
 }
 const {DictationConversation}=load(path.join(root,'src/components/stream-record/DictationConversation.tsx'));
 const {LiveSummaryPanel}=load(path.join(root,'src/components/stream-record/LiveSummaryPanel.tsx'));
-function fixture(){
+function fixture(video=false){
  let renderer;
  const scroll={scrollTop:0,scrollHeight:1000,clientHeight:300};
  const session={readerSessionKey:0,rows:[{sequence_id:1,text:'최초 원문',is_partial:false}],follow:true,models:[],model:'',saving:false,busy:false,audioSource:null,
   correction:{enabled:false,status:'AI 연결 필요',total:0,completed:0,error:'',setEnabled:()=>{},retry:()=>{}},diarization:{status:'원음 연결 필요',running:false,run:()=>{},cancel:()=>{}},
   setFollow:value=>{session.follow=value;render();},navigate:()=>{},save:()=>{},prepareAudio:()=>{},modelKey:model=>model.id,setModel:()=>{},liveSummary:'',liveSummaryEnabled:false,setLiveSummaryEnabled:()=>{},liveSummaryStatus:'대기',liveSummaryRunning:false,liveSummaryHistory:[]};
- const render=()=>renderer.update(React.createElement(DictationConversation,{session:{...session},compact:true}));
- act(()=>{renderer=Renderer.create(React.createElement(DictationConversation,{session:{...session},compact:true}),{createNodeMock:element=>element.props.role==='log'?scroll:{}});});
+ const render=()=>renderer.update(React.createElement(DictationConversation,{session:{...session},compact:true,video}));
+ act(()=>{renderer=Renderer.create(React.createElement(DictationConversation,{session:{...session},compact:true,video}),{createNodeMock:element=>element.props.role==='log'?scroll:{}});});
  return {session,scroll,get renderer(){return renderer;},update:change=>act(()=>{Object.assign(session,change);render();}),run:fn=>act(fn),close:()=>act(()=>renderer.unmount())};
 }
 const text=node=>typeof node==='string'?node:node.children.map(text).join('');
@@ -57,6 +57,38 @@ test('When capture is busy, compact speaker actions remain unavailable',()=>{
 });
 test('When compact summary has no connected model, generation cannot be enabled',()=>{
  const h=fixture();let summary;try{act(()=>{summary=Renderer.create(React.createElement(LiveSummaryPanel,{session:h.session,compact:true}));});assert.equal(summary.root.findByProps({type:'checkbox'}).props.disabled,true);assert.ok(summary.root.findAllByType('a').some(node=>node.props.href==='#ai'));}finally{if(summary)act(()=>summary.unmount());h.close();}
+});
+test('While recording, a transcribing indicator follows the last sentence and is absent when idle',()=>{
+ const h=fixture(true);try{
+  const indicator=()=>h.renderer.root.findAllByProps({'data-testid':'transcribing-indicator'});
+  assert.equal(indicator().length,0);
+  h.update({mode:'recording'});assert.equal(indicator().length,1);assert.ok(text(indicator()[0]).includes('실시간 전사 중'));
+  const log=h.renderer.root.findByProps({role:'log'});const kids=log.children.filter(child=>typeof child!=='string');assert.equal(kids.at(-1).findAllByProps({'data-testid':'transcribing-indicator'}).length,1);assert.equal(kids.at(-2).findAllByType('article').length,1);
+  h.update({mode:'stopping'});assert.ok(text(indicator()[0]).includes('마지막 문장'));
+  h.update({mode:'idle'});assert.equal(indicator().length,0);
+ }finally{h.close();}
+});
+test('With no sentence yet, starting shows a loading panel and recording shows a listening panel',()=>{
+ const h=fixture(true);try{
+  h.update({rows:[],mode:'starting'});assert.equal(h.renderer.root.findAllByProps({'data-testid':'start-loading'}).length,1);assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('녹음을 준비하고 있습니다'));
+  h.update({mode:'recording'});assert.equal(h.renderer.root.findAllByProps({'data-testid':'start-loading'}).length,0);assert.equal(h.renderer.root.findAllByProps({'data-testid':'transcribing-waiting'}).length,1);
+  h.update({mode:'idle'});assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('녹음을 시작하면'));
+ }finally{h.close();}
+});
+test('Video transcript settings keep their button position and conversation search is always visible',()=>{
+ const h=fixture(true);try{
+  const searchLabels=()=>h.renderer.root.findAllByType('label').filter(node=>text(node).startsWith('대화 내용 검색'));
+  assert.equal(searchLabels().length,1);assert.equal(h.renderer.root.findAllByType('label').some(node=>text(node).startsWith('대화 검색')),false);
+  const toggle=()=>h.renderer.root.findAllByType('button').find(node=>text(node).includes('전사 설정'));
+  const place=()=>{const node=toggle();const siblings=node.parent.children.filter(child=>typeof child!=='string');return {parent:node.parent,index:siblings.indexOf(node),labels:siblings.map(child=>child.type)};};
+  const closed=place();assert.equal(toggle().props['aria-expanded'],false);assert.equal(h.renderer.root.findAllByProps({id:'transcript-settings'}).length,0);
+  h.run(()=>toggle().props.onClick());
+  const opened=place();assert.equal(toggle().props['aria-expanded'],true);assert.equal(opened.parent,closed.parent);assert.equal(opened.index,closed.index);assert.deepEqual(opened.labels,closed.labels);assert.equal(h.renderer.root.findAllByProps({id:'transcript-settings'}).length,1);assert.equal(searchLabels().length,1);
+  h.run(()=>toggle().props.onClick());assert.equal(place().index,closed.index);assert.equal(h.renderer.root.findAllByProps({id:'transcript-settings'}).length,0);
+ }finally{h.close();}
+});
+test('Dictation search is named conversation content search and stays visible',()=>{
+ const h=fixture(false);try{assert.equal(h.renderer.root.findAllByType('label').filter(node=>text(node).startsWith('대화 내용 검색')).length,1);}finally{h.close();}
 });
 const report={passed:tests.filter(test=>test.status==='passed').length,failed:tests.filter(test=>test.status==='failed').length,scope:'Offline React component behavior; no native capture or browser layout.',tests};
 fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results/compact-reader.json'),JSON.stringify(report,null,2));

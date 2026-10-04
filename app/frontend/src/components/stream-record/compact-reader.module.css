@@ -28,6 +28,3 @@
 .conversation[data-video=true] > div { gap:var(--sr-space-2); }
 .conversation[data-video=true] > div:has([role=group]) { padding-top:var(--sr-space-1); }
 .conversation[data-video=true] input[type=search] { min-height:var(--sr-control-compact); padding-block:var(--sr-space-1); font-size:var(--sr-type-helper); }
-
-.videoOptions summary { min-height:var(--sr-control-compact); display:flex; align-items:center; color:var(--sr-primary-hover); cursor:pointer; font-size:var(--sr-type-helper); }
-.videoOptions[open] { flex-basis:100%; }

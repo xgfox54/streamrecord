@@ -7,6 +7,8 @@ use env_logger;
 use log;
 
 fn main() {
+    let helper_args: Vec<String> = std::env::args().collect();
+    if let Some(code) = app_lib::stereo_mix::run_helper_from_args(&helper_args) { std::process::exit(code); }
     #[cfg(feature = "review-isolation")]
     {
         if let Err(error) = app_lib::review_paths::initialize().and_then(|_| app_lib::review_paths::verify_identity()) { eprintln!("Review isolation failed: {error}"); std::process::exit(78); }

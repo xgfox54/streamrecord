@@ -24,7 +24,7 @@ const server=http.createServer((req,res)=>{const name=new URL(req.url,'http://lo
   await page.setViewportSize({width:1440,height:960});await page.getByRole('button',{name:'앞선 대화',exact:true}).click();await page.getByRole('log').getByText('첫 번째 회의를 시작합니다.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'실시간 원문',exact:true}).click();await page.getByRole('log').getByText('첫 번째 회의을 시작합니다.',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'raw-original.png')});
   await page.getByRole('button',{name:'AI 보정본',exact:true}).click();await page.getByRole('checkbox',{name:'원문 함께 보기',exact:true}).check();await page.getByRole('log').getByText('첫 번째 회의을 시작합니다.',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'original-comparison.png')});
-  await page.getByRole('searchbox',{name:'대화 검색'}).fill('첫 번째');assert.equal(await page.getByRole('log').locator('article').count(),1);
+  await page.getByRole('searchbox',{name:'대화 내용 검색'}).fill('첫 번째');assert.equal(await page.getByRole('log').locator('article').count(),1);
   await page.getByRole('button',{name:'최신 문장',exact:true}).click();await page.getByRole('log').getByText('다음 회의을',{exact:true}).waitFor();
   await page.evaluate(()=>{window.__qa.failCorrections=true;window.__qa.emit('transcript-update',{sequence_id:207,text:'새 회의을 시작합니다.',is_partial:false});});
   await page.getByText('녹음 옵션',{exact:true}).click();await page.getByRole('textbox',{name:'인식에 참고할 용어'}).fill('검토 용어');await page.getByRole('alert').filter({hasText:'AI 보정을 멈췄습니다'}).waitFor();await page.screenshot({path:path.join(out,'correction-error.png')});

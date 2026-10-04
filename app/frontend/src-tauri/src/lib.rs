@@ -54,6 +54,7 @@ pub mod parakeet_engine;
 mod review_audio;
 pub mod review_paths;
 pub mod state;
+pub mod stereo_mix;
 pub mod summary;
 pub mod tray;
 pub mod utils;
@@ -632,6 +633,8 @@ pub fn run() {
             meeting_ko::ko_exit_app,
             meeting_ko::ko_app_info,
             meeting_ko::ko_default_playback_device,
+            meeting_ko::ko_stereo_mix_status,
+            meeting_ko::ko_enable_stereo_mix,
             meeting_ko::ko_open_exports_folder,
             meeting_ko::ko_validate_video,
             meeting_ko::ko_open_video,

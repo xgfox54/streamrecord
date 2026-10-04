@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "stream-record",
-  "version": "0.6.6",
+  "version": "0.6.9",
   "identifier": "local.meetily.korean.workspace",
   "build": {
     "frontendDist": "../out",
@@ -15,6 +15,7 @@
         "title": "stream-record · 실시간 회의록",
         "width": 1440,
         "height": 960,
+        "maximized": true,
         "resizable": true,
         "fullscreen": false,
         "theme": "Light",

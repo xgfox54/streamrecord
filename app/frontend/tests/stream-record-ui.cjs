@@ -18,6 +18,7 @@ function harness(options = {}) {
   const calls = [], snapshots = [], listeners = new Map(), subscriptions = new Map(), timers = new Map(), browserListeners = new Map();
   const records = new Map((options.records||[]).map(record=>[record.recordId,copy(record)]));
   const overrides = new Map(); let active = false, clock = Date.parse('2026-09-17T00:00:00Z'), timerId = 0, session, renderer;
+  let stereo = options.stereoStatus || {state:'unsupported',id:null,name:null};
   const document = {activeElement:null,getElementById:id=>{
     const element = renderer?.root.findAll(node=>typeof node.type==='string' && node.props.id===id)[0];
     return element ? createNodeMock(element) : null;
@@ -58,6 +59,8 @@ function harness(options = {}) {
     if (command === 'ko_generate') return args.stage === 'notes' ? '현재까지의 요약' : '';
     if (command === 'ko_close_video' || command === 'ko_exit_app') return;
     if (command === 'ko_save_snapshot') {const value=JSON.parse(args.content);snapshots.push(value);records.set(value.recordId,value); return 'snapshot.json';}
+    if (command === 'ko_stereo_mix_status') {if (options.stereoStatusFails) throw new Error('unavailable'); return copy(stereo);}
+    if (command === 'ko_enable_stereo_mix') {if (options.stereoEnableFails) throw new Error(options.stereoEnableFails); stereo = {state:'active',id:stereo.id,name:stereo.name}; return copy(stereo);}
     if (command === 'ko_export') return `saved.${args.kind}`;
     throw new Error(`Unexpected native call: ${command}`);
   };
@@ -117,6 +120,23 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     assert.equal(prevented,true);assert.equal(h.count('window-hide'),1);assert.equal(h.count('ko_stop_recording'),0);assert.equal(h.count('ko_exit_app'),0);
     assert.equal(h.session.mode,recording?'recording':'idle');assert.equal(h.session.exitOpen,false);
     if(recording){await h.run(()=>h.emit('transcript-update',{sequence_id:1,text:'트레이에서 계속 전사',is_partial:false}));assert.equal(h.session.rows[0].text,'트레이에서 계속 전사');}
+  }));
+  await test('Stereo Mix can be enabled from the app and becomes the selected PC sound device',()=>using({stereoStatus:{state:'disabled',id:'{id}',name:'Stereo Mix'}},async h=>{
+    assert.equal(h.session.stereoMix.state,'disabled');
+    await h.run(()=>h.session.enableStereoMix());
+    assert.equal(h.count('ko_enable_stereo_mix'),1);assert.equal(h.session.stereoMix.state,'active');assert.equal(h.session.systemDevice,'Input:Stereo Mix');assert.equal(h.session.recordingKind,'pc');assert.match(h.session.notice,/스테레오 믹스를 켰습니다/);assert.equal(h.session.error,'');assert.equal(h.session.mode,'idle');
+  }));
+  await test('Stereo Mix enabling failure is reported, state is re-read, and nothing starts recording',()=>using({stereoStatus:{state:'disabled',id:'{id}',name:'Stereo Mix'},stereoEnableFails:'관리자 권한 확인이 취소되어 스테레오 믹스를 켜지 못했습니다.'},async h=>{
+    await h.run(()=>h.session.enableStereoMix());
+    assert.match(h.session.error,/취소/);assert.equal(h.session.stereoMix.state,'disabled');assert.equal(h.count('ko_start_recording'),0);assert.equal(h.session.mode,'idle');
+    assert.equal(h.count('ko_stereo_mix_status')>=2,true);
+  }));
+  await test('Stereo Mix enabling is refused while a recording is active',()=>using({stereoStatus:{state:'disabled',id:'{id}',name:'Stereo Mix'}},async h=>{
+    await h.start();await h.run(()=>h.session.enableStereoMix());
+    assert.equal(h.count('ko_enable_stereo_mix'),0);assert.equal(h.session.mode,'recording');
+  }));
+  await test('A missing status command leaves the Stereo Mix panel hidden without breaking device refresh',()=>using({stereoStatusFails:true},async h=>{
+    assert.equal(h.session.stereoMix,null);assert.equal(h.session.devices.length,3);
   }));
   await test('Hide failure retains the session and reports the error without quitting',()=>using({hideFails:true},async h=>{
     let prevented=false;await h.run(()=>h.emit('window-close',{preventDefault:()=>{prevented=true;}}));

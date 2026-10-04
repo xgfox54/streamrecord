@@ -239,6 +239,27 @@ fn ensure_exit_ready(recording: bool, importing: bool, generating: bool) -> Resu
 }
 
 #[tauri::command]
+pub async fn ko_stereo_mix_status() -> Result<crate::stereo_mix::StereoMixStatus, String> {
+    tauri::async_runtime::spawn_blocking(crate::stereo_mix::status).await.map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn ko_enable_stereo_mix() -> Result<crate::stereo_mix::StereoMixStatus, String> {
+    use crate::stereo_mix::{enable, status, StereoMixState};
+    tauri::async_runtime::spawn_blocking(|| {
+        let current = status()?;
+        match (current.state, current.id.clone()) {
+            (StereoMixState::Active, _) => Ok(current),
+            (StereoMixState::Disabled, Some(id)) => enable(&id),
+            (StereoMixState::Unplugged, _) => Err("스테레오 믹스가 연결되지 않은 상태입니다. 오디오 장치를 다시 연결한 뒤 시도해 주세요.".into()),
+            _ => Err("이 PC의 소리 장치는 스테레오 믹스를 제공하지 않습니다. 'PC 소리'의 스피커·헤드폰 녹음을 사용하세요.".into()),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 pub fn ko_default_playback_device() -> Option<String> {
     use cpal::traits::{DeviceTrait, HostTrait};
     cpal::default_host().default_output_device().and_then(|device| device.name().ok())
