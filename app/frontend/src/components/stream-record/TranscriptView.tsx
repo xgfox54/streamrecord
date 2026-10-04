@@ -6,7 +6,7 @@ import {useEffect,useRef,useState} from 'react';
 import {convertFileSrc} from '@tauri-apps/api/core';
 import {repeatedPassages} from '../meeting-ko/transcript-review';
 import guide from './guidance.module.css';
-import {rowTime} from '../meeting-ko/core';
+import {rowTime,segmentLabel} from '../meeting-ko/core';
 import {reviewText} from '../meeting-ko/structured-minutes';
 import {playbackRange} from '../meeting-ko/review-core';
 import type {MeetingSession} from './useMeetingSession';
@@ -32,10 +32,10 @@ export function TranscriptView({session:s,evidence,onEvidenceShown}:{session:Mee
   <div ref={scroll} className={styles.transcript} role="log" aria-live="off" aria-label="받아쓰기 구간 목록" onScroll={event=>{const element=event.currentTarget;if(element.scrollHeight-element.scrollTop-element.clientHeight>64)s.setFollow(false);}}>
    {!s.rows.length&&<div className={styles.empty}><h3>아직 받아쓰기 내용이 없습니다</h3><p>녹음을 시작하거나 권한이 있는 녹음파일을 첨부하세요.</p><a href="#recording" onClick={()=>s.navigate('recording')}>녹음 화면으로 이동</a></div>}
    {s.rows.length>0&&!filtered.length&&<p className={styles.empty}>일치하는 구간이 없습니다. 다른 검색어를 입력하세요.</p>}
-   {displayed.map(({row,index})=>{const id=`S${String(index+1).padStart(6,'0')}`;const reviewed=typeof row.reviewed_text==='string';return <article tabIndex={-1} id={`source-${id}`} key={row.sequence_id??row.id??id} className={styles.segment}><div className={styles.segmentHeading}><time>{rowTime(row)}</time><SpeakerLabel row={row}/><span>{id}</span><span className={reviewed?styles.reviewBadge:styles.badge}>{row.is_partial?'미확정':reviewed?'검토본 있음 · 검증 미확인':'최초 원문'}</span></div>
+   {displayed.map(({row,index})=>{const id=`S${String(index+1).padStart(6,'0')}`;const label=segmentLabel(index);const reviewed=typeof row.reviewed_text==='string';return <article tabIndex={-1} id={`source-${id}`} key={row.sequence_id??row.id??id} className={styles.segment}><div className={styles.segmentHeading}><time>{rowTime(row)}</time><SpeakerLabel row={row}/><span>{label}</span><span className={reviewed?styles.reviewBadge:styles.badge}>{row.is_partial?'미확정':reviewed?'검토본 있음 · 검증 미확인':'최초 원문'}</span></div>
     {s.editing===index?<label>검토본 편집<textarea autoFocus disabled={s.busy} value={reviewText(row)} onChange={event=>s.setRows(s.rows.map((item,i)=>i===index?{...item,reviewed_text:event.target.value}:item))}/></label>:<p>{reviewText(row)}</p>}
     <div>{repeats.has(index)&&<p className={guide.reviewHint}>앞 구간과 같은 문장이 가까운 시간에 있습니다. 실제 반복 발언인지 원음을 들어 확인하세요.</p>}</div>
-    <div className={styles.actions}><button disabled={s.busy||!s.audioSource||!playbackRange(row,s.audioSource.duration_seconds)} onClick={()=>s.playRow(row)} aria-label={`${id} 구간 듣기`}>구간 듣기</button><button disabled={s.busy||row.is_partial} onClick={()=>{s.setFollow(false);if(s.editing===index){void s.persist().then(()=>{s.setEditing(null);s.setNotice(`${id} 검토본을 저장했습니다. 최초 원문은 유지됩니다.`);}).catch(error=>s.setError(s.messageOf(error)));}else s.setEditing(index);}}>{s.editing===index?'검토본 저장':'검토본 수정'}</button></div>
+    <div className={styles.actions}><button disabled={s.busy||!s.audioSource||!playbackRange(row,s.audioSource.duration_seconds)} onClick={()=>s.playRow(row)} aria-label={`${label} 듣기`}>구간 듣기</button><button disabled={s.busy||row.is_partial} onClick={()=>{s.setFollow(false);if(s.editing===index){void s.persist().then(()=>{s.setEditing(null);s.setNotice(`${label} 검토본을 저장했습니다. 최초 원문은 유지됩니다.`);}).catch(error=>s.setError(s.messageOf(error)));}else s.setEditing(index);}}>{s.editing===index?'검토본 저장':'검토본 수정'}</button></div>
     {reviewed&&<details className={styles.disclosure}><summary>AI 최초 원문 보기</summary><p>{row.text}</p></details>}
    </article>;})}
   </div>

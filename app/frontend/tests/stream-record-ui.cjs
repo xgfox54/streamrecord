@@ -223,6 +223,18 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
   await test('Recovery import locks the session while archiving and preserves original on archive failure',()=>using({snapshot:{version:1,title:'existing',rows:[{text:'보존할 원문'}],minutes:'기존 회의록',startedAt:null}},async h=>{
     const gate=deferred();h.overrides.set('ko_export',()=>gate.promise);let applying;await h.run(()=>{applying=h.session.applyQueueRecovery([{text:'복구 구간'}],true);});assert.equal(h.session.mode,'recovering');await h.start();assert.equal(h.count('ko_start_recording'),0);await h.run(()=>gate.resolve('saved.json'));await h.run(()=>applying);assert.equal(h.session.rows[0].text,'복구 구간');assert.equal(h.session.minutes,'');assert.equal(h.session.mode,'idle');
   }));
+  await test('A user edit is saved as a review, keeps the Whisper original, survives new rows and can be reverted',()=>using({},async h=>{
+    await h.start();
+    await h.run(()=>h.emit('transcript-update',{sequence_id:1,text:'회의을 시작합니다.',is_partial:false}));
+    await h.run(()=>h.session.saveReview(0,1,'회의를 시작합니다.'));
+    await h.run(()=>h.emit('transcript-update',{sequence_id:2,text:'다음 안건입니다.',is_partial:false}));
+    assert.equal(h.session.rows[0].text,'회의을 시작합니다.');assert.equal(h.session.rows[0].reviewed_text,'회의를 시작합니다.');assert.equal(h.session.rows.length,2);
+    assert.equal(h.snapshots.at(-1).rows[0].reviewed_text,'회의를 시작합니다.');
+    await h.run(()=>h.session.save('corrected'));const corrected=h.calls.filter(c=>c.command==='ko_export').at(-1).args.content;assert.ok(corrected.includes('[직접 수정] 회의를 시작합니다.'));
+    await h.run(()=>h.session.save('transcript'));assert.ok(h.calls.filter(c=>c.command==='ko_export').at(-1).args.content.includes('회의을 시작합니다.'));
+    await assert.rejects(h.session.saveReview(0,2,'다른 구간'),/바뀌었습니다/);await assert.rejects(h.session.saveReview(0,1,'   '),/빈 문장/);
+    await h.run(()=>h.session.saveReview(0,1,'회의을 시작합니다.'));assert.equal('reviewed_text' in h.session.rows[0],false);
+  }));
   await test('Option choices survive an app restart',async()=>{
     const storage=new Map();
     await using({storage},async h=>{

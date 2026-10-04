@@ -10,7 +10,7 @@ module.exports=async function correctionTests({test,using,deferred}){
   assert.equal(h.session.rows[0].ai_correction.text,'오늘 회의를 시작합니다.');
   assert.equal(h.snapshots.at(-1).rows[0].ai_correction.text,'오늘 회의를 시작합니다.');
   await h.run(()=>h.session.save('transcript'));assert.ok(h.calls.filter(c=>c.command==='ko_export').at(-1).args.content.includes('회의을'));
-  await h.run(()=>h.session.save('corrected'));const exported=h.calls.filter(c=>c.command==='ko_export').at(-1);assert.ok(exported.args.content.includes('회의를'));assert.ok(exported.args.title.endsWith('-AI보정본'));
+  await h.run(()=>h.session.save('corrected'));const exported=h.calls.filter(c=>c.command==='ko_export').at(-1);assert.ok(exported.args.content.includes('[직접 수정] 사람이 검토한 문장'),'a human edit outranks the AI correction in the corrected export');assert.equal(h.session.rows[0].ai_correction.text,'오늘 회의를 시작합니다.');assert.ok(exported.args.title.endsWith('-AI보정본'));
  }));
  await test('Only final Whisper rows are corrected and finalization resumes the queue',()=>using({overrides:{ko_generate:async args=>answer(args)}},async h=>{
   await h.start();

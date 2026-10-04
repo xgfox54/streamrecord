@@ -27,6 +27,12 @@ export function timestamp(seconds: number): string {
   const n = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
   return [Math.floor(n / 3600), Math.floor(n / 60) % 60, n % 60].map(v => String(v).padStart(2, '0')).join(':');
 }
+/** User-facing segment name. Internal S000001 ids remain for AI prompts and minutes citations. */
+export const segmentLabel = (index: number): string => `받아쓰기-${index + 1}`;
+export function sourceLabel(id: string): string {
+  const match = id.match(/^S(\d+)(?:p(\d+))?$/);
+  return match ? `받아쓰기-${Number(match[1])}${match[2] ? ` (${match[2]}번째 부분)` : ''}` : id;
+}
 export function rowTime(row: TranscriptRow): string {
   const seconds = row.audio_start_time ?? row.chunk_start_time;
   return typeof seconds === 'number' ? timestamp(seconds) : row.timestamp || '시간 미상';

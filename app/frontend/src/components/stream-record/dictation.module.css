@@ -38,6 +38,13 @@
 .aiOptions[open] { flex-basis: 100%; order: 3; }
 .aiOptions > div { padding: var(--jeju-space-3); background: var(--jeju-surface-inset); }
 .readingTools .search { flex-direction: row; }
+.editButton { margin-left: auto; min-height: var(--sr-control-compact); padding: var(--jeju-space-1) var(--jeju-space-3); font-size: var(--sr-type-helper); }
+.editor { display: grid; gap: var(--jeju-space-2); margin-top: var(--jeju-space-2); }
+.editor label { display: grid; gap: var(--jeju-space-1); font-size: var(--sr-type-helper); }
+.editor textarea { width: 100%; min-height: 6rem; font: inherit; font-size: var(--sr-type-body); line-height: 1.6; }
+.issueLink { color: var(--sr-primary-hover); font-weight: var(--sr-weight-selected); }
+.utterance[data-target=true] { background: var(--jeju-primary-tint); padding-inline: var(--jeju-space-3); }
+.utterance:focus { outline: var(--sr-focus-width) solid var(--jeju-primary-active); outline-offset: calc(var(--sr-focus-width) * -1); }
 .transcriptOptions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jeju-space-2) var(--jeju-space-4); min-width: 0; }
 .modelSelect { display: flex; align-items: center; gap: var(--jeju-space-2); min-width: 0; }
 .modelSelect select { max-width: var(--sr-field-min); }

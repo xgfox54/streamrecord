@@ -67,6 +67,13 @@ export function useMeetingSession(){
  const setLiveSummary=(v:string)=>{liveSummaryRef.current=v;setLiveSummaryState(v);dirty.current++;};
  const snapshot=():Snapshot=>({version:1,title:titleRef.current,rows:rowsRef.current,minutes:minutesRef.current,startedAt:startedAt.current,videoUrl:videoUrlRef.current,glossary:glossaryRef.current,liveSummary:liveSummaryRef.current,liveSummaryDraft:liveSummaryDraft.current,summaryDraft:summaryDraft.current,audioPath:audioPath.current,audioSha256:audioSha256.current,recoveryDraft:recoveryDraft.current});
  const persist=():Promise<unknown>=>{const next=recordHistory.persist();snapshotQueue.current=next;return next;};
+ // A user edit is stored as reviewed_text; the Whisper text and AI correction stay untouched. Saving the original text again removes the edit.
+ const saveReview=async(index:number,sequence:unknown,value:string)=>{
+  const row=rowsRef.current[index];if(!row||(row.sequence_id??row.id)!==sequence)throw new Error('편집하던 구간이 바뀌었습니다. 다시 편집해 주세요.');
+  const text=value.trim();if(!text)throw new Error('빈 문장은 저장할 수 없습니다. 원래 받아쓰기로 되돌리려면 되돌리기를 누르세요.');
+  const next=text===row.text.trim()?(({reviewed_text:_removed,...rest})=>rest)(row):{...row,reviewed_text:text};
+  setRows(rowsRef.current.map((item,i)=>i===index?next:item));await persist();
+ };
  const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
  const diarization=useDiarization({audio:audioSource,rows,rowsRef,mode,epoch,busy:mode!=='idle',setBusy:value=>setMode(value?'diarizing':'idle'),setRows,persist,report:setError});
  const correction=useTranscriptCorrection({rows,rowsRef,setRows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,persist});
@@ -185,7 +192,7 @@ export function useMeetingSession(){
   recordingKind,setRecordingKind,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
   liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
   error,setError,notice,setNotice,savedPath,saving,progress,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,
-  refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
+  saveReview,refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
   stopFailure,acknowledgeStopFailure,setAcknowledgeStopFailure,elapsed,hasRecordingStart:Boolean(startedAt.current),modelStatus,modelKey,modeLabel:labels[mode],messageOf,
  };
 }

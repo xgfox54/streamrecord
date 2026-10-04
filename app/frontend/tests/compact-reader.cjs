@@ -23,13 +23,13 @@ const {DictationConversation}=load(path.join(root,'src/components/stream-record/
 const {LiveSummaryPanel}=load(path.join(root,'src/components/stream-record/LiveSummaryPanel.tsx'));
 function fixture(video=false){
  let renderer;
- const scroll={scrollTop:0,scrollHeight:1000,clientHeight:300};
+ const scroll={scrollTop:0,scrollHeight:1000,clientHeight:300};const scrolled=[];
  const session={readerSessionKey:0,rows:[{sequence_id:1,text:'최초 원문',is_partial:false}],follow:true,models:[],model:'',saving:false,busy:false,audioSource:null,mode:'idle',
-  correction:{enabled:true,status:'AI 연결 필요',total:0,completed:0,blocked:0,error:'',setEnabled:value=>{session.correction={...session.correction,enabled:value};render();},retry:()=>{}},diarization:{status:'원음 연결 필요',running:false,enabled:true,setEnabled:value=>{session.diarization={...session.diarization,enabled:value};render();},run:()=>{},cancel:()=>{}},
-  setFollow:value=>{session.follow=value;render();},navigate:()=>{},save:()=>{},prepareAudio:()=>{},modelKey:model=>model.id,setModel:()=>{},liveSummary:'',liveSummaryEnabled:false,setLiveSummaryEnabled:()=>{},liveSummaryStatus:'대기',liveSummaryRunning:false,liveSummaryHistory:[]};
+  correction:{enabled:true,status:'AI 연결 필요',total:0,completed:0,blocked:0,blockedRows:[],error:'',setEnabled:value=>{session.correction={...session.correction,enabled:value};render();},retry:()=>{}},diarization:{status:'원음 연결 필요',running:false,enabled:true,setEnabled:value=>{session.diarization={...session.diarization,enabled:value};render();},run:()=>{},cancel:()=>{}},
+  setFollow:value=>{session.follow=value;render();},saveReview:async(index,sequence,value)=>{session.reviews.push({index,sequence,value});session.rows=session.rows.map((row,i)=>i===index?{...row,reviewed_text:value}:row);render();},reviews:[],setNotice:()=>{},messageOf:error=>String(error),mode:'idle',navigate:()=>{},save:()=>{},prepareAudio:()=>{},modelKey:model=>model.id,setModel:()=>{},liveSummary:'',liveSummaryEnabled:false,setLiveSummaryEnabled:()=>{},liveSummaryStatus:'대기',liveSummaryRunning:false,liveSummaryHistory:[]};
  const render=()=>renderer.update(React.createElement(DictationConversation,{session:{...session},compact:true,video}));
- act(()=>{renderer=Renderer.create(React.createElement(DictationConversation,{session:{...session},compact:true,video}),{createNodeMock:element=>element.props.role==='log'?scroll:{}});});
- return {session,scroll,get renderer(){return renderer;},update:change=>act(()=>{Object.assign(session,change);render();}),run:fn=>act(fn),close:()=>act(()=>renderer.unmount())};
+ act(()=>{renderer=Renderer.create(React.createElement(DictationConversation,{session:{...session},compact:true,video}),{createNodeMock:element=>element.props.role==='log'?scroll:{id:element.props.id,scrollIntoView(){scrolled.push(element.props.id);},focus(){}}});});
+ return {session,scroll,scrolled,get renderer(){return renderer;},update:change=>act(()=>{Object.assign(session,change);render();}),run:fn=>act(fn),close:()=>act(()=>renderer.unmount())};
 }
 const text=node=>typeof node==='string'?node:node.children.map(text).join('');
 const button=(h,label)=>h.renderer.root.findAllByType('button').find(node=>text(node).includes(label));
@@ -89,6 +89,31 @@ test('With no sentence yet, starting shows a loading panel and recording shows a
   h.update({rows:[],mode:'starting'});assert.equal(h.renderer.root.findAllByProps({'data-testid':'start-loading'}).length,1);assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('녹음을 준비하고 있습니다'));
   h.update({mode:'recording'});assert.equal(h.renderer.root.findAllByProps({'data-testid':'start-loading'}).length,0);assert.equal(h.renderer.root.findAllByProps({'data-testid':'transcribing-waiting'}).length,1);
   h.update({mode:'idle'});assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('녹음을 시작하면'));
+ }finally{h.close();}
+});
+test('Kept-original correction notice names the sentence and jumps to it in the AI view',()=>{
+ const h=fixture();try{
+  h.update({rows:[{sequence_id:1,text:'첫 문장',is_partial:false},{sequence_id:2,text:'예산 10만원입니다.',is_partial:false,ai_correction_issue:{version:1,source_text:'예산 10만원입니다.',model_key:'fixture',glossary:'',reason:'numbers'}}],correction:{...h.session.correction,blocked:1,blockedRows:[1]}});
+  const links=h.renderer.root.findAllByType('a').filter(node=>String(node.props.href).startsWith('#dictation-row-'));
+  assert.deepEqual(links.map(text),['1구간','받아쓰기-2']);assert.ok(links.every(node=>node.props.href==='#dictation-row-1'));
+  const meta=h.renderer.root.findAllByType('article').map(node=>text(node));assert.ok(meta[0].includes('받아쓰기-1'));assert.ok(!meta.some(value=>/S0000/.test(value)));
+  h.run(()=>links[0].props.onClick({preventDefault:()=>{}}));
+  assert.equal(button(h,'AI 보정본').props['aria-pressed'],true);const target=h.renderer.root.findByProps({id:'dictation-row-1'});assert.equal(target.props['data-target'],true);assert.equal(h.session.follow,false);assert.deepEqual(h.scrolled,['dictation-row-1']);
+ }finally{h.close();}
+});
+test('Each sentence has an edit button that saves a user correction and keeps the original visible',()=>{
+ const h=fixture();try{
+  const edit=button(h,'편집');assert.equal(edit.props['aria-label'],'받아쓰기-1 편집');
+  h.run(()=>edit.props.onClick());const area=h.renderer.root.findByType('textarea');assert.equal(area.props.value,'최초 원문');assert.equal(button(h,'편집'),undefined);
+  h.run(()=>area.props.onChange({target:{value:'사용자가 고친 문장'}}));
+  h.run(()=>button(h,'저장').props.onClick());assert.deepEqual(h.session.reviews,[{index:0,sequence:1,value:'사용자가 고친 문장'}]);
+ }finally{h.close();}
+});
+test('An edited sentence shows the edit, marks it, and keeps the preserved original underneath',()=>{
+ const h=fixture();try{
+  h.update({rows:[{sequence_id:1,text:'최초 원문',reviewed_text:'고친 문장',is_partial:false}]});
+  const article=text(h.renderer.root.findAllByType('article')[0]);assert.ok(article.includes('직접 수정됨'));assert.ok(article.includes('고친 문장'));assert.ok(article.includes('최초 원문 (보존됨)'));
+  h.run(()=>button(h,'편집').props.onClick());assert.equal(h.renderer.root.findByType('textarea').props.value,'고친 문장');assert.ok(button(h,'원래 받아쓰기로 되돌리기'));h.run(()=>button(h,'취소').props.onClick());assert.equal(h.renderer.root.findAllByType('textarea').length,0);
  }finally{h.close();}
 });
 test('Video conversation search is always visible',()=>{

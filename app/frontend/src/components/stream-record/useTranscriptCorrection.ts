@@ -33,8 +33,8 @@ export function useTranscriptCorrection(input:CorrectionSession){
  },[enabled,error,tick,modelKey,input]);
  const finalRows=input.rows.filter(row=>!row.is_partial&&row.text.trim());
  const completed=finalRows.filter(row=>correctedText(row)!==null&&row.ai_correction?.model_key===modelKey&&row.ai_correction.glossary===input.glossary).length;
- const blocked=finalRows.filter(row=>correctionIssue(row,modelKey,input.glossary)).length;
+ const blockedRows=input.rows.flatMap((row,index)=>!row.is_partial&&row.text.trim()&&correctionIssue(row,modelKey,input.glossary)?[index]:[]);const blocked=blockedRows.length;
  const status=error?'보정 중단':running?'AI 보정 중':!enabled?'자동 보정 꺼짐':!input.model?'AI 연결 필요':!finalRows.length?'확정 문장 대기':completed+blocked===finalRows.length?(blocked?`보정 처리 완료 · 원음 확인 ${blocked}구간`:'전체 보정 완료'):'보정 대기';
  const retry=()=>{const next=current.current.rowsRef.current.map(row=>correctionIssue(row,modelKey,input.glossary)?{...row,ai_correction_issue:undefined}:row);current.current.setRows(next);setError('');setTick(value=>value+1);};
- return {enabled,setEnabled,running,error,status,completed,blocked,total:finalRows.length,retry};
+ return {enabled,setEnabled,running,error,status,completed,blocked,blockedRows,total:finalRows.length,retry};
 }
