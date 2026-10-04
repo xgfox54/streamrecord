@@ -13,7 +13,7 @@ export default function RootLayout({children}: {readonly children: ReactNode}) {
       void import("react-grab");
     }
   }, []);
-  return <html lang="ko" data-jeju-profile="public"><head><title>Stream-Record</title><meta name="description" content="한국어 로컬 녹음과 전사, 근거를 확인하는 회의록" /></head><body className="font-sans antialiased">
+  return <html lang="ko" data-jeju-profile="public"><head><title>Stream-Record</title><meta name="description" content="한국어 로컬 녹음과 받아쓰기, 근거를 확인하는 회의록" /></head><body className="font-sans antialiased">
     {pathname === '/' ? children : <UpstreamLayout>{children}</UpstreamLayout>}
   </body></html>;
 }

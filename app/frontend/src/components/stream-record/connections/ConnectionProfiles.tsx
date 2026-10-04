@@ -24,6 +24,6 @@ export function ConnectionProfiles({session:s}:{readonly session:MeetingSession}
   <details className={styles.disclosure} open={profiles.length===0}><summary>새 연결 추가</summary><div className={styles.connectionGrid}>
    {connectionTemplates.map(template=><article key={template.kind} className={styles.connectionCard}><h3>{template.title}</h3><p>{template.description}</p>{adding===template.kind?<ProfileEditor kind={template.kind} onSave={save} onCancel={()=>setAdding(null)}/>:<div className={styles.actions}><button disabled={loading||Boolean(error)} onClick={()=>setAdding(template.kind)}>{template.title} 추가</button></div>}</article>)}
   </div></details>
-  <p className={styles.hint}>로컬 중계 서버도 외부 서비스로 내용을 전달할 수 있습니다. 연결한 서버의 목적지와 계정 권한을 확인하세요. 서버 연결 없이도 녹음과 한국어 전사는 사용할 수 있습니다.</p>
+  <p className={styles.hint}>로컬 중계 서버도 외부 서비스로 내용을 전달할 수 있습니다. 연결한 서버의 목적지와 계정 권한을 확인하세요. 서버 연결 없이도 녹음과 한국어 받아쓰기는 사용할 수 있습니다.</p>
  </section>;
 }

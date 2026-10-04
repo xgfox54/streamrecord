@@ -60,6 +60,11 @@
 .resultSurface > section { padding:var(--sr-space-5); }
 .summaryRail { position:sticky; top:var(--sr-space-3); display:flex; flex-direction:column; gap:var(--sr-space-3); }
 .summaryNext { padding:var(--sr-space-4); display:grid; gap:var(--sr-space-2); font-size:var(--sr-type-helper); background:var(--sr-surface); border:var(--sr-border-width) solid var(--sr-border-subtle); border-radius:var(--sr-radius-panel); }
+/* Jeju orange call to action. The dark Jeju orange keeps white text at 4.52:1 (base orange is 2.66:1). */
+.summaryNext .organizeMinutes { background:var(--jeju-orange-dark); border-color:var(--jeju-orange-dark); color:var(--jeju-on-fill); font-size:calc(var(--sr-type-helper) + 2pt); }
+.summaryNext .organizeMinutes:hover:not(:disabled) { background:var(--jeju-orange-deep); }
+.summaryNext .organizeMinutes:active:not(:disabled) { background:var(--jeju-orange-deep); }
+.minutesTarget { scroll-margin-top:var(--sr-space-2); }
 .backLink { margin-bottom:var(--sr-space-3); }
 .shell[data-focus=true] .appBody { grid-template-columns:minmax(0,1fr); }
 .shell[data-focus=true] .sidebar { display:none; }

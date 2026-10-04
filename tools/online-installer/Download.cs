@@ -20,7 +20,7 @@ namespace StreamRecordSetup {
         public static Release Embedded() {
             using (var stream = typeof(Release).Assembly.GetManifestResourceStream("release.json")) {
                 var release = (Release)new DataContractJsonSerializer(typeof(Release)).ReadObject(stream);
-                if (release.version != "0.6.10" || release.variant != "cpu" || release.parts.Length != 5)
+                if (release.version != "0.6.11" || release.variant != "cpu" || release.parts.Length != 5)
                     throw new InvalidDataException("지원하지 않는 배포 정보입니다.");
                 return release;
             }

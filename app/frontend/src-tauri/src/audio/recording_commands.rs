@@ -1122,11 +1122,11 @@ pub async fn stop_recording<R: Runtime>(
             }
             Ok(Err(e)) => {
                 error!("Recording audio save failed: {}", e);
-                Err("녹음은 중지했지만 오디오 파일 저장에 실패했습니다. 화면의 전사 내용을 저장하고 저장 위치와 디스크 공간을 확인하세요.".to_owned())
+                Err("녹음은 중지했지만 오디오 파일 저장에 실패했습니다. 화면의 받아쓰기 내용을 저장하고 저장 위치와 디스크 공간을 확인하세요.".to_owned())
             }
             Err(_) => {
                 error!("Recording audio save exceeded the five-minute file I/O limit");
-                Err("녹음은 중지했지만 오디오 저장 시간이 초과되어 저장 완료를 확인하지 못했습니다. 화면의 전사 내용을 저장하고 오디오 파일을 확인하세요.".to_owned())
+                Err("녹음은 중지했지만 오디오 저장 시간이 초과되어 저장 완료를 확인하지 못했습니다. 화면의 받아쓰기 내용을 저장하고 오디오 파일을 확인하세요.".to_owned())
             }
         };
 

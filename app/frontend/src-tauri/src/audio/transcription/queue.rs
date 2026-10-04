@@ -110,7 +110,7 @@ impl DiskQueueReceiver {
                     .insert(path.clone());
                 let result: Result<AudioChunk> = async {
                     let bytes = fs::read(&path).await.with_context(|| {
-                        format!("전사 대기열 파일 읽기 실패: {}", path.display())
+                        format!("받아쓰기 대기열 파일 읽기 실패: {}", path.display())
                     })?;
                     decode_chunk(&bytes)
                 }
@@ -182,7 +182,7 @@ impl DiskQueueItem {
         receipt.sync_all().await?;
         fs::remove_file(&self.path)
             .await
-            .with_context(|| format!("처리한 전사 대기열 파일 삭제 실패: {}", self.path.display()))
+            .with_context(|| format!("처리한 받아쓰기 대기열 파일 삭제 실패: {}", self.path.display()))
     }
 
     pub async fn retain(self, disposition: &str) -> Result<PathBuf> {
@@ -192,7 +192,7 @@ impl DiskQueueItem {
         let retained = self.path.with_extension(disposition);
         fs::rename(&self.path, &retained).await.with_context(|| {
             format!(
-                "처리하지 못한 전사 대기열 파일 보존 실패: {}",
+                "처리하지 못한 받아쓰기 대기열 파일 보존 실패: {}",
                 self.path.display()
             )
         })?;

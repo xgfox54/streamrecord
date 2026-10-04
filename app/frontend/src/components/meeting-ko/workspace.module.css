@@ -554,6 +554,7 @@
 }
 .liveSummaryText > .liveEmpty { min-height: var(--sr-live-summary-empty-min); }
 .liveSummaryText > p { white-space: pre-wrap; }
+.liveSummaryScroll { max-height: var(--sr-reader-height); overflow-y: auto; overscroll-behavior: contain; scroll-behavior: auto; }
 .youtubeLayout { display: flex; flex-direction: column; gap: var(--sr-space-6); }
 .mediaFrame {
   width: 100%;

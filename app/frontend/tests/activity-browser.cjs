@@ -32,7 +32,7 @@ const server=http.createServer((request,res)=>{const name=decodeURIComponent(new
   await page.getByRole('textbox',{name:'기록 제목',exact:true}).waitFor();await page.addScriptTag({path:require.resolve('axe-core')});
   await page.getByRole('radio',{name:/^YouTube/}).check();
   await page.getByRole('textbox',{name:'YouTube 링크',exact:true}).fill('https://www.youtube.com/watch?v=LjwQhxDYsP8');await page.getByRole('button',{name:'영상 불러오기',exact:true}).click();
-  await page.getByTitle('전사할 YouTube 영상').waitFor();await page.getByRole('checkbox',{name:/녹음·처리 권한/}).check();
+  await page.getByTitle('받아쓰기할 YouTube 영상').waitFor();await page.getByRole('checkbox',{name:/녹음·처리 권한/}).check();
 
   // Stereo Mix: off -> one click -> on and selected.
   const panel=page.getByTestId('stereo-mix-panel');await panel.waitFor();assert.match(await panel.innerText(),/꺼져 있습니다/);
@@ -59,7 +59,7 @@ const server=http.createServer((request,res)=>{const name=decodeURIComponent(new
   // Recording with no sentence yet, then live dots under the last sentence.
   const waiting=page.getByTestId('transcribing-waiting');await waiting.waitFor();await capture('listening');
   await page.evaluate(row=>window.__qa.emit('transcript-update',row),rows[0]);
-  const indicator=page.getByTestId('transcribing-indicator');await indicator.waitFor();assert.match(await indicator.innerText(),/실시간 전사 중/);
+  const indicator=page.getByTestId('transcribing-indicator');await indicator.waitFor();assert.match(await indicator.innerText(),/실시간 받아쓰기 중/);
   const place=await page.evaluate(()=>{const article=[...document.querySelectorAll('[role=log] article')].at(-1).getBoundingClientRect(),dots=document.querySelector('[data-testid=transcribing-indicator]').getBoundingClientRect();return {articleBottom:article.bottom,dotsTop:dots.top};});
   assert.ok(place.dotsTop>=place.articleBottom-1,'dots sit below the last transcribed sentence');
   const dot=indicator.locator('span[aria-hidden=true] > span');assert.equal(await dot.count(),3);
@@ -68,7 +68,7 @@ const server=http.createServer((request,res)=>{const name=decodeURIComponent(new
   const samples=new Set();for(let i=0;i<8;i++){samples.add(await dot.first().evaluate(node=>getComputedStyle(node).transform));await page.waitForTimeout(140);}
   assert.ok(samples.size>2,'dots visibly move up and down');
   await indicator.scrollIntoViewIfNeeded();await capture('live-dots');await axeCheck('live-dots');
-  await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await dot.first().evaluate(node=>getComputedStyle(node).animationName),'none');assert.match(await indicator.innerText(),/실시간 전사 중/);
+  await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await dot.first().evaluate(node=>getComputedStyle(node).animationName),'none');assert.match(await indicator.innerText(),/실시간 받아쓰기 중/);
   const reduced=new Set();for(let i=0;i<5;i++){reduced.add(await dot.first().evaluate(node=>getComputedStyle(node).transform));await page.waitForTimeout(150);}assert.equal(reduced.size,1,'reduced motion removes vertical movement');
   await page.emulateMedia({reducedMotion:'no-preference'});
   checks.push('three dots below the last sentence move up and down in sequence; with reduced motion they stay still and keep the text label');
@@ -78,10 +78,10 @@ const server=http.createServer((request,res)=>{const name=decodeURIComponent(new
    await page.setViewportSize({width,height:960});
    const search=page.getByRole('searchbox',{name:'대화 내용 검색',exact:true});await search.scrollIntoViewIfNeeded();assert.equal(await search.isVisible(),true,'search visible at '+width);
    assert.equal(await page.getByText('대화 검색',{exact:true}).count(),0);
-   assert.equal(await page.getByRole('button',{name:'전사 설정',exact:true}).count(),0);
+   assert.equal(await page.getByRole('button',{name:'받아쓰기 설정',exact:true}).count(),0);
    const ai=page.getByRole('checkbox',{name:'AI 보정',exact:true}),speaker=page.getByRole('checkbox',{name:'화자 구분',exact:true});
    assert.equal(await ai.isChecked(),true);assert.equal(await speaker.isChecked(),true);
-   assert.equal(await page.getByRole('group',{name:'전사 설정',exact:true}).evaluate(node=>node.parentElement===document.querySelector('[aria-label="대화 표시 방식"]').parentElement),true);
+   assert.equal(await page.getByRole('group',{name:'받아쓰기 설정',exact:true}).evaluate(node=>node.parentElement===document.querySelector('[aria-label="대화 표시 방식"]').parentElement),true);
    if(width===1280){const switcher=await page.getByRole('group',{name:'대화 표시 방식',exact:true}).boundingBox(),box=await ai.boundingBox();assert.ok(Math.abs((box.y+box.height/2)-(switcher.y+switcher.height/2))<16,'options share the switcher line at 1280');}
    await page.getByText('AI 후보정 모델이 지정되지 않아',{exact:false}).waitFor();await page.getByTestId('option-speed-note').waitFor();
    await speaker.scrollIntoViewIfNeeded();await capture('options-'+width);await axeCheck('options-'+width);

@@ -49,15 +49,15 @@ export function renderMinutes(notes:readonly StructuredNote[],parts:readonly Sou
     out.push('| 내용 | 담당자 | 기한 | 근거 구간 | 원문 인용 |','|---|---|---|---|---|');
     for(const fact of facts){const source=lookup.get(fact.source_id);out.push(`| ${clean(fact.text)} | ${clean(fact.owner||'[확인 필요]')} | ${clean(fact.due||'[확인 필요]')} | ${fact.source_id} · ${source?.time||'시간 미상'} | ${clean(fact.quote)} |`);}
   }
-  out.push('','---','전사 원문은 별도로 보존됩니다. 안건 통합·사실 확정·화자 식별을 자동 완료한 결과가 아닙니다.');
+  out.push('','---','받아쓰기 원문은 별도로 보존됩니다. 안건 통합·사실 확정·화자 식별을 자동 완료한 결과가 아닙니다.');
   return out.join('\n');
 }
 export async function createStructuredMinutes(options:{rows:readonly TranscriptRow[];title:string;glossary:string;modelKey:string;generate:(text:string)=>Promise<string>;progress:(message:string)=>void;cancelled:()=>boolean;checkpoint:SummaryCheckpoint|null;save:(value:SummaryCheckpoint)=>Promise<void>}):Promise<string>{
-  if(options.rows.some(row=>row.is_partial&&reviewText(row).trim()))throw new Error('미확정 전사 구간이 남아 있습니다. 마지막 음성을 처리해 확정한 뒤 회의록을 만드세요. 원문은 유지됩니다.');
-  const parts=sourceParts(options.rows);if(!parts.length)throw new Error('확정된 전사문이 없습니다. 마지막 음성 처리가 끝났는지 확인하세요.');
+  if(options.rows.some(row=>row.is_partial&&reviewText(row).trim()))throw new Error('미확정 받아쓰기 구간이 남아 있습니다. 마지막 음성을 처리해 확정한 뒤 회의록을 만드세요. 원문은 유지됩니다.');
+  const parts=sourceParts(options.rows);if(!parts.length)throw new Error('확정된 받아쓰기 내용이 없습니다. 마지막 음성 처리가 끝났는지 확인하세요.');
   const reference=Array.from(options.glossary).slice(0,500).join('');
   const source=JSON.stringify({version:3,parts,reference,model:options.modelKey});
-  if(source.length>2_000_000)throw new Error('전사문이 너무 큽니다. 회의를 나누어 처리하세요.');
+  if(source.length>2_000_000)throw new Error('받아쓰기 내용이 너무 큽니다. 회의를 나누어 처리하세요.');
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(source));
   const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
   const cache:SummaryCheckpoint={key,notes:options.checkpoint?.key===key?{...options.checkpoint.notes}:{}};

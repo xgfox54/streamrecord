@@ -26,7 +26,7 @@ type AudioFile={path:string;filename:string};
 type ImportProgress={progress_percentage:number;message:string};
 type ImportResult={meeting_id:string;title:string};
 export type Snapshot={version:number;recordId?:string;title:string;rows:TranscriptRow[];minutes:string;startedAt:string|null;videoUrl?:string;glossary?:string;liveSummary?:string;liveSummaryDraft?:LiveSummaryCheckpoint|null;summaryDraft?:SummaryCheckpoint|null;audioPath?:string;audioSha256?:string;recoveryDraft?:RecoveryCheckpoint|null};
-const labels:Record<Mode,string>={loading:'초기화 중',idle:'준비',starting:'녹음 시작 중',recording:'녹음 · 실시간 전사 중',stopping:'마지막 음성 처리 중',importing:'녹음파일 전사 중',summarizing:'회의록 작성 중',reviewing:'원음 확인 중',recovering:'저장 음성 전사 복구 중',diarizing:'저장 음성 화자분리 중'};
+const labels:Record<Mode,string>={loading:'초기화 중',idle:'준비',starting:'녹음 시작 중',recording:'녹음 · 실시간 받아쓰기 중',stopping:'마지막 음성 처리 중',importing:'녹음파일 받아쓰기 중',summarizing:'회의록 작성 중',reviewing:'원음 확인 중',recovering:'저장 음성 받아쓰기 복구 중',diarizing:'저장 음성 화자분리 중'};
 const messageOf=(e:unknown)=>e instanceof Error?e.message:String(e);
 export function youtubeEmbedUrl(watchUrl:string){const id=watchUrl.match(/[?&]v=([A-Za-z0-9_-]{6,32})(?:[&#]|$)/)?.[1];if(!id)throw new Error('검증된 YouTube 영상 ID를 읽지 못했습니다.');return `https://www.youtube-nocookie.com/embed/${id}`;}
 export function useMeetingSession(){
@@ -100,18 +100,18 @@ export function useMeetingSession(){
    await register<TranscriptRow>('transcript-update',v=>{if(['starting','recording','stopping'].includes(modeRef.current)){try{setRows(diarization.applyLive(upsertRow(rowsRef.current,v)));}catch(e){setError(messageOf(e));}}});
    await register<{audio_file?:string}>('recording-saved',v=>{if(['recording','stopping'].includes(modeRef.current)&&typeof v.audio_file==='string'){audioPath.current=v.audio_file;audioSha256.current='';setAudioSource(null);dirty.current++;}});
    await register<ImportProgress>('import-progress',v=>{if(modeRef.current==='importing'){setProgress(Math.min(100,Math.max(0,v.progress_percentage||0)));setNotice(v.message);}});
-   await register<ImportResult>('import-complete',v=>{if(modeRef.current!=='importing')return;void(async()=>{try{setRows(await loadImported(v.meeting_id));setTitle(v.title);setProgress(100);await persist();await exportFile('transcript');setNotice(`파일 전사 완료 · ${rowsRef.current.length}구간. 회의록 생성 버튼으로 요약하세요.`);}catch(e){setError(messageOf(e));}finally{if(!cancelled)setMode('idle');}})();});
+   await register<ImportResult>('import-complete',v=>{if(modeRef.current!=='importing')return;void(async()=>{try{setRows(await loadImported(v.meeting_id));setTitle(v.title);setProgress(100);await persist();await exportFile('transcript');setNotice(`파일 받아쓰기 완료 · ${rowsRef.current.length}구간. 회의록 생성 버튼으로 요약하세요.`);}catch(e){setError(messageOf(e));}finally{if(!cancelled)setMode('idle');}})();});
    await register<{error:string}>('import-error',v=>{if(modeRef.current==='importing'){setError(v.error||'녹음파일 변환 실패');setMode('idle');}});
    await register<{warning:string}>('import-warning',v=>setNotice(v.warning));
    const appWindow=getCurrentWindow();
    const close=await appWindow.onCloseRequested(async e=>{e.preventDefault();try{await appWindow.hide();}catch(error){if(!cancelled)setNotice(`트레이로 숨기지 못했습니다: ${messageOf(error)}`);}});if(cancelled)close();else cleanups.push(close);
    try{await recordHistory.initialize();setNotice('기록을 불러왔습니다. 왼쪽 목록에서 저장한 기록을 다시 열 수 있습니다.');}
-   catch(e){setNotice(`복구 파일을 열지 못했지만 새 녹음·파일 전사는 사용할 수 있습니다: ${messageOf(e)}`);}
-   await refreshDevices().catch(e=>setNotice(`입력 장치를 읽지 못했습니다. 파일 전사는 사용할 수 있습니다: ${messageOf(e)}`));
+   catch(e){setNotice(`복구 파일을 열지 못했지만 새 녹음·파일 받아쓰기는 사용할 수 있습니다: ${messageOf(e)}`);}
+   await refreshDevices().catch(e=>setNotice(`입력 장치를 읽지 못했습니다. 파일 받아쓰기는 사용할 수 있습니다: ${messageOf(e)}`));
    const active=await invoke<boolean>('is_recording').catch(e=>{setNotice(`녹음 상태 확인 실패: ${messageOf(e)}`);return false;});
-   const importing=await invoke<boolean>('is_import_in_progress_command').catch(e=>{setNotice(`파일 전사 상태 확인 실패: ${messageOf(e)}`);return false;});if(cancelled)return;
-   if(active){setMode('recording');try{const history=readRows(await invoke('get_transcript_history'));for(const row of rowsRef.current){if(row.sequence_id!==undefined&&!history.some(r=>r.sequence_id===row.sequence_id))history.push(row);}setRows(history);}catch(e){setError(`진행 중인 전사 기록 조회 실패: ${messageOf(e)}`);}}else setMode(importing?'importing':'idle');
-   setReady(true);void refreshModels().catch(e=>{if(!cancelled)setNotice(`전사는 사용 가능합니다. 요약 모델: ${messageOf(e)}`);});
+   const importing=await invoke<boolean>('is_import_in_progress_command').catch(e=>{setNotice(`파일 받아쓰기 상태 확인 실패: ${messageOf(e)}`);return false;});if(cancelled)return;
+   if(active){setMode('recording');try{const history=readRows(await invoke('get_transcript_history'));for(const row of rowsRef.current){if(row.sequence_id!==undefined&&!history.some(r=>r.sequence_id===row.sequence_id))history.push(row);}setRows(history);}catch(e){setError(`진행 중인 받아쓰기 기록 조회 실패: ${messageOf(e)}`);}}else setMode(importing?'importing':'idle');
+   setReady(true);void refreshModels().catch(e=>{if(!cancelled)setNotice(`받아쓰기는 사용 가능합니다. 요약 모델: ${messageOf(e)}`);});
   };
   void initialise().catch(e=>{if(!cancelled)setError(messageOf(e));});
   let saved=0;const timer=window.setInterval(()=>{if(modeRef.current==='loading'||recordHistory.isTransitioning()||dirty.current===saved)return;const revision=dirty.current;void persist().then(()=>{saved=revision;}).catch(e=>{if(!cancelled)setError(`복구 저장 실패: ${messageOf(e)}`);});},10000);
@@ -144,7 +144,7 @@ export function useMeetingSession(){
  useEffect(()=>{trayStop.current=()=>{void stop();};});
  const importAudio=async()=>{
   if(modeRef.current!=='idle'||!ready||!consent)return;setMode('importing');setError('');setProgress(0);setNotice('녹음파일을 선택하세요.');
-  try{const f=await invoke<AudioFile|null>('select_and_validate_audio_command');if(!f){setMode('idle');setNotice('파일 선택 취소');return;}const c=await whisperConfig();await archive();audioPath.current=f.path;await persist();setNotice(`${f.filename} 전사 시작`);await invoke('start_import_audio_command',{sourcePath:f.path,title:titleRef.current,language:'ko',model:c.model,provider:'whisper'});}
+  try{const f=await invoke<AudioFile|null>('select_and_validate_audio_command');if(!f){setMode('idle');setNotice('파일 선택 취소');return;}const c=await whisperConfig();await archive();audioPath.current=f.path;await persist();setNotice(`${f.filename} 받아쓰기 시작`);await invoke('start_import_audio_command',{sourcePath:f.path,title:titleRef.current,language:'ko',model:c.model,provider:'whisper'});}
   catch(e){setError(messageOf(e));setMode('idle');}
  };
  const summarize=async()=>{
@@ -158,9 +158,9 @@ export function useMeetingSession(){
   try{let path=audioPath.current;if(select||!path){const chosen=await invoke<AudioFile|null>('select_and_validate_audio_command');if(!chosen)return;path=chosen.path;}
    setNotice('원음 길이와 파일 SHA-256을 확인합니다. 음성은 외부로 전송하지 않습니다.');
    const source=await invoke<ReviewAudio>('ko_open_review_audio',{path});
-   if(audioSha256.current&&source.sha256!==audioSha256.current)throw new Error('기존 전사와 연결한 원음의 SHA-256이 다릅니다. 다른 파일로 교체하지 않았습니다.');
-   if(select&&!audioSha256.current&&rowsRef.current.length&&!window.confirm('선택한 파일이 현재 전사문의 원본 음성인지 확인했습니까? 시간정보는 선택한 파일의 시작을 기준으로 재생됩니다.'))return;
-   audioPath.current=source.path;audioSha256.current=source.sha256;setAudioSource(source);dirty.current++;await persist();setNotice('원음 준비 완료. 전사 구간의 듣기 버튼으로 원문을 대조하세요.');
+   if(audioSha256.current&&source.sha256!==audioSha256.current)throw new Error('기존 받아쓰기와 연결한 원음의 SHA-256이 다릅니다. 다른 파일로 교체하지 않았습니다.');
+   if(select&&!audioSha256.current&&rowsRef.current.length&&!window.confirm('선택한 파일이 현재 받아쓰기 내용의 원본 음성인지 확인했습니까? 시간정보는 선택한 파일의 시작을 기준으로 재생됩니다.'))return;
+   audioPath.current=source.path;audioSha256.current=source.sha256;setAudioSource(source);dirty.current++;await persist();setNotice('원음 준비 완료. 받아쓰기 구간의 듣기 버튼으로 원문을 대조하세요.');
   }catch(e){setError(messageOf(e));}finally{setMode('idle');}
  };
  const playRow=(row:TranscriptRow)=>{const player=audioElement.current;const range=audioSource?playbackRange(row,audioSource.duration_seconds):null;if(modeRef.current!=='idle'||!player||!range)return;if(player.readyState<1){setNotice('원음 재생정보를 읽는 중입니다. 잠시 후 구간 듣기를 다시 누르세요.');return;}playbackEnd.current=range.end;player.currentTime=range.start;void player.play().catch(e=>setError(`원음 재생 실패: ${messageOf(e)}`));};
@@ -170,13 +170,13 @@ export function useMeetingSession(){
    if(rowsRef.current.length||minutesRef.current)await exportFile('bundle');setEpoch(value=>value+1);setRows(recovered);setMinutes('');summaryDraft.current=null;liveSummaryDraft.current=null;setLiveSummary('');setPage(0);setQuery('');setEditing(null);await persist();await exportFile('bundle');setNotice(`저장 음성 전체 처리 완료 · ${recovered.length}개 발언 구간. 이전 원문은 JSON으로 보관했습니다. 경계의 누락·오인식은 원음과 대조하세요.`);
   }catch(e){setError(messageOf(e));}finally{setMode('idle');}
  };
- const applyQueueRecovery=async(recovered:TranscriptRow[],complete:boolean)=>{if(modeRef.current!=='idle')throw new Error('진행 중인 작업을 마친 뒤 복구 결과를 여세요.');setMode('recovering');try{await archive();setVideoUrl('');setTitle(complete?'복구된 전사 구간':'복구된 전사 구간 · 일부 미처리');setRows(recovered);await persist();await exportFile('bundle');setNotice('복구 대기열의 전사를 별도 작업으로 열었습니다. 녹음 전체가 아닌 대기열 결과입니다.');}finally{setMode('idle');}};
+ const applyQueueRecovery=async(recovered:TranscriptRow[],complete:boolean)=>{if(modeRef.current!=='idle')throw new Error('진행 중인 작업을 마친 뒤 복구 결과를 여세요.');setMode('recovering');try{await archive();setVideoUrl('');setTitle(complete?'복구된 받아쓰기 구간':'복구된 받아쓰기 구간 · 일부 미처리');setRows(recovered);await persist();await exportFile('bundle');setNotice('복구 대기열의 받아쓰기를 별도 작업으로 열었습니다. 녹음 전체가 아닌 대기열 결과입니다.');}finally{setMode('idle');}};
  const save=(kind:'transcript'|'corrected'|'minutes'|'bundle')=>{if(saveInFlight.current)return;saveInFlight.current=true;setSaving(true);void exportFile(kind).then(()=>persist()).catch(e=>setError(messageOf(e))).finally(()=>{saveInFlight.current=false;setSaving(false);});};
  const confirmExit=async()=>{
   if(exiting)return;setExiting(true);setError('');
   try{if(modeRef.current==='recording'&&!await stop())return;
    if(modeRef.current!=='idle')throw new Error('진행 중인 처리가 끝난 뒤 종료해 주세요. 자료는 유지됩니다.');
-   if(stopFailure&&!acknowledgeStopFailure)throw new Error('원음 저장 실패 가능성을 확인해야 종료할 수 있습니다. 계속 사용을 선택해 전사문을 먼저 내보낼 수 있습니다.');
+   if(stopFailure&&!acknowledgeStopFailure)throw new Error('원음 저장 실패 가능성을 확인해야 종료할 수 있습니다. 계속 사용을 선택해 받아쓰기 내용을 먼저 내보낼 수 있습니다.');
    await persist();if(snapshotQueue.current)await snapshotQueue.current;if(rowsRef.current.length||minutesRef.current)await exportFile('bundle');
    await invoke('ko_exit_app');
   }catch(e){setError(`종료하지 않았습니다. ${messageOf(e)}`);}finally{setExiting(false);}

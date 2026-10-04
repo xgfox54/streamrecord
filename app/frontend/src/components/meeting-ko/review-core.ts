@@ -44,10 +44,10 @@ export async function recoverAudio(options:{
  const previous=options.checkpoint?.version===1&&options.checkpoint.key===key?options.checkpoint.windows:{};
  let windows:Record<string,RecoveredWindow>={};
  for(let i=0;i<plan.length;i++){
-  if(options.cancelled())throw new Error('전사 복구를 취소했습니다. 저장된 완료 구간부터 다시 시작할 수 있습니다.');
+  if(options.cancelled())throw new Error('받아쓰기 복구를 취소했습니다. 저장된 완료 구간부터 다시 시작할 수 있습니다.');
   const {start,duration}=plan[i];const saved=previous?.[String(i)];let current:RecoveredWindow|undefined;
   if(saved){try{current=validateRecovered(saved,start,duration);}catch{/* Reprocess invalid checkpoint rows; never silently skip audio. */}}
-  options.progress(`저장 음성 전사 ${i+1}/${plan.length}구간${current?' · 완료 구간 재사용':''}`);
+  options.progress(`저장 음성 받아쓰기 ${i+1}/${plan.length}구간${current?' · 완료 구간 재사용':''}`);
   if(!current)current=validateRecovered(await options.decode(start,duration),start,duration);
   const candidate={...windows,[String(i)]:current};
   await options.save({version:1,key,windows:candidate});

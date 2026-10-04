@@ -55,9 +55,9 @@ test('When raw or comparison is selected, preserved original and AI result remai
 const checkbox=(h,label)=>h.renderer.root.findAllByType('label').find(node=>text(node)===label)?.findByType('input');
 for(const video of [false,true])test(`${video?'Video':'Microphone and PC sound'} transcript options sit on the view switcher line and default on`,()=>{
  const h=fixture(video);try{
-  assert.equal(h.renderer.root.findAllByType('button').some(node=>text(node).includes('전사 설정')),false);assert.equal(h.renderer.root.findAllByType('details').length,0);
+  assert.equal(h.renderer.root.findAllByType('button').some(node=>text(node).includes('받아쓰기 설정')),false);assert.equal(h.renderer.root.findAllByType('details').length,0);
   const line=h.renderer.root.findByProps({role:'group','aria-label':'대화 표시 방식'}).parent;
-  assert.equal(line.findAllByProps({role:'group','aria-label':'전사 설정'}).length,1);assert.ok(line.findAllByType('label').some(node=>text(node).startsWith('대화 내용 검색')));
+  assert.equal(line.findAllByProps({role:'group','aria-label':'받아쓰기 설정'}).length,1);assert.ok(line.findAllByType('label').some(node=>text(node).startsWith('대화 내용 검색')));
   assert.equal(checkbox(h,'AI 보정').props.checked,true);assert.equal(checkbox(h,'화자 구분').props.checked,true);assert.equal(checkbox(h,'원문 함께 보기'),undefined);
   h.run(()=>button(h,'AI 보정본').props.onClick());assert.ok(checkbox(h,'원문 함께 보기'));
  }finally{h.close();}
@@ -78,7 +78,7 @@ test('While recording, a transcribing indicator follows the last sentence and is
  const h=fixture(true);try{
   const indicator=()=>h.renderer.root.findAllByProps({'data-testid':'transcribing-indicator'});
   assert.equal(indicator().length,0);
-  h.update({mode:'recording'});assert.equal(indicator().length,1);assert.ok(text(indicator()[0]).includes('실시간 전사 중'));
+  h.update({mode:'recording'});assert.equal(indicator().length,1);assert.ok(text(indicator()[0]).includes('실시간 받아쓰기 중'));
   const log=h.renderer.root.findByProps({role:'log'});const kids=log.children.filter(child=>typeof child!=='string');assert.equal(kids.at(-1).findAllByProps({'data-testid':'transcribing-indicator'}).length,1);assert.equal(kids.at(-2).findAllByType('article').length,1);
   h.update({mode:'stopping'});assert.ok(text(indicator()[0]).includes('마지막 문장'));
   h.update({mode:'idle'});assert.equal(indicator().length,0);

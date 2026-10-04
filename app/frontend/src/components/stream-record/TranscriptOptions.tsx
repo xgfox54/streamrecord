@@ -5,10 +5,10 @@ import layout from './dictation.module.css';
 import {ModelOptions,modelDestination} from './connections/modelPresentation';
 function CorrectionNotice({correction}:{readonly correction:MeetingSession['correction']}){
  if(correction.error)return <div role="alert" className={styles.error}><p>AI 보정을 멈췄습니다. 녹음과 원문은 유지됩니다. {correction.error}</p><button disabled={!correction.enabled||correction.running} onClick={correction.retry}>보정 다시 시도</button></div>;
- return correction.blocked>0?<div role="status" className={styles.information}><p>숫자·길이 보호로 {correction.blocked}구간의 원문을 유지했습니다. 다른 구간은 독립적으로 보정합니다. 대화에서 확인 사유를 보고 원음과 대조하세요.</p><button disabled={!correction.enabled||correction.running} onClick={correction.retry}>확인 구간 다시 보정</button></div>:null;
+ return correction.blocked>0?<div role="status" className={styles.information}><p>AI가 고친 문장 중 {correction.blocked}구간은 숫자가 바뀌었거나 길이가 크게 달라져서 적용하지 않고 원래 받아쓰기를 그대로 두었습니다. 나머지 구간은 정상적으로 보정합니다. 'AI 보정본'에서 ‘원음 확인’ 표시가 붙은 문장을 원음으로 들어 확인하세요.</p><button disabled={!correction.enabled||correction.running} onClick={correction.retry}>확인 구간 다시 보정</button></div>:null;
 }
 export function TranscriptOptions({session:s,corrected,compare,setCompare}:{readonly session:MeetingSession;readonly corrected:boolean;readonly compare:boolean;readonly setCompare:(value:boolean)=>void}){
- return <div className={layout.transcriptOptions} role="group" aria-label="전사 설정">
+ return <div className={layout.transcriptOptions} role="group" aria-label="받아쓰기 설정">
   <label className={styles.check}><input type="checkbox" checked={s.correction.enabled} onChange={event=>s.correction.setEnabled(event.target.checked)}/>AI 보정</label>
   {s.models.length>0&&<label className={layout.modelSelect}>보정 AI<select value={s.model} onChange={event=>s.setModel(event.target.value)}><option value="">AI 선택</option><ModelOptions session={s}/></select></label>}
   <label className={styles.check}><input type="checkbox" checked={s.diarization.enabled} onChange={event=>s.diarization.setEnabled(event.target.checked)}/>화자 구분</label>

@@ -38,10 +38,10 @@ export function readRows(value: unknown): TranscriptRow[] {
   const parsed=Array.isArray(value)
     ? z.array(transcriptRowSchema).safeParse(value)
     : transcriptEnvelopeSchema.safeParse(value);
-  if(!parsed.success)throw new Error('전사 항목에 text 필드가 없거나 형식이 올바르지 않습니다.');
+  if(!parsed.success)throw new Error('받아쓰기 항목에 text 필드가 없거나 형식이 올바르지 않습니다.');
   if(Array.isArray(parsed.data))return parsed.data;
   const rows=parsed.data.transcripts??parsed.data.data;
-  if(!rows)throw new Error('전사 응답 형식이 예상과 다릅니다. 원본 데이터는 변경하지 않았습니다.');
+  if(!rows)throw new Error('받아쓰기 응답 형식이 예상과 다릅니다. 원본 데이터는 변경하지 않았습니다.');
   return rows;
 }
 export type FetchTranscriptPage=(meetingId:string,limit:number,offset:number)=>Promise<unknown>;
@@ -50,7 +50,7 @@ export async function loadAllTranscriptRows(meetingId:string,fetchPage:FetchTran
   for(let offset=0;offset<600_000;offset+=limit){
     const value=await fetchPage(meetingId,limit,offset);const batch=readRows(value);
     const signature=JSON.stringify(batch);
-    if(batch.length&&signature===previous)throw new Error('전사 페이지가 반복되었습니다. 원본 회의 데이터는 보존되어 있습니다.');
+    if(batch.length&&signature===previous)throw new Error('받아쓰기 페이지가 반복되었습니다. 원본 회의 데이터는 보존되어 있습니다.');
     previous=signature;result.push(...batch);
     const envelope=transcriptEnvelopeSchema.safeParse(value);
     const doneByMetadata=envelope.success&&!Array.isArray(envelope.data)&&(
@@ -58,7 +58,7 @@ export async function loadAllTranscriptRows(meetingId:string,fetchPage:FetchTran
       (envelope.data.total_count!==undefined&&result.length>=envelope.data.total_count));
     if(doneByMetadata||batch.length<limit)return result;
   }
-  throw new Error('전사 항목 한도 초과. 원본 회의 데이터를 확인하세요.');
+  throw new Error('받아쓰기 항목 한도 초과. 원본 회의 데이터를 확인하세요.');
 }
 /** Lossless chunking by Unicode code point, preferring a line boundary. */
 export function splitText(text: string, limit = 1500): string[] {
@@ -78,7 +78,7 @@ export function splitText(text: string, limit = 1500): string[] {
 export type Generate = (text: string, stage: 'notes' | 'final') => Promise<string>;
 /** Replace updates for one segment; do not deduplicate different repeated utterances. */
 export function upsertRow(rows: TranscriptRow[], row: TranscriptRow): TranscriptRow[] {
-  if (!row || typeof row.text !== 'string') throw new Error('잘못된 전사 이벤트입니다.');
+  if (!row || typeof row.text !== 'string') throw new Error('잘못된 받아쓰기 이벤트입니다.');
   const same = (old: TranscriptRow) => row.sequence_id !== undefined
     ? old.sequence_id === row.sequence_id
     : row.id !== undefined && old.id === row.id;
@@ -92,10 +92,10 @@ export function upsertRow(rows: TranscriptRow[], row: TranscriptRow): Transcript
 
 export async function createMinutes(text: string, generate: Generate,
   progress: (message: string) => void, cancelled: () => boolean = () => false): Promise<string> {
-  if (!text.trim()) throw new Error('요약할 전사문이 없습니다.');
-  if (text.length > 2_000_000) throw new Error('전사문이 너무 큽니다. 회의를 나누어 처리해 주세요.');
+  if (!text.trim()) throw new Error('요약할 받아쓰기 내용이 없습니다.');
+  if (text.length > 2_000_000) throw new Error('받아쓰기 내용이 너무 큽니다. 회의를 나누어 처리해 주세요.');
   let current = text;
-  const check = () => { if (cancelled()) throw new Error('요약을 취소했습니다. 전사 원문은 유지됩니다.'); };
+  const check = () => { if (cancelled()) throw new Error('요약을 취소했습니다. 받아쓰기 원문은 유지됩니다.'); };
   for (let round = 0; round < 8; round++) {
     check();
     const chunks = splitText(current);

@@ -122,7 +122,7 @@ pub fn checked_window(start: f64, duration: f64) -> Result<(), String> {
         || duration > 24.0
         || start + duration > 86400.0
     {
-        return Err("전사 복구 구간 범위가 올바르지 않습니다.".into());
+        return Err("받아쓰기 복구 구간 범위가 올바르지 않습니다.".into());
     }
     Ok(())
 }
@@ -149,7 +149,7 @@ pub async fn ko_transcribe_review_window(
     if crate::audio::recording_commands::is_recording().await
         || crate::audio::import::is_import_in_progress()
     {
-        return Err("진행 중인 녹음·파일 전사를 먼저 완료하세요.".into());
+        return Err("진행 중인 녹음·파일 받아쓰기를 먼저 완료하세요.".into());
     }
     RUNNING
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)

@@ -35,6 +35,6 @@ export function RecordingPreparation({session:s}:{readonly session:MeetingSessio
     <div className={styles.actions}>{s.mode==='recording'?<button className={styles.primary} onClick={()=>void s.stop()}><Square size={20} aria-hidden="true"/>녹음을 중지하고 저장</button>:<button className={styles.primary} disabled={Boolean(reason)} aria-describedby="start-help" onClick={()=>{if(selected)void s.start(selected,kind==='pc'?'PC 소리 녹음 중입니다. 다른 영상과 알림 소리는 꺼 주세요.':'마이크 녹음 중입니다. 아래 받아쓰기에서 인식된 문장을 확인하세요.');}}><Mic size={20} aria-hidden="true"/>{s.mode==='starting'?'음성 모델 준비 중…':s.mode==='stopping'?'마지막 문장 저장 중…':'녹음 시작'}</button>}</div>
     </div>
     <label className={styles.check}><input type="checkbox" checked={s.consent} disabled={s.busy} onChange={event=>s.setConsent(event.target.checked)}/>2. 참여자에게 녹음을 알렸으며 녹음·처리 권한을 확인했습니다.</label>
-    <p id="start-help" className={styles.hint}>{reason||`입력: ${selected} · 한국어 모델 포함 · 이 PC에서 전사합니다.`}</p>
+    <p id="start-help" className={styles.hint}>{reason||`입력: ${selected} · 한국어 모델 포함 · 이 PC에서 받아씁니다.`}</p>
   </section>;
 }

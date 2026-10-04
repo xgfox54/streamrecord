@@ -57,7 +57,7 @@ pub(crate) fn claim(root: &Path) -> Result<Arc<File>> {
         .write(true)
         .open(root.join("owner.lock"))?;
     fs2::FileExt::try_lock_exclusive(&file)
-        .context("다른 전사 작업이 이 복구 대기열을 사용 중입니다")?;
+        .context("다른 받아쓰기 작업이 이 복구 대기열을 사용 중입니다")?;
     Ok(Arc::new(file))
 }
 
@@ -86,7 +86,7 @@ pub fn inspect(root: &Path) -> Result<RecoverySession> {
     let session_id = if manifest_path.exists() {
         let manifest: SessionManifest = serde_json::from_reader(crate::review_paths::fs::open_file(manifest_path)?)?;
         if manifest.version != 1 {
-            bail!("지원하지 않는 전사 복구 형식입니다");
+            bail!("지원하지 않는 받아쓰기 복구 형식입니다");
         }
         Some(manifest.session_id)
     } else {

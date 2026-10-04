@@ -1,7 +1,7 @@
 use std::{error::Error, io::{self, Write}, time::Duration};
 
 fn artifact_url(version: &str, name: &str) -> Result<String, &'static str> {
-    if version != "0.6.10" { return Err("Unsupported release version"); }
+    if version != "0.6.11" { return Err("Unsupported release version"); }
     let prefix = format!("Stream-Record-{version}-korean-bundled-cpu-windows-x64-setup.exe.part-");
     let suffix = name.strip_prefix(&prefix).ok_or("Unsupported artifact name")?;
     if !matches!(suffix, "000" | "001" | "002" | "003" | "004") { return Err("Unsupported artifact part"); }
@@ -58,13 +58,13 @@ mod tests {
     #[test]
     fn allows_exact_pinned_parts() {
         for index in 0..5 {
-            let name = format!("Stream-Record-0.6.10-korean-bundled-cpu-windows-x64-setup.exe.part-{index:03}");
-            assert!(artifact_url("0.6.10", &name).unwrap().starts_with("https://gitlab.aigov.go.kr/"));
+            let name = format!("Stream-Record-0.6.11-korean-bundled-cpu-windows-x64-setup.exe.part-{index:03}");
+            assert!(artifact_url("0.6.11", &name).unwrap().starts_with("https://gitlab.aigov.go.kr/"));
         }
     }
     #[test]
     fn refuses_other_versions_parts_and_paths() {
-        for (version, name) in [("0.6.9", "x"), ("0.6.10", "../../file"), ("0.6.10", "https://evil.example/x"), ("0.6.10", "Stream-Record-0.6.10-korean-bundled-cpu-windows-x64-setup.exe.part-005")] {
+        for (version, name) in [("0.6.10", "x"), ("0.6.11", "../../file"), ("0.6.11", "https://evil.example/x"), ("0.6.11", "Stream-Record-0.6.11-korean-bundled-cpu-windows-x64-setup.exe.part-005")] {
             assert!(artifact_url(version, name).is_err());
         }
     }

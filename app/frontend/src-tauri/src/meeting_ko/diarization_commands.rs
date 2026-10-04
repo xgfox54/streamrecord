@@ -304,7 +304,7 @@ pub async fn ko_run_diarization<R: Runtime>(
     if crate::audio::recording_commands::is_recording().await
         || crate::audio::import::is_import_in_progress()
     {
-        return Err("진행 중인 녹음·파일 전사를 먼저 완료하세요.".into());
+        return Err("진행 중인 녹음·파일 받아쓰기를 먼저 완료하세요.".into());
     }
     let _import_guard = crate::audio::import::ImportGuard::acquire()?;
     let cancel = CancellationToken::new();

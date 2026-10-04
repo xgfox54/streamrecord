@@ -138,16 +138,16 @@ pub async fn ko_start_recording<R: Runtime>(
     }
     let config = crate::api::api_get_transcript_config(app.clone(), app.state(), None)
         .await
-        .map_err(|e| format!("전사 설정 조회 실패: {e}"))?;
+        .map_err(|e| format!("받아쓰기 설정 조회 실패: {e}"))?;
     if config.as_ref().map(|c| c.provider.as_str()) != Some("localWhisper") {
-        return Err("전사 모델 설정에서 Local Whisper 다국어 모델을 내려받고 선택하세요.".into());
+        return Err("받아쓰기 모델 설정에서 Local Whisper 다국어 모델을 내려받고 선택하세요.".into());
     }
     if config
         .as_ref()
         .map(|c| c.model.contains(".en"))
         .unwrap_or(false)
     {
-        return Err("영어 전용 .en 모델은 한국어 전사에 사용할 수 없습니다.".into());
+        return Err("영어 전용 .en 모델은 한국어 받아쓰기에 사용할 수 없습니다.".into());
     }
     let devices = crate::get_audio_devices().await?;
     let (mic, system) = recording_source::capture_devices(&devices, mic_name.as_deref(), system_name.as_deref())?;
@@ -227,7 +227,7 @@ pub async fn ko_exit_app<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 
 fn ensure_exit_ready(recording: bool, importing: bool, generating: bool) -> Result<(), String> {
     if recording {
-        return Err("녹음을 중지하고 마지막 오디오와 전사 저장을 마친 뒤 종료해 주세요.".into());
+        return Err("녹음을 중지하고 마지막 오디오와 받아쓰기 저장을 마친 뒤 종료해 주세요.".into());
     }
     if importing {
         return Err("파일 가져오기 작업이 끝난 뒤 종료해 주세요.".into());
@@ -396,7 +396,7 @@ pub async fn ko_open_video<R: Runtime>(app: AppHandle<R>, url: String) -> Result
         VIDEO_WINDOW_LABEL,
         tauri::WebviewUrl::External(target),
     )
-    .title("재생 영상 · 이 소리가 전사됩니다")
+    .title("재생 영상 · 이 소리를 받아씁니다")
     .inner_size(980.0, 640.0)
     .build()
     .map_err(|e| format!("영상 창을 열지 못했습니다: {e}"))?;

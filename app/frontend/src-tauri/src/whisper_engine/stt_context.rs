@@ -34,7 +34,7 @@ impl LiveContext {
 }
 
 pub fn begin(glossary: &str) -> Result<(), String> {
-    LIVE.lock().map_err(|_| "전사 문맥 잠금 오류".to_string())?.begin(glossary);
+    LIVE.lock().map_err(|_| "받아쓰기 문맥 잠금 오류".to_string())?.begin(glossary);
     Ok(())
 }
 pub fn end() {

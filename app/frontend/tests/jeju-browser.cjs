@@ -20,7 +20,7 @@ const server=http.createServer((req,res)=>{const name=decodeURIComponent(new URL
   const start=page.getByRole('button',{name:'녹음 시작',exact:true});assert.equal(await start.isDisabled(),true);
   for(const width of [375,768,1280]){
    await page.setViewportSize({width,height:900});
-   for(const [id,label] of [['recording','회의 녹음'],['dictation','받아쓰기'],['youtube','YouTube 전사'],['transcript','전체 전사'],['minutes','회의록'],['ai','AI 연결'],['settings','설정']]){
+   for(const [id,label] of [['recording','회의 녹음'],['dictation','받아쓰기'],['youtube','YouTube 받아쓰기'],['transcript','전체 받아쓰기'],['minutes','회의록'],['ai','AI 연결'],['settings','설정']]){
     await page.getByRole('link',{name:label,exact:true}).click();await page.getByRole('heading',{name:label,exact:true,level:1}).waitFor();
     await page.waitForFunction(()=>document.querySelector('header').getBoundingClientRect().top>=-1);
     const overflow=await page.evaluate(()=>({body:document.documentElement.scrollWidth>innerWidth,main:document.querySelector('main').scrollWidth>document.querySelector('main').clientWidth+1}));
@@ -50,14 +50,14 @@ const server=http.createServer((req,res)=>{const name=decodeURIComponent(new URL
   await page.evaluate(()=>{for(const row of [{sequence_id:1,text:'회의 내용을 검토하고 내일 결과를 공유하겠습니다.',audio_start_time:1,is_partial:false},{sequence_id:2,text:'회의 내용을 검토하고 내일 결과를 공유하겠습니다.',audio_start_time:9,is_partial:false}])window.__qa.emit('transcript-update',row);});
   await page.screenshot({path:path.join(evidence,'recording-active.png'),fullPage:true});
   await page.getByRole('button',{name:'녹음을 중지하고 저장',exact:true}).click();
-  await page.getByRole('link',{name:'전체 전사',exact:true}).click();
+  await page.getByRole('link',{name:'전체 받아쓰기',exact:true}).click();
   await page.getByRole('checkbox',{name:/반복 확인 대상/}).check();assert.equal(await page.locator('article[id^="source-"]').count(),1);
   await page.getByRole('checkbox',{name:/반복 확인 대상/}).uncheck();assert.equal(await page.locator('article[id^="source-"]').count(),2);checks.push('repeat filter preserves both original rows');
   await page.screenshot({path:path.join(evidence,'transcript-review.png'),fullPage:true});
-  await page.getByRole('link',{name:'YouTube 전사',exact:true}).click();await page.getByRole('textbox',{name:'YouTube 링크'}).fill('https://www.youtube.com/watch?v=LjwQhxDYsP8');
+  await page.getByRole('link',{name:'YouTube 받아쓰기',exact:true}).click();await page.getByRole('textbox',{name:'YouTube 링크'}).fill('https://www.youtube.com/watch?v=LjwQhxDYsP8');
   await page.getByRole('button',{name:'영상 불러오기',exact:true}).click();await page.locator('iframe').waitFor();
   await page.locator('iframe').evaluate(frame=>frame.dataset.qaIdentity='original');
-  await page.getByRole('link',{name:'AI 연결',exact:true}).click();await page.getByRole('link',{name:'YouTube 전사',exact:true}).click();assert.equal(await page.locator('iframe').getAttribute('data-qa-identity'),'original');checks.push('same YouTube iframe survives navigation');
+  await page.getByRole('link',{name:'AI 연결',exact:true}).click();await page.getByRole('link',{name:'YouTube 받아쓰기',exact:true}).click();assert.equal(await page.locator('iframe').getAttribute('data-qa-identity'),'original');checks.push('same YouTube iframe survives navigation');
   await page.screenshot({path:path.join(evidence,'youtube-prepared.png'),fullPage:true});
   await page.addScriptTag({path:require.resolve('axe-core')});
   const axe=await page.evaluate(async()=>{const r=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}});return r.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>n.target)}));});
