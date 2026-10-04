@@ -3,6 +3,7 @@ import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {PanelLeft,Plug,Settings,Square} from 'lucide-react';
 import type {MeetingSession} from './useMeetingSession';
 import {RecordSidebar} from './RecordSidebar';
+import {AppVersion} from './AppVersion';
 import styles from '../meeting-ko/workspace.module.css';
 import layout from './record-workspace.module.css';
 export type WorkspaceView='recording'|'dictation'|'youtube'|'transcript'|'minutes'|'ai'|'settings';
@@ -14,7 +15,7 @@ export function AppShell({session:s,children,focusMode=false,onFocusModeChange}:
   <a className={styles.skip} href="#workspace-content" onClick={event=>{event.preventDefault();heading.current?.focus();}}>본문으로 바로가기</a>
   <header className={layout.appHeader}>
    <div className={layout.brandGroup}><button className={layout.listToggle} aria-label="기록 목록" aria-expanded={listOpen} aria-controls="record-sidebar" onClick={()=>setListOpen(value=>!value)}><PanelLeft size={20} aria-hidden="true"/></button><a href="#recording" className={styles.brand} onClick={()=>s.navigate('recording')}><img src="/streamrecord-icon.png" alt="" width={32} height={32}/><span>Stream-Record</span></a><span className={layout.localLabel}>이 PC의 기록</span></div>
-   <div className={styles.headerState}>{focusMode&&<button onClick={onFocusModeChange}>집중 모드 끝내기</button>}<span className={s.mode==='recording'?styles.live:styles.badge}>{s.mode==='recording'&&<span aria-hidden="true" className={styles.recordDot}/>} {s.modeLabel}</span>{s.mode==='recording'&&<button onClick={()=>void s.stop()}><Square size={18} aria-hidden="true"/>녹음 중지</button>}</div>
+   <div className={styles.headerState}><AppVersion/>{focusMode&&<button onClick={onFocusModeChange}>집중 모드 끝내기</button>}<span className={s.mode==='recording'?styles.live:styles.badge}>{s.mode==='recording'&&<span aria-hidden="true" className={styles.recordDot}/>} {s.modeLabel}</span>{s.mode==='recording'&&<button onClick={()=>void s.stop()}><Square size={18} aria-hidden="true"/>녹음 중지</button>}</div>
   </header>
   <div className={layout.appBody} data-list-open={listOpen}>
    <aside id="record-sidebar" className={layout.sidebar} aria-label="기록 보관함"><RecordSidebar session={s} onSelected={()=>setListOpen(false)}/><nav aria-label="도움 및 설정" className={layout.utilityNav}><a href="#ai" aria-current={s.view==='ai'?'page':undefined} onClick={()=>s.navigate('ai')}><Plug size={18} aria-hidden="true"/>AI 연결</a><a href="#settings" aria-current={s.view==='settings'?'page':undefined} onClick={()=>s.navigate('settings')}><Settings size={18} aria-hidden="true"/>설정</a></nav></aside>

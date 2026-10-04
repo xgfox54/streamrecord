@@ -216,11 +216,14 @@ fn map_recording_start_error<R: Runtime>(app: &AppHandle<R>, error: RecordingSta
 /// stream.rs keeps its hard-fail as the last line of defense. cpal calls
 /// block briefly either way.
 pub const EXACT_MIC_DEVICE_PREFIX: &str = "__meetily_korean_exact_mic__:";
+pub const EXACT_SYSTEM_DEVICE_PREFIX: &str = "__meetily_korean_exact_system__:";
+pub const DISABLED_MICROPHONE_DEVICE: &str = "__meetily_korean_disabled_microphone__";
 
 fn resolve_mic_or_default<R: Runtime>(
     app: &AppHandle<R>,
     requested_name: Option<&str>,
 ) -> Option<Arc<super::AudioDevice>> {
+    if requested_name == Some(DISABLED_MICROPHONE_DEVICE) { return None; }
     if let Some(name) = requested_name.and_then(|value| value.strip_prefix(EXACT_MIC_DEVICE_PREFIX))
     {
         let exact = parse_audio_device(name).ok().filter(|device| {
@@ -310,6 +313,15 @@ fn resolve_system_or_default(requested_name: Option<&str>) -> Option<Arc<super::
     if requested_name == Some(DISABLED_SYSTEM_AUDIO_DEVICE) {
         return None;
     }
+    if let Some(name) = requested_name.and_then(|value| value.strip_prefix(EXACT_SYSTEM_DEVICE_PREFIX)) {
+        use cpal::traits::{DeviceTrait, HostTrait};
+        return parse_audio_device(name).ok().filter(|device| {
+            device.device_type == super::devices::configuration::DeviceType::Output &&
+            cpal::default_host().output_devices().map(|mut devices| {
+                devices.any(|candidate| candidate.name().map(|name| name == device.name).unwrap_or(false))
+            }).unwrap_or(false)
+        }).map(Arc::new);
+    }
     if let Some(name) = requested_name {
         match parse_audio_device(name) {
             Ok(device) => {
@@ -384,6 +396,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     );
 
     let engine_lifecycle_guard = super::common::acquire_engine_lifecycle_lock().await;
+
 
     // Check if already recording
     let current_recording_state = IS_RECORDING.load(Ordering::SeqCst);
@@ -579,6 +592,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     let exact_microphone = mic_device_name
         .as_deref()
         .is_some_and(|name| name.starts_with(EXACT_MIC_DEVICE_PREFIX));
+    let exact_system = system_device_name.as_deref().is_some_and(|name| name.starts_with(EXACT_SYSTEM_DEVICE_PREFIX));
+    let exact_source = exact_microphone || exact_system;
 
     // Check if already recording
     let current_recording_state = IS_RECORDING.load(Ordering::SeqCst);
@@ -635,6 +650,13 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     #[cfg(target_os = "macos")]
     let mic_device = resolve_mic_or_default(&app, mic_device_name.as_deref());
 
+    if (exact_microphone && mic_device.is_none()) || (exact_system && system_device.is_none()) {
+        return Err("선택한 소리 장치가 연결되어 있지 않습니다. 장치를 확인하고 다시 선택하세요.".into());
+    }
+    if mic_device.is_none() && system_device.is_none() {
+        return Err("녹음할 소리 장치가 없습니다.".into());
+    }
+
     // Async-first approach for custom devices - no more blocking operations!
     info!("🚀 Starting async recording initialization with custom devices");
 
@@ -690,7 +712,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     }
 
     // Exact-input sessions must stop or error if their chosen input disappears.
-    if !exact_microphone {
+    if !exact_source {
         if let Some(receiver) = device_event_receiver {
             spawn_device_event_processor(app.clone(), receiver, session);
         }

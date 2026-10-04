@@ -157,7 +157,8 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     await h.run(()=>h.session.setConsent(true)); await h.run(()=>h.session.setVideoUrl('https://youtu.be/abc12345678'));
     await h.run(()=>h.session.startVideo());
     assert.equal(h.session.mode,'recording'); assert.equal(h.count('ko_open_video'),0);
-    assert.equal(h.calls.find(call=>call.command==='ko_start_recording').args.micName,'Stereo Mix');
+    assert.equal(h.calls.find(call=>call.command==='ko_start_recording').args.micName,null);
+    assert.equal(h.calls.find(call=>call.command==='ko_start_recording').args.systemName,'Speaker');
     assert.equal(h.session.videoEmbedUrl,'https://www.youtube-nocookie.com/embed/abc12345678');
     await h.run(()=>h.session.navigate('youtube'));
     assert.equal(h.renderer.root.findByType('iframe').props.src,'https://www.youtube-nocookie.com/embed/abc12345678');
@@ -199,8 +200,9 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
   await test('Recovery import locks the session while archiving and preserves original on archive failure',()=>using({snapshot:{version:1,title:'existing',rows:[{text:'보존할 원문'}],minutes:'기존 회의록',startedAt:null}},async h=>{
     const gate=deferred();h.overrides.set('ko_export',()=>gate.promise);let applying;await h.run(()=>{applying=h.session.applyQueueRecovery([{text:'복구 구간'}],true);});assert.equal(h.session.mode,'recovering');await h.start();assert.equal(h.count('ko_start_recording'),0);await h.run(()=>gate.resolve('saved.json'));await h.run(()=>applying);assert.equal(h.session.rows[0].text,'복구 구간');assert.equal(h.session.minutes,'');assert.equal(h.session.mode,'idle');
   }));
-  await test('Native input enumeration retains Stereo Mix, excludes output and never fabricates devices',()=>using({},async h=>{
-    assert.deepEqual(copy(h.session.devices),inputDevices.filter(device=>device.device_type==='Input'));
+  await test('Native enumeration retains real inputs and outputs without fabricating devices',()=>using({},async h=>{
+    assert.deepEqual(copy(h.session.devices),inputDevices);
+    assert.equal(h.session.systemDevice,'Output:Speaker');
     assert.equal(h.session.microphone,'Microphone');
     await h.run(()=>h.session.setMicrophone('Stereo Mix')); await h.run(h.session.refreshDevices);
     assert.equal(h.session.microphone,'Stereo Mix');

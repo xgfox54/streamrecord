@@ -16,7 +16,7 @@ const transcriptEnvelopeSchema=z.object({
 }).passthrough();
 export type TranscriptRow=z.infer<typeof transcriptRowSchema>;
 export interface AudioInput { readonly name: string; readonly device_type: 'Input' | 'Output' }
-const isStereoMix = (device: AudioInput): boolean => device.device_type === 'Input' && /stereo\s*mix|스테레오\s*믹스/i.test(device.name);
+export const isStereoMix = (device: AudioInput): boolean => device.device_type === 'Input' && /stereo\s*mix|스테레오\s*믹스/i.test(device.name);
 export function stereoMixName(devices: readonly AudioInput[]): string {
   return devices.find(isStereoMix)?.name || '';
 }

@@ -8,6 +8,7 @@ pub mod recovery_commands;
 mod builtin;
 mod model_catalog;
 mod record_history;
+mod recording_source;
 
 use serde_json::{json, Value};
 use crate::review_paths::fs::OpenOptions;
@@ -121,7 +122,8 @@ fn valid_model(model: &str) -> bool {
 #[tauri::command]
 pub async fn ko_start_recording<R: Runtime>(
     app: AppHandle<R>,
-    mic_name: String,
+    mic_name: Option<String>,
+    system_name: Option<String>,
     title: String,
     glossary: Option<String>,
 ) -> Result<(), String> {
@@ -130,9 +132,6 @@ pub async fn ko_start_recording<R: Runtime>(
         .map_err(|_| "녹음 상태를 변경하고 있습니다. 잠시 기다려 주세요.")?;
     if EXITING.load(Ordering::SeqCst) {
         return Err("앱을 종료하고 있습니다.".into());
-    }
-    if mic_name.trim().is_empty() {
-        return Err("입력 장치를 선택하세요.".into());
     }
     if crate::audio::recording_commands::is_recording().await {
         return Err("이미 녹음 중입니다.".into());
@@ -151,16 +150,7 @@ pub async fn ko_start_recording<R: Runtime>(
         return Err("영어 전용 .en 모델은 한국어 전사에 사용할 수 없습니다.".into());
     }
     let devices = crate::get_audio_devices().await?;
-    let found = devices.iter().any(|d| {
-        d.name == mic_name
-            && serde_json::to_value(d)
-                .ok()
-                .and_then(|v| v.get("device_type").cloned())
-                == Some(json!("Input"))
-    });
-    if !found {
-        return Err("선택한 입력 장치가 없습니다. 다른 마이크로 자동 전환하지 않습니다.".into());
-    }
+    let (mic, system) = recording_source::capture_devices(&devices, mic_name.as_deref(), system_name.as_deref())?;
     crate::set_language_preference("ko".to_string()).await?;
     let clean_title: String = title
         .chars()
@@ -185,11 +175,8 @@ pub async fn ko_start_recording<R: Runtime>(
     crate::whisper_engine::stt_context::begin(&glossary)?;
     let result = crate::start_recording(
         app,
-        Some(format!(
-            "{}{mic_name} (input)",
-            crate::audio::recording_commands::EXACT_MIC_DEVICE_PREFIX
-        )),
-        Some(crate::audio::recording_commands::DISABLED_SYSTEM_AUDIO_DEVICE.to_owned()),
+        Some(mic),
+        Some(system),
         Some(name),
     )
     .await;
@@ -249,6 +236,12 @@ fn ensure_exit_ready(recording: bool, importing: bool, generating: bool) -> Resu
         return Err("진행 중인 요약 요청이 끝난 뒤 종료해 주세요.".into());
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn ko_default_playback_device() -> Option<String> {
+    use cpal::traits::{DeviceTrait, HostTrait};
+    cpal::default_host().default_output_device().and_then(|device| device.name().ok())
 }
 
 #[tauri::command]
