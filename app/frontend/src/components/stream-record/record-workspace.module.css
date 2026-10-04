@@ -65,6 +65,8 @@
 .summaryNext .organizeMinutes:hover:not(:disabled) { background:var(--jeju-orange-deep); }
 .summaryNext .organizeMinutes:active:not(:disabled) { background:var(--jeju-orange-deep); }
 .minutesTarget { scroll-margin-top:var(--sr-space-2); }
+.appHeader .updateButton { background:var(--sr-action-primary-bg); border-color:var(--sr-action-primary-bg); color:var(--sr-action-primary-fg); font-size:var(--sr-type-helper); }
+.appHeader .updateButton:hover:not(:disabled) { background:var(--sr-primary-hover); }
 .backLink { margin-bottom:var(--sr-space-3); }
 .shell[data-focus=true] .appBody { grid-template-columns:minmax(0,1fr); }
 .shell[data-focus=true] .sidebar { display:none; }

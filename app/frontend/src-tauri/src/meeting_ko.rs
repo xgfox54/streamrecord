@@ -5,6 +5,7 @@ pub mod chatgpt;
 pub mod diarization;
 pub mod diarization_commands;
 pub mod recovery_commands;
+pub mod app_update;
 mod builtin;
 mod model_catalog;
 mod record_history;

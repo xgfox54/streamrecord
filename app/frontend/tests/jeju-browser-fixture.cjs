@@ -32,7 +32,7 @@ module.exports=function nativeFixture(scenario={}){
       if(command==='ko_export')return 'QA/exports/'+args.kind+'.txt';
       if(command==='ko_validate_video')return 'https://www.youtube.com/watch?v=LjwQhxDYsP8';
       if(command==='ko_get_proxy_endpoint')return {base:'http://127.0.0.1:10100/v1',hasApiKey:false};
-      if(command==='ko_app_info')return {name:'Stream-Record',version:'0.6.12',platform:'windows',arch:'x64'};
+      if(command==='ko_app_info')return {name:'Stream-Record',version:'0.6.13',platform:'windows',arch:'x64'};
       if(command==='whisper_get_models_directory')return 'QA/models';
       if(command==='whisper_get_current_model')return 'small-q5_1';
       if(command==='whisper_is_model_loaded')return true;

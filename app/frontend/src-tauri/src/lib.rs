@@ -631,6 +631,8 @@ pub fn run() {
             meeting_ko::ko_start_recording,
             meeting_ko::ko_stop_recording,
             meeting_ko::ko_exit_app,
+            meeting_ko::app_update::ko_update_check,
+            meeting_ko::app_update::ko_update_install,
             meeting_ko::ko_app_info,
             meeting_ko::ko_default_playback_device,
             meeting_ko::ko_stereo_mix_status,

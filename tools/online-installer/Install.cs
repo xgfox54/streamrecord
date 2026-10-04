@@ -1,10 +1,21 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StreamRecordSetup {
     internal static class Install {
+        /// <summary>Used by the in-app update: the app starts this installer, saves, then exits.</summary>
+        public static async Task WaitForAppExit(TimeSpan timeout, CancellationToken token) {
+            var deadline=DateTime.UtcNow+timeout;
+            while(DateTime.UtcNow<deadline) {
+                var running=false;
+                foreach(var process in Process.GetProcessesByName("stream-record")) using(process) running|=!process.HasExited;
+                if(!running) return;
+                await Task.Delay(500,token);
+            }
+        }
         public static void RequireAppClosed() {
             foreach(var process in Process.GetProcessesByName("stream-record")) {
                 using(process) if(!process.HasExited)

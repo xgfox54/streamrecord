@@ -1,6 +1,6 @@
 [package]
 name = "meetily"
-version = "0.6.12"
+version = "0.6.13"
 description = "A Tauri App for meeting minutes"
 authors = ["Sujith S"]
 license = "MIT"
@@ -68,6 +68,7 @@ sha2 = "0.10"
 
 
 [dependencies]
+minisign-verify = "0.2"
 fs2 = "0.4"
 base64 = "0.22"
 jsonwebtoken = { version = "=10.3.0", features = ["aws_lc_rs"] }

@@ -17,11 +17,12 @@ namespace StreamRecordSetup {
         private readonly string cache;
         private readonly bool verifyOnly;
         private readonly bool installerUi;
+        private readonly bool afterAppExit;
         private CancellationTokenSource cancellation;
         private bool busy;
         private bool installing;
-        public SetupWindow(bool verifyOnly,bool installerUi) {
-            this.verifyOnly=verifyOnly; this.installerUi=installerUi;
+        public SetupWindow(bool verifyOnly,bool installerUi,bool afterAppExit) {
+            this.verifyOnly=verifyOnly; this.installerUi=installerUi; this.afterAppExit=afterAppExit;
             cache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StreamRecordInstaller",release.version,Guid.NewGuid().ToString("N"));
             Text="Stream-Record 온라인 설치 · Windows 10 / 11 · CPU"; ClientSize=new Size(558,295);
             Font=new Font("맑은 고딕",10); FormBorderStyle=FormBorderStyle.FixedDialog;
@@ -45,9 +46,10 @@ namespace StreamRecordSetup {
             FormClosing+=(sender,args)=>{ if(busy) { args.Cancel=true; if(!installing) cancellation.Cancel(); } };
         }
         private async Task Start() {
-            busy=true; installing=false; retry.Enabled=false; cancel.Enabled=true;
+            busy=true; installing=false; retry.Enabled=false; cancel.Enabled=true; var installed=false;
             cancellation=new CancellationTokenSource();
             try {
+                if(afterAppExit) { status.Text="Stream-Record가 저장하고 종료하기를 기다리는 중입니다."; await Install.WaitForAppExit(TimeSpan.FromMinutes(2),cancellation.Token); }
                 if(!verifyOnly && !installerUi) Install.RequireAppClosed();
                 var progress=new Progress<DownloadProgress>(p=>{
                     if(!busy || installing) return;
@@ -61,13 +63,14 @@ namespace StreamRecordSetup {
                 else {
                     installing=true; cancel.Enabled=false; status.Text="설치 중입니다. 완료되면 Stream-Record가 실행됩니다.";
                     await Install.Run(file,release,installerUi);
-                    status.Text="설치 완료 · Stream-Record 실행 요청을 보냈습니다.";
+                    status.Text="설치 완료 · Stream-Record 실행 요청을 보냈습니다."; installed=true;
                 }
                 bar.Value=100; cancel.Text="닫기";
             }
             catch(OperationCanceledException) { status.Text=cancellation.IsCancellationRequested?"다운로드를 취소했습니다. 다시 시도하면 검증된 조각을 재사용합니다.":"서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.";retry.Enabled=true; }
             catch(Exception error) { var detail=error;while(detail.InnerException!=null) detail=detail.InnerException;status.Text="설치 진행 실패\n"+detail.Message;retry.Enabled=true; }
             finally { busy=false; installing=false; cancel.Enabled=true; cancellation.Dispose(); }
+            if(installed && afterAppExit) { await Task.Delay(3000); Close(); }
         }
     }
     internal static class Program {
@@ -81,7 +84,7 @@ namespace StreamRecordSetup {
                 } catch(Exception error) { Console.Error.WriteLine(error.Message);return 1; }
             }
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new SetupWindow(args.Contains("--verify-only"),args.Contains("--installer-ui")));return 0;
+            Application.Run(new SetupWindow(args.Contains("--verify-only"),args.Contains("--installer-ui"),args.Contains("--after-app-exit")));return 0;
         }
     }
 }
