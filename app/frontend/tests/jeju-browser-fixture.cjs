@@ -21,6 +21,8 @@ module.exports=function nativeFixture(scenario={}){
       if(command==='ko_default_playback_device')return '테스트 스피커';
       if(command==='get_audio_devices')return [{name:'테스트 마이크',device_type:'Input'},{name:'테스트 스피커',device_type:'Output'}];
       if(command==='ko_models')return scenario.models||[];
+      if(command==='builtin_ai_list_models')return window.__qa.builtinModels||scenario.builtinModels||[];
+      if(['builtin_ai_download_model','builtin_ai_cancel_download','builtin_ai_delete_model'].includes(command)){if(window.__qa.builtin)return window.__qa.builtin(command,args);return;}
       if(command==='ko_generate'){if(window.__qa.failCorrections)throw new Error('테스트 연결 오류');if(args.stage==='correction')return JSON.stringify({corrections:JSON.parse(args.text).segments.map(part=>({id:part.id,text:part.text.replaceAll('회의을','회의를').replaceAll('검토 하겠습니다','검토하겠습니다')}))});return '요약 테스트';}
       if(command==='is_recording')return active;
       if(command==='is_import_in_progress_command')return false;
@@ -32,7 +34,7 @@ module.exports=function nativeFixture(scenario={}){
       if(command==='ko_export')return 'QA/exports/'+args.kind+'.txt';
       if(command==='ko_validate_video')return 'https://www.youtube.com/watch?v=LjwQhxDYsP8';
       if(command==='ko_get_proxy_endpoint')return {base:'http://127.0.0.1:10100/v1',hasApiKey:false};
-      if(command==='ko_app_info')return {name:'Stream-Record',version:'0.6.13',platform:'windows',arch:'x64'};
+      if(command==='ko_app_info')return {name:'Stream-Record',version:'0.6.15',platform:'windows',arch:'x64'};
       if(command==='whisper_get_models_directory')return 'QA/models';
       if(command==='whisper_get_current_model')return 'small-q5_1';
       if(command==='whisper_is_model_loaded')return true;

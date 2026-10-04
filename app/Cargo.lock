@@ -3365,7 +3365,7 @@ dependencies = [
 
 [[package]]
 name = "meetily"
-version = "0.6.13"
+version = "0.6.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3422,12 +3422,9 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
- "tauri-plugin-fs",
  "tauri-plugin-notification",
- "tauri-plugin-process",
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
- "tauri-plugin-updater",
  "tempfile",
  "thiserror 2.0.18",
  "time",
@@ -3940,18 +3937,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "objc2-osa-kit"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f112d1746737b0da274ef79a23aac283376f335f4095a083a267a082f21db0c0"
-dependencies = [
- "bitflags 2.11.1",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
-]
-
-[[package]]
 name = "objc2-quartz-core"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4132,20 +4117,6 @@ dependencies = [
  "sha2",
  "tar",
  "ureq",
-]
-
-[[package]]
-name = "osakit"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "732c71caeaa72c065bb69d7ea08717bd3f4863a4f451402fc9513e29dbd5261b"
-dependencies = [
- "objc2",
- "objc2-foundation",
- "objc2-osa-kit",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -6453,16 +6424,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-process"
-version = "2.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d55511a7bf6cd70c8767b02c97bf8134fa434daf3926cfc1be0a0f94132d165a"
-dependencies = [
- "tauri",
- "tauri-plugin",
-]
-
-[[package]]
 name = "tauri-plugin-single-instance"
 version = "2.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6491,39 +6452,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "tauri-plugin-updater"
-version = "2.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "806d9dac662c2e4594ff03c647a552f2c9bd544e7d0f683ec58f872f952ce4af"
-dependencies = [
- "base64 0.22.1",
- "dirs 6.0.0",
- "flate2",
- "futures-util",
- "http",
- "infer 0.19.0",
- "log",
- "minisign-verify",
- "osakit",
- "percent-encoding",
- "reqwest",
- "rustls",
- "semver",
- "serde",
- "serde_json",
- "tar",
- "tauri",
- "tauri-plugin",
- "tempfile",
- "thiserror 2.0.18",
- "time",
- "tokio",
- "url",
- "windows-sys 0.60.2",
- "zip 4.6.1",
 ]
 
 [[package]]

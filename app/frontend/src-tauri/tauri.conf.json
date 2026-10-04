@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "stream-record",
-  "version": "0.6.13",
+  "version": "0.6.15",
   "identifier": "local.meetily.korean.workspace",
   "build": {
     "frontendDist": "../out",
@@ -30,7 +30,7 @@
         "img-src": "'self' asset: https://asset.localhost data:",
         "media-src": "'self' asset: http://asset.localhost https://asset.localhost",
         "frame-src": "'self' https://www.youtube.com https://www.youtube-nocookie.com",
-        "connect-src": "'self' http://localhost:11434 http://localhost:5167 http://localhost:8178 https://api.ollama.ai"
+        "connect-src": "'self' ipc: http://ipc.localhost"
       },
       "assetProtocol": {
         "enable": true,
@@ -41,20 +41,11 @@
       "capabilities": [
         {
           "identifier": "main",
-          "description": "Main window capability with file system and media access",
+          "description": "Main window: core window, event and path access only",
           "windows": [
             "main"
           ],
           "permissions": [
-            "fs:default",
-            "fs:allow-read-file",
-            "fs:read-all",
-            "fs:write-all",
-            "fs:allow-app-read",
-            "fs:allow-app-write",
-            "fs:allow-download-write",
-            "fs:allow-download-read",
-            "fs:scope-download",
             "core:path:default",
             "core:event:default",
             "core:window:default",
@@ -63,20 +54,7 @@
             "core:menu:default",
             "core:tray:default",
             "core:window:allow-set-title",
-            "core:window:allow-hide",
-            "store:default",
-            "notification:default",
-            "notification:allow-is-permission-granted",
-            "updater:default",
-            "process:default",
-            {
-              "identifier": "fs:scope",
-              "allow": [
-                {
-                  "path": "$APPDATA/*"
-                }
-              ]
-            }
+            "core:window:allow-hide"
           ]
         }
       ]
@@ -118,11 +96,6 @@
       "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
     }
   },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVDQTYzMUQ3ODc5N0M4MkEKUldRcXlKZUgxekdtN09DRkVWSHNpZlJseEVOUmpNd1dDSTNaLzZ3MXJGTnY3WW1pdnlOYjBpbkIK",
-      "endpoints": []
-    }
-  },
+  "plugins": {},
   "mainBinaryName": "stream-record"
 }

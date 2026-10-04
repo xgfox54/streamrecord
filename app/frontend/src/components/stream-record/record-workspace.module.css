@@ -30,8 +30,10 @@
 .dateGroup { color:var(--sr-text-subtle); font-size:var(--sr-type-caption); margin:var(--sr-space-3) var(--sr-space-2) var(--sr-space-2) !important; }
 .listHint { font-size:var(--sr-type-caption); color:var(--sr-text-subtle); padding:var(--sr-space-2); }
 .historyError { color:var(--sr-danger); font-size:var(--sr-type-helper); }
-.utilityNav { flex-shrink:0; display:flex; flex-direction:column; padding-top:var(--sr-space-3); border-top:var(--sr-border-width) solid var(--sr-border-subtle); }
-.utilityNav a { display:flex; gap:var(--sr-space-3); align-items:center; min-height:var(--sr-control-min); padding:var(--sr-space-2) var(--sr-space-3); text-decoration:none; color:var(--sr-text); }
+/* AI 연결 and 설정 live in the fixed app header so they stay visible whatever the user scrolls. */
+.utilityNav { flex-shrink:0; display:flex; align-items:center; gap:var(--sr-space-1); }
+.utilityNav a { display:flex; gap:var(--sr-space-2); align-items:center; min-height:var(--sr-control-min); padding:var(--sr-space-2) var(--sr-space-3); border-radius:var(--sr-radius-control); text-decoration:none; color:var(--sr-text); font-size:var(--sr-type-helper); font-weight:600; white-space:nowrap; }
+.utilityNav a:hover { background:var(--sr-surface-selected); }
 .utilityNav a[aria-current=page] { background:var(--sr-surface-selected); color:var(--sr-primary-hover); }
 .recordWorkspace { display:flex; flex-direction:column; gap:var(--sr-space-3); min-width:0; }
 .recordHeading { display:flex; justify-content:space-between; align-items:center; gap:var(--sr-space-4); }

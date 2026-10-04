@@ -101,7 +101,8 @@ test('Source selection excludes private data and preserves branding inputs',()=>
   assert.equal(sourceAllowed('assets/branding/streamrecord-icon-source.png'),true);
 });
 test('Published application source contains no embedded remote analytics credential',()=>{
-  const files=['app/frontend/src-tauri/src/analytics/commands.rs','app/frontend/src-tauri/src/lib.rs'];
+  assert.equal(fs.existsSync(path.join(root,'app/frontend/src-tauri/src/analytics')),false);
+  const files=['app/frontend/src-tauri/src/lib.rs'];
   for(const relative of files)assert.doesNotMatch(fs.readFileSync(path.join(root,relative),'utf8'),/phc_[A-Za-z0-9]{20,}/,relative);
 });
 test('Git NUL output parses distinct tracked source paths',()=>{
