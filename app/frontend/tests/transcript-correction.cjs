@@ -62,9 +62,10 @@ module.exports=async function correctionTests({test,using,deferred}){
   for(const corrections of [[{id:'S000001',text:parts[0].text}],[{id:'S000001',text:parts[0].text},{id:'S000001',text:parts[0].text}],[{id:'S999999',text:parts[0].text},{id:'S000002',text:parts[1].text}],[{id:'S000001',text:''},{id:'S000002',text:parts[1].text}],[{id:'S000001',text:'회의.'},{id:'S000002',text:parts[1].text}]])assert.throws(()=>parseCorrections(JSON.stringify({corrections}),parts));
  }));
  await test('Complete conversation includes earlier segments beyond the old 80 row limit',()=>using({snapshot:snapshot(Array.from({length:205},(_,i)=>row(`회의 발언 ${i+1}`,i+1)))},async h=>{
-  await h.run(()=>h.session.navigate('dictation'));assert.equal(h.renderer.root.findAllByType('article').length,200);
-  const previous=h.renderer.root.findAllByType('button').find(node=>node.children.join('')==='앞선 대화');await h.run(()=>previous.props.onClick());
+  await h.run(()=>h.session.navigate('dictation'));assert.equal(h.renderer.root.findAllByType('article').length,205);
+  assert.equal(h.renderer.root.findAllByType('button').some(node=>['앞선 대화','다음 대화'].includes(node.children.join(''))),false);
   assert.ok(h.renderer.root.findAllByType('p').some(node=>node.children.join('')==='회의 발언 1'));
+  assert.ok(h.renderer.root.findAllByType('p').some(node=>node.children.join('')==='회의 발언 205'));
  }));
  await test('Restored corrections survive restart without sending a new AI request',()=>using({snapshot:snapshot([{...row('회의을 시작합니다.'),ai_correction:{version:1,source_text:'회의을 시작합니다.',model_key:'local:local-summary',glossary:'',text:'회의를 시작합니다.'}}])},async h=>{
   assert.equal(h.session.correction.completed,1);assert.equal(h.count('ko_generate'),0);await h.run(()=>h.session.correction.setEnabled(true));assert.equal(h.count('ko_generate'),0);

@@ -19,11 +19,12 @@ function sentences(text:string):SummarySentence[]{
  return result;
 }
 export function summaryBlocks(text:string,fallbackTime:string|null=null):readonly SummaryBlock[]{
- const stamps=[...text.matchAll(/\[((?:\d{1,2}:)?\d{1,2}:\d{2}(?:\s*[~–—-]\s*(?:\d{1,2}:)?\d{1,2}:\d{2})?)\]/g)];
+ // Cumulative summaries can use an open range, e.g. [00:02:24~], even without input line breaks.
+ const stamps=[...text.matchAll(/\[\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:\s*[~–—-]\s*(?:(?:\d{1,2}:)?\d{1,2}:\d{2})?)?)\s*\]/g)];
  if(!stamps.length)return [{time:fallbackTime,sentences:sentences(text)}];
  const blocks:SummaryBlock[]=[];
  const first=stamps[0];
  if(first&&first.index>0){const preface=text.slice(0,first.index).trim();if(preface)blocks.push({time:null,sentences:sentences(preface)});}
- stamps.forEach((stamp,index)=>{const start=stamp.index+stamp[0].length;const end=stamps[index+1]?.index??text.length;blocks.push({time:stamp[1]??null,sentences:sentences(text.slice(start,end))});});
+ stamps.forEach((stamp,index)=>{const start=stamp.index+stamp[0].length;const end=stamps[index+1]?.index??text.length;blocks.push({time:stamp[1]?.trim()??null,sentences:sentences(text.slice(start,end))});});
  return blocks;
 }

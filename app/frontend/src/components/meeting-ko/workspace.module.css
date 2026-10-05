@@ -5,6 +5,7 @@
   --sr-surface: var(--jeju-surface);
   --sr-surface-subtle: var(--jeju-bg);
   --sr-surface-selected: var(--jeju-primary-tint);
+  --sr-original-background: #fff9db;
   --sr-text: var(--jeju-text);
   --sr-text-subtle: var(--jeju-text-muted);
   --sr-border-control: var(--jeju-text-subtle);
@@ -53,6 +54,8 @@
   --sr-type-reader: 1.1875rem;
   --sr-line-reader: 1.85;
   --sr-reader-height: 60vh;
+  --sr-conversation-height: 70vh;
+  --sr-conversation-min: 24rem;
   --sr-reader-min: 30rem;
 
   --sr-line-choice: 1.35;
@@ -653,6 +656,7 @@
     --sr-surface: Canvas;
     --sr-surface-subtle: Canvas;
     --sr-surface-selected: Canvas;
+    --sr-original-background: Canvas;
     --sr-text: CanvasText;
     --sr-text-subtle: CanvasText;
     --sr-border-control: ButtonText;

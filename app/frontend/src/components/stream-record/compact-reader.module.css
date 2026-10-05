@@ -1,6 +1,6 @@
 .conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: var(--jeju-space-4); }
-.conversation .reader { flex: none; height: var(--sr-reader-height); min-height: var(--sr-reader-compact-min); }
-.conversation .reader > div { min-height: var(--sr-reader-compact-min); }
+.conversation .reader { flex: none; height: var(--sr-conversation-height); min-height: var(--sr-conversation-min); }
+.conversation .reader > div { min-height: var(--sr-conversation-min); }
 .status { color: var(--sr-text-subtle); font-size: var(--sr-type-helper); overflow-wrap: anywhere; }
 .processing { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--jeju-space-4); border-bottom: var(--sr-border-width) solid var(--sr-border-subtle); margin-top: var(--jeju-space-2); }
 .options { min-width: 0; }
@@ -13,12 +13,11 @@
 .summary .empty { min-height: 0; padding: var(--jeju-space-5) 0; text-align: left; align-items: flex-start; }
 .summary .summaryText > .empty { min-height: 0; }
 .summary details { margin: 0; }
-@media(max-width:600px) { .conversation { height: auto; } .conversation .reader { flex: none; height: var(--sr-reader-height); } }
+@media(max-width:600px) { .conversation { height: auto; } .conversation .reader { flex: none; height: var(--sr-conversation-height); } }
 @media print { .processing { display: none; } .conversation .reader { height: auto; overflow: visible; } }
 
 .conversation[data-video=true] { padding:var(--sr-space-2) var(--sr-space-3); gap:var(--sr-space-1); }
-.conversation[data-video=true] .reader { height:30vh; min-height:12rem; padding-inline:var(--sr-space-2); }
-.conversation[data-video=true] .reader > div { min-height:12rem; }
+.conversation[data-video=true] .reader { padding-inline:var(--sr-space-2); }
 .conversation[data-video=true] article { padding-block:var(--sr-space-2); }
 .conversation[data-compact-text=true] article > p { font-size:var(--sr-type-helper); line-height:1.5; margin-top:var(--sr-space-1); }
 .conversation[data-compact-text=true] article > div:first-child { font-size:var(--sr-type-caption); gap:var(--sr-space-2); }

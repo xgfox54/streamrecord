@@ -53,6 +53,43 @@ test('When raw or comparison is selected, preserved original and AI result remai
  const h=fixture();try{h.update({rows:[{sequence_id:1,text:'최초 원문',ai_correction:{version:1,source_text:'최초 원문',text:'AI 보정 문장',model_key:'fixture',glossary:''}}]});assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('최초 원문'));h.run(()=>button(h,'AI 보정본').props.onClick());assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('AI 보정 문장'));h.run(()=>h.renderer.root.findAllByType('label').find(node=>text(node).includes('원문 함께 보기')).findByType('input').props.onChange({target:{checked:true}}));assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('최초 원문'));h.run(()=>button(h,'실시간 원문').props.onClick());assert.ok(!text(h.renderer.root.findByProps({role:'log'})).includes('AI 보정 문장'));assert.equal(h.session.rows[0].text,'최초 원문');}finally{h.close();}
 });
 const checkbox=(h,label)=>h.renderer.root.findAllByType('label').find(node=>text(node)===label)?.findByType('input');
+for(const video of [false,true])test(`${video?'Video':'Microphone and PC sound'} shows all 1001 sentences in one reader and keeps original indices through search and reveal`,()=>{
+ const h=fixture(video);try{
+  const rows=Array.from({length:1001},(_,index)=>({sequence_id:index+1,text:`발언 ${index+1} 확인`,is_partial:false}));
+  h.update({rows,correction:{...h.session.correction,blocked:1,blockedRows:[999]}});h.update({follow:false});
+  assert.equal(h.renderer.root.findAllByProps({role:'log'}).length,1);assert.equal(h.renderer.root.findAllByType('article').length,1001);
+  assert.ok(text(h.renderer.root.findByProps({id:'dictation-row-0'})).includes('발언 1 확인'));assert.ok(text(h.renderer.root.findByProps({id:'dictation-row-1000'})).includes('발언 1001 확인'));
+  assert.equal(button(h,'앞선 대화'),undefined);assert.equal(button(h,'다음 대화'),undefined);
+  h.run(()=>h.renderer.root.findByProps({type:'search'}).props.onChange({target:{value:'발언 501 확인'}}));
+  assert.equal(h.renderer.root.findAllByType('article').length,1);assert.equal(h.renderer.root.findAllByType('article')[0].props.id,'dictation-row-500');
+  h.run(()=>button(h,'편집').props.onClick());assert.equal(h.renderer.root.findByType('textarea').props.value,'발언 501 확인');h.run(()=>button(h,'취소').props.onClick());
+  const link=h.renderer.root.findAllByType('a').find(node=>node.props.href==='#dictation-row-999');h.run(()=>link.props.onClick({preventDefault:()=>{}}));
+  assert.equal(h.renderer.root.findAllByType('article').length,1001);assert.equal(h.renderer.root.findByProps({id:'dictation-row-999'}).props['data-target'],true);assert.equal(h.scrolled.at(-1),'dictation-row-999');
+  h.scroll.scrollTop=80;h.update({rows:[...rows,{sequence_id:1002,text:'새 발언 확인',is_partial:false}]});assert.equal(h.scroll.scrollTop,80);assert.equal(h.renderer.root.findAllByType('article').length,1002);assert.ok(button(h,'새 문장 1개'));
+  h.run(()=>button(h,'새 문장 1개').props.onClick());assert.equal(h.session.follow,true);assert.equal(h.scroll.scrollTop,1000);
+ }finally{h.close();}
+});
+test('Original comparison shows the saved model name without internal IDs and keeps legitimate model tags',()=>{
+ const connection='dfc10000-0000-4000-8000-000000000001',revision='b73a6e4a-4a07-42d7-a3a7-a3d69f2f535b';
+ const cases=[
+  [`connection:${connection}:gpt-6-luna@${revision}`,'gpt-6-luna'],
+  ['local:qwen3:8b','qwen3:8b'],
+  ['builtin:gemma3:4b','gemma3:4b'],
+  ['subscription:gpt-6-luna','gpt-6-luna'],
+  ['chatgpt:gpt-6-luna','gpt-6-luna'],
+  [`connection:${connection}:anthropic/claude@2026-01@${revision}`,'anthropic/claude@2026-01'],
+  ['gpt-6-luna','gpt-6-luna'],
+  [`connection:${connection}:`,'모델 정보 없음'],
+ ];
+ for(const [key,name] of cases){
+  const h=fixture();try{
+   h.update({rows:[{sequence_id:1,text:'최초 원문',ai_correction:{version:1,source_text:'최초 원문',text:'AI 보정 문장',model_key:key,glossary:''}}],models:[{id:'other-model',provider:'chatgpt'}],model:'other-model'});
+   h.run(()=>button(h,'AI 보정본').props.onClick());h.run(()=>checkbox(h,'원문 함께 보기').props.onChange({target:{checked:true}}));
+   assert.equal(text(h.renderer.root.findByType('small')),'최초 원문 · 보정 모델: '+name);
+   assert.equal(h.session.rows[0].ai_correction.model_key,key);assert.equal(h.session.rows[0].text,'최초 원문');
+  }finally{h.close();}
+ }
+});
 for(const video of [false,true])test(`${video?'Video':'Microphone and PC sound'} transcript options sit on the view switcher line and default on`,()=>{
  const h=fixture(video);try{
   assert.equal(h.renderer.root.findAllByType('button').some(node=>text(node).includes('받아쓰기 설정')),false);assert.equal(h.renderer.root.findAllByType('details').length,0);
@@ -95,10 +132,22 @@ test('Kept-original correction notice names the sentence and jumps to it in the 
  const h=fixture();try{
   h.update({rows:[{sequence_id:1,text:'첫 문장',is_partial:false},{sequence_id:2,text:'예산 10만원입니다.',is_partial:false,ai_correction_issue:{version:1,source_text:'예산 10만원입니다.',model_key:'fixture',glossary:'',reason:'numbers'}}],correction:{...h.session.correction,blocked:1,blockedRows:[1]}});
   const links=h.renderer.root.findAllByType('a').filter(node=>String(node.props.href).startsWith('#dictation-row-'));
-  assert.deepEqual(links.map(text),['1구간','받아쓰기-2']);assert.ok(links.every(node=>node.props.href==='#dictation-row-1'));
+  assert.deepEqual(links.map(text),['1구간','2']);assert.ok(links.every(node=>node.props.href==='#dictation-row-1'));assert.equal(links[1].props['aria-label'],'받아쓰기-2로 이동');
   const meta=h.renderer.root.findAllByType('article').map(node=>text(node));assert.ok(meta[0].includes('받아쓰기-1'));assert.ok(!meta.some(value=>/S0000/.test(value)));
   h.run(()=>links[0].props.onClick({preventDefault:()=>{}}));
   assert.equal(button(h,'AI 보정본').props['aria-pressed'],true);const target=h.renderer.root.findByProps({id:'dictation-row-1'});assert.equal(target.props['data-target'],true);assert.equal(h.session.follow,false);assert.deepEqual(h.scrolled,['dictation-row-1']);
+ }finally{h.close();}
+});
+test('Many kept-original sentences show short linked numbers and keep exact navigation targets',()=>{
+ const h=fixture();try{
+  const numbered=[11,18,22,39,49,71,72,87,116,118,121,125,130,140,150];
+  const blockedRows=numbered.map(number=>number-1);
+  h.update({rows:Array.from({length:150},(_,index)=>({sequence_id:index+1,text:`검토할 문장 ${index+1}`,is_partial:false})),correction:{...h.session.correction,blocked:15,blockedRows}});
+  const links=h.renderer.root.findAllByType('a').filter(node=>String(node.props.href).startsWith('#dictation-row-'));
+  assert.deepEqual(links.map(text),['15구간',...numbered.slice(0,10).map(String)]);
+  assert.deepEqual(links.slice(1).map(node=>node.props.href),blockedRows.slice(0,10).map(index=>`#dictation-row-${index}`));
+  const notice=links[0].parent;assert.equal(notice.findAllByType('br').length,2);assert.ok(text(notice).includes('외 5구간'));
+  h.run(()=>links[4].props.onClick({preventDefault:()=>{}}));assert.equal(button(h,'AI 보정본').props['aria-pressed'],true);assert.equal(h.renderer.root.findByProps({id:'dictation-row-38'}).props['data-target'],true);assert.deepEqual(h.scrolled,['dictation-row-38']);
  }finally{h.close();}
 });
 test('Each sentence has an edit button that saves a user correction and keeps the original visible',()=>{

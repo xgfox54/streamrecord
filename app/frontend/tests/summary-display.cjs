@@ -30,6 +30,18 @@ assert.deepEqual(plain(summaryBlocks('[00:01:02] 담당 부서는 교육청입�
 assert.deepEqual(plain(summaryBlocks('[확인 필요]\n교육청 담당입니다. 다음 회의는 확정됐습니다.')),[{time:null,sentences:[{text:'교육청 담당입니다.',needsReview:true},{text:'다음 회의는 확정됐습니다.',needsReview:false}]}]);
 assert.deepEqual(plain(summaryBlocks('첫 번째 결정입니다. 담당 부서는 교육청입니다. [확인 필요]\n다음 회의는 확정됐습니다.')),[{time:null,sentences:[{text:'첫 번째 결정입니다.',needsReview:false},{text:'담당 부서는 교육청입니다.',needsReview:true},{text:'다음 회의는 확정됐습니다.',needsReview:false}]}]);
 for(const separator of ['~','–','—','-'])assert.deepEqual(plain(summaryBlocks('[00:00:05'+separator+'00:08:00] 시간 범위 요약입니다.')),[{time:'00:00:05'+separator+'00:08:00',sentences:[{text:'시간 범위 요약입니다.',needsReview:false}]}]);
-console.log('PASS 11 summary timeline cases');
+for(const separator of ['~','–','—','-'])assert.deepEqual(plain(summaryBlocks('[00:02:24'+separator+'] 끝 시각 없는 요약입니다.')),[{time:'00:02:24'+separator,sentences:[{text:'끝 시각 없는 요약입니다.',needsReview:false}]}]);
+const example=[
+ ['00:02:24~','위성곤 제주도지사로 소개된 도지사는 도민과 함께 묻고 정하는 도정, 민생·AX·기후에너지·AI행정·인재육성·공공갈등 관리를 제시했다. 타운홀 의견은 부서 검토 후 반영 여부와 결과를 알리겠다고 했으며, 세부 사업·담당자·기한은 미정.'],
+ ['00:08:12~','‘모두의 제주’ 소개 영상에 이어'],
+ ['00:12:02~','바다 변화, 관광객 감소, 물가·생계 부담, 재기 기회 부족, 청년 유출 우려를 도민 목소리로 제시.'],
+ ['00:14:42~','양순철 제주특별자치도 정책계획관이 민선 9기 핵심 가치와 7대 전략을 설명했다. 슬로건은 ‘도민과 함께 미래를 만나는 제주’. 민생(취약계층·소상공인 지원 등), 기본사회(7대 기본서비스), AX(규제 실험·그린AI 데이터센터·인재·창업), 기후에너지(재생에너지·수익 환원), AI행정, 고등교육·인재 정주 지원, 공공갈등 관리 방안을 제시했다.'],
+];
+const singleLine=example.map(([time,body])=>'['+time+'] '+body).join(' ');
+assert.deepEqual(plain(summaryBlocks(singleLine)).map(block=>[block.time,block.sentences.map(sentence=>sentence.text).join(' ')]),example);
+assert.deepEqual(plain(summaryBlocks('[00:02:24~] 담당자는 [확인 필요]. [08:12] 다음 안건입니다. [12:02~14:42] 마무리했습니다.')).map(block=>({time:block.time,review:block.sentences[0].needsReview})),[{time:'00:02:24~',review:true},{time:'08:12',review:false},{time:'12:02~14:42',review:false}]);
+assert.deepEqual(plain(summaryBlocks('소개입니다. [ 00:02:24 ~ ]\n본문입니다. [ 08:12 ] 다음 내용입니다.')).map(block=>block.time),[null,'00:02:24 ~','08:12']);
+assert.deepEqual(plain(summaryBlocks('문서 [붙임~]에 안내했습니다.')), [{time:null,sentences:[{text:'문서 [붙임~]에 안내했습니다.',needsReview:false}]}]);
+console.log('PASS 19 summary timeline cases');
 
-fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results/summary-display.json'),JSON.stringify({passed:11,failed:0,scope:'Summary text formatting only; no inference.',tests:11},null,2));
+fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results/summary-display.json'),JSON.stringify({passed:19,failed:0,scope:'Summary text formatting only; open ranges, supplied single-line example, review markers and existing formats; no inference.',tests:19},null,2));

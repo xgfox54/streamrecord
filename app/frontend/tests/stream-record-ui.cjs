@@ -93,11 +93,12 @@ function harness(options = {}) {
   const {RecordingView} = load(path.join(root,'src/components/stream-record/RecordingView.tsx'));
   const {DictationView} = load(path.join(root,'src/components/stream-record/DictationView.tsx'));
   const {YoutubeView} = load(path.join(root,'src/components/stream-record/YoutubeView.tsx'));
+  const {MinutesView} = load(path.join(root,'src/components/stream-record/MinutesView.tsx'));
   const {AppShell} = load(path.join(root,'src/components/stream-record/AppShell.tsx'));
   function Surface() {
     session = useMeetingSession();
     return React.createElement(AppShell,{session},
-      session.view === 'transcript' ? React.createElement(TranscriptView,{session,evidence:null,onEvidenceShown:()=>{}}) : session.view === 'recording' ? React.createElement(RecordingView,{session}) : session.view === 'dictation' ? React.createElement(DictationView,{session}) : session.view === 'youtube' ? React.createElement(YoutubeView,{session}) : React.createElement('div',{'data-view':session.view}));
+      session.view === 'minutes' ? React.createElement(MinutesView,{session,onEvidence:()=>{}}) : session.view === 'transcript' ? React.createElement(TranscriptView,{session,evidence:null,onEvidenceShown:()=>{}}) : session.view === 'recording' ? React.createElement(RecordingView,{session}) : session.view === 'dictation' ? React.createElement(DictationView,{session}) : session.view === 'youtube' ? React.createElement(YoutubeView,{session}) : React.createElement('div',{'data-view':session.view}));
   }
   return {calls,snapshots,listeners,subscriptions,timers,browserListeners,overrides,emit,load,document,
     get session() {return session;}, get renderer() {return renderer;},
@@ -349,6 +350,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
     assert.ok(raw.args.content.includes('3000만원')); assert.ok(!raw.args.content.includes('300만원'));
   }));
   await require('./record-history.cjs')({test,using,deferred});
+  await require('./minutes-session.cjs')({test,using,deferred});
   await require('./transcript-correction.cjs')({test,using,deferred});
   await require('./live-diarization-session.cjs')({test,using,deferred});
   const passed = results.filter(result=>result.status==='passed').length, failed = results.length-passed;

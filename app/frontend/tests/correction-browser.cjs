@@ -21,7 +21,7 @@ const server=http.createServer((req,res)=>{const name=new URL(req.url,'http://lo
    const file=`conversation-${width}.png`;await page.screenshot({path:path.join(out,file)});captures.push(file);
    const axe=await page.evaluate(async()=>{const r=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}});return r.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}));});assert.deepEqual(axe,[]);checks.push({width,overflow,axe});
   }
-  await page.setViewportSize({width:1440,height:960});await page.getByRole('button',{name:'앞선 대화',exact:true}).click();await page.getByRole('log').getByText('첫 번째 회의를 시작합니다.',{exact:true}).waitFor();
+  await page.setViewportSize({width:1440,height:960});assert.equal(await page.getByRole('log').locator('article').count(),206);await page.getByRole('log').evaluate(node=>node.scrollTop=0);await page.getByRole('log').getByText('첫 번째 회의를 시작합니다.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'실시간 원문',exact:true}).click();await page.getByRole('log').getByText('첫 번째 회의을 시작합니다.',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'raw-original.png')});
   await page.getByRole('button',{name:'AI 보정본',exact:true}).click();await page.getByRole('checkbox',{name:'원문 함께 보기',exact:true}).check();await page.getByRole('log').getByText('첫 번째 회의을 시작합니다.',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'original-comparison.png')});
   await page.getByRole('searchbox',{name:'대화 내용 검색'}).fill('첫 번째');assert.equal(await page.getByRole('log').locator('article').count(),1);
