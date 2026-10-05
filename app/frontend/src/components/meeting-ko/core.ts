@@ -5,8 +5,8 @@ const transcriptRowSchema=z.object({
   id:z.string().optional(),text:z.string(),timestamp:z.string().optional(),
   audio_start_time:z.number().optional(),chunk_start_time:z.number().optional(),
   sequence_id:z.number().optional(),is_partial:z.boolean().optional(),
-  ai_correction:z.object({version:z.literal(1),source_text:z.string(),model_key:z.string(),glossary:z.string(),text:z.string().min(1)}).optional().catch(undefined),
-  ai_correction_issue:z.object({version:z.literal(1),source_text:z.string(),model_key:z.string(),glossary:z.string(),reason:z.enum(['numbers','length'])}).optional().catch(undefined),
+  ai_correction:z.object({version:z.literal(1),source_text:z.string(),model_key:z.string(),glossary:z.string(),text:z.string().min(1),checks_ignored:z.boolean().optional()}).optional().catch(undefined),
+  ai_correction_issue:z.object({version:z.literal(1),source_text:z.string(),model_key:z.string(),glossary:z.string(),reason:z.enum(['numbers','length']),candidate_text:z.string().min(1).optional()}).optional().catch(undefined),
 }).passthrough();
 const transcriptEnvelopeSchema=z.object({
   transcripts:z.array(transcriptRowSchema).optional(),

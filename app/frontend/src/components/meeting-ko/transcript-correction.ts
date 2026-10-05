@@ -50,7 +50,7 @@ export function parseCorrections(raw:string,parts:readonly Part[]):Map<string,st
  for(const part of parts){const reason=rejectedReason(part.text,found.get(part.id)??'');if(reason)throw new CorrectionError(correctionIssueMessages[reason]);}
  return found;
 }
-export async function correctTranscript(input:{readonly batch:readonly CorrectionSource[];readonly rows:readonly TranscriptRow[];readonly glossary:string;readonly modelKey:string;readonly generate:(text:string)=>Promise<string>}){
+export async function correctTranscript(input:{readonly batch:readonly CorrectionSource[];readonly rows:readonly TranscriptRow[];readonly glossary:string;readonly modelKey:string;readonly generate:(text:string)=>Promise<string>;readonly ignoreContentChecks?:boolean}){
  const parts:Part[]=input.batch.flatMap(({index,row})=>splitText(row.text,900).map((text,part)=>({id:`S${String(index+1).padStart(6,'0')}${part?`p${part+1}`:''}`,text,index})));
  const corrected=new Map<string,string>();
  const rejected=new Map<number,IssueReason>();
@@ -60,11 +60,12 @@ export async function correctTranscript(input:{readonly batch:readonly Correctio
   while(start<parts.length&&group.length<4){const part=parts[start];if(group.length&&length+part.text.length>1800)break;group.push(part);length+=part.text.length;start++;}
   const response=await input.generate(JSON.stringify({glossary:input.glossary.slice(0,500),context,segments:group.map(({id,text})=>({id,text}))}));
   const found=readCorrectionParts(response,group);
-  for(const part of group){const text=found.get(part.id)??'';const reason=rejectedReason(part.text,text);if(reason)rejected.set(part.index,reason);else corrected.set(part.id,text);}
+  for(const part of group){const text=found.get(part.id)??'';const reason=input.ignoreContentChecks?null:rejectedReason(part.text,text);if(reason)rejected.set(part.index,reason);corrected.set(part.id,text);}
  }
  return input.batch.map(({index,row})=>{
   const metadata={version:1 as const,source_text:row.text,model_key:input.modelKey,glossary:input.glossary};const reason=rejected.get(index);
-  return reason?{index,source:row,correction:undefined,issue:{...metadata,reason}}:{index,source:row,issue:undefined,correction:{...metadata,text:parts.filter(part=>part.index===index).map(part=>corrected.get(part.id)).join(' ')}};
+  const text=parts.filter(part=>part.index===index).map(part=>corrected.get(part.id)).join(' ');
+  return reason?{index,source:row,correction:undefined,issue:{...metadata,reason,candidate_text:text}}:{index,source:row,issue:undefined,correction:{...metadata,text,...(input.ignoreContentChecks?{checks_ignored:true}:{})}};
  });
 }
 export function correctedTranscriptText(rows:readonly TranscriptRow[]):string{

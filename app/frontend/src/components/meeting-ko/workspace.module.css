@@ -42,6 +42,7 @@
   --sr-type-small: calc(var(--jeju-text-sm) / 16px * 1rem);
   --sr-type-helper: calc(var(--jeju-text-sm) / 16px * 1rem);
   --sr-type-body: calc(var(--jeju-text-base) / 16px * 1rem);
+  --sr-type-correction-note: calc(var(--sr-type-body) - 0.1666667rem);
   --sr-type-h3: calc(var(--jeju-text-md) / 16px * 1rem);
   --sr-type-brand: calc(var(--jeju-text-xl) / 16px * 1rem);
   --sr-type-h2: calc(var(--jeju-text-lg) / 16px * 1rem);

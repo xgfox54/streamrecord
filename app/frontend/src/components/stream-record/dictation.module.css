@@ -50,3 +50,4 @@
 .modelSelect { display: flex; align-items: center; gap: var(--jeju-space-2); min-width: 0; }
 .modelSelect select { max-width: var(--sr-field-min); }
 .optionNotes > p, .optionNotes > div { margin-block: var(--jeju-space-2) !important; }
+.correctionNotice > p { font-size: var(--sr-type-correction-note); }
