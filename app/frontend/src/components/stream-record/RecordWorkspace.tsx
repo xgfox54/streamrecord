@@ -1,7 +1,8 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {PanelRight,Maximize2,FileText,MessageSquareText,ArrowLeft} from 'lucide-react';
+import {PanelRight,Maximize2,ArrowLeft} from 'lucide-react';
 import type {MeetingSession} from './useMeetingSession';
+import {FeatureIcon} from './FeatureIcon';
 import {RecordToolbar,type RecordInput} from './RecordToolbar';
 import {RecordVideo} from './RecordVideo';
 import {DictationConversation} from './DictationConversation';
@@ -31,8 +32,8 @@ export function RecordWorkspace({session:s,evidence,onEvidence,onEvidenceShown,f
   <div className={layout.contentGrid} data-summary={summaryOpen&&!focusMode}>
    <div className={layout.documentColumn}>
     <div hidden={input!=='youtube'}><RecordVideo session={s}/></div>
-    <div className={layout.documentTabs}><nav aria-label="현재 기록 보기"><a href="#dictation" aria-current={!isMinutes?'page':undefined} onClick={()=>s.navigate('dictation')}><MessageSquareText size={18} aria-hidden="true"/>3. 받아쓰기 <span>{s.rows.length}</span></a><a href="#minutes" aria-current={isMinutes?'page':undefined} onClick={()=>s.navigate('minutes')}><FileText size={18} aria-hidden="true"/>회의록</a></nav><button aria-expanded={summaryOpen&&!focusMode} aria-controls="record-summary" onClick={()=>{if(focusMode)onFocusModeChange();setSummaryOpen(value=>focusMode?true:!value);}}><PanelRight size={18} aria-hidden="true"/>{summaryOpen&&!focusMode?'요약 접기':'요약 열기'}</button></div>
-    <div hidden={isMinutes||isReview} className={layout.conversationSurface}><DictationConversation session={s} compact video={input==='youtube'}/></div>
+    <div className={layout.documentTabs}><nav aria-label="현재 기록 보기"><a href="#dictation" aria-current={!isMinutes?'page':undefined} onClick={()=>s.navigate('dictation')}><FeatureIcon kind="dictation" size="tab"/>3. 받아쓰기 <span>{s.rows.length}</span></a><a href="#minutes" aria-current={isMinutes?'page':undefined} onClick={()=>s.navigate('minutes')}><FeatureIcon kind="minutes" size="tab"/>회의록</a></nav><button aria-expanded={summaryOpen&&!focusMode} aria-controls="record-summary" onClick={()=>{if(focusMode)onFocusModeChange();setSummaryOpen(value=>focusMode?true:!value);}}><PanelRight size={18} aria-hidden="true"/>{summaryOpen&&!focusMode?'요약 접기':'요약 열기'}</button></div>
+    <div hidden={isMinutes||isReview} className={layout.conversationSurface}><DictationConversation session={s} compact video={input==='youtube'} compactText={input==='microphone'||input==='pc'}/></div>
     <div ref={minutes} hidden={!isMinutes} className={`${layout.resultSurface} ${layout.minutesTarget}`}><MinutesView session={s} onEvidence={onEvidence}/></div>
     {isReview&&<div className={layout.resultSurface}><button className={layout.backLink} onClick={()=>s.navigate('dictation')}><ArrowLeft size={18} aria-hidden="true"/>받아쓰기로 돌아가기</button><TranscriptView session={s} evidence={evidence} onEvidenceShown={onEvidenceShown}/></div>}
    </div>

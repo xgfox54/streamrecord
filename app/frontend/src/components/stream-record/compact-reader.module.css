@@ -20,8 +20,8 @@
 .conversation[data-video=true] .reader { height:30vh; min-height:12rem; padding-inline:var(--sr-space-2); }
 .conversation[data-video=true] .reader > div { min-height:12rem; }
 .conversation[data-video=true] article { padding-block:var(--sr-space-2); }
-.conversation[data-video=true] article > p { font-size:var(--sr-type-helper); line-height:1.5; margin-top:var(--sr-space-1); }
-.conversation[data-video=true] article > div:first-child { font-size:var(--sr-type-caption); gap:var(--sr-space-2); }
+.conversation[data-compact-text=true] article > p { font-size:var(--sr-type-helper); line-height:1.5; margin-top:var(--sr-space-1); }
+.conversation[data-compact-text=true] article > div:first-child { font-size:var(--sr-type-caption); gap:var(--sr-space-2); }
 .conversation[data-video=true] button { min-height:var(--sr-control-compact); padding:var(--sr-space-1) var(--sr-space-2); font-size:var(--sr-type-helper); }
 .conversation[data-video=true] h2 { font-size:var(--sr-type-body); }
 .conversation[data-video=true] > p { margin:var(--sr-space-1) 0 !important; font-size:var(--sr-type-caption); }

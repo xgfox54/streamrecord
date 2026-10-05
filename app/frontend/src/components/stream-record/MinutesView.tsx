@@ -1,11 +1,12 @@
 'use client';
+import {FeatureIcon} from './FeatureIcon';
 import type {MeetingSession} from './useMeetingSession';
 import styles from '../meeting-ko/workspace.module.css';
 import {ModelOptions,modelDestination} from './connections/modelPresentation';
 import {sourceLabel} from '../meeting-ko/core';
 export function MinutesView({session:s,onEvidence}:{session:MeetingSession;onEvidence:(id:string)=>void}){
  const selected=s.models.find(model=>s.modelKey(model)===s.model);const evidence=Array.from(new Set(s.minutes.match(/\bS\d{6}(?:p\d+)?\b/g)||[]));
- return <section className={styles.panel}><div className={styles.panelHead}><h2>{s.title||'회의록'}</h2><span className={styles.badge}>{s.mode==='summarizing'?'구간 처리 중':s.minutes?'편집 가능한 회의록 초안':'생성 전'}</span></div>
+ return <section className={styles.panel}><div className={styles.panelHead}><h2 className={styles.featureHeading}><FeatureIcon kind="minutes"/><span>{s.title||'회의록'}</span></h2><span className={styles.badge}>{s.mode==='summarizing'?'구간 처리 중':s.minutes?'편집 가능한 회의록 초안':'생성 전'}</span></div>
   <p>받아쓰기 내용을 확인한 뒤 생성하세요. 녹음·변환 중에는 회의록을 생성하지 않습니다.</p><div className={styles.modelRow}><label>요약 모델<select value={s.model} disabled={s.busy} onChange={event=>s.setModel(event.target.value)}><option value="">사용할 모델 선택</option><ModelOptions session={s}/></select></label><button disabled={s.busy} onClick={()=>void s.refreshModels().catch(error=>s.setError(s.messageOf(error)))}>모델 새로고침</button></div>
   <div className={styles.destination}><strong>전송 위치</strong><p>{selected?modelDestination(selected):'모델을 선택하면 실제 연결 경로를 표시합니다.'}</p></div>
   <div className={styles.actions}><button className={styles.primary} disabled={s.busy||!s.rows.length||!selected} onClick={()=>void s.summarize()}>회의록 생성</button>{s.mode==='summarizing'&&<button onClick={()=>{s.cancelSummary.current=true;s.setNotice('현재 구간 응답과 저장이 끝나면 취소합니다. 완료된 구간은 보존됩니다.');}}>현재 구간 처리 후 취소</button>}<a href="#ai" onClick={()=>s.navigate('ai')}>AI 연결 관리</a></div>

@@ -1,6 +1,6 @@
 {
   "name": "stream-record",
-  "version": "0.6.15",
+  "version": "0.6.19",
   "private": true,
   "main": "electron/main.js",
   "scripts": {

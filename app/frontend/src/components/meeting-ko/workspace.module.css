@@ -287,6 +287,7 @@
   margin-bottom: var(--sr-space-4);
 }
 .panelHead h2 { display: flex; align-items: center; gap: var(--sr-space-3); flex-wrap: wrap; }
+.panelHead .featureHeading { flex-wrap: nowrap; }
 .viewStack { display: flex; flex-direction: column; gap: var(--sr-space-6); }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sr-space-3); margin-top: var(--sr-space-4); }
 .hint { font-size: var(--sr-type-helper); color: var(--sr-text-subtle); margin: var(--sr-space-3) 0 !important; }
