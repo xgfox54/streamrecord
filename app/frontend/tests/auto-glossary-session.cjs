@@ -1,5 +1,5 @@
 'use strict';
-// Automatic word-set selection during a real session: one decision per recording, native hint updated once,
+// Automatic word-set selection during a real session: bounded decisions per recording, AI-only reference words,
 // manual words kept first, never applied to records that are only opened.
 const assert=require('node:assert/strict');
 const storage=()=>new Map([['stream-record.option.ai-correction','false'],['stream-record.option.live-summary','false'],['stream-record.option.live-diarization','false']]);
@@ -20,7 +20,7 @@ module.exports=async({test,using,deferred})=>{
   await h.run(()=>h.session.setGlossary('김희찬 서귀포시장'));await h.start();assert.equal(h.session.mode,'recording');
   await speak(h,council.slice(0,2));assert.equal(h.count('ko_update_stt_glossary'),0,'waits for about a minute of speech');
   await speak(h,[...council,...council],3);
-  assert.ok(h.session.glossary.startsWith('김희찬 서귀포시장, '),'manual words stay first');assert.ok(h.session.glossary.includes('행정사무감사'));assert.ok(h.session.glossary.length<=500);
+  assert.ok(h.session.glossary.startsWith('김희찬 서귀포시장, '),'manual words stay first');assert.ok(h.session.glossary.includes('행정사무감사'));assert.ok(h.session.glossary.length<=3000);
   assert.equal(h.count('ko_update_stt_glossary'),0,'word lists must never reach the original recognizer');assert.match(h.session.autoGlossary.message,/AI 보정/);assert.ok(h.session.autoGlossary.labels.includes('행정사무감사·질문'));
   assert.equal(Object.hasOwn(h.calls.find(call=>call.command==='ko_start_recording').args,'glossary'),false,'manual glossary must not be sent at recording start');
   const chosen=h.session.glossary;await speak(h,['예산안 세입 세출 일반회계 특별회계 결산 승인 예비비 추경 이월 불용액을 검토합니다.'],30);
@@ -43,7 +43,7 @@ module.exports=async({test,using,deferred})=>{
   const budget=Array.from({length:60},()=> '예산안 세입 세출 일반회계 특별회계 결산 승인 예비비 추경 이월 불용액 체납률을 검토합니다.');
   await speak(h,budget,20);
   assert.equal(h.count('ko_update_stt_glossary'),0);assert.ok(h.session.autoGlossary.labels.includes('예산·결산'));assert.match(h.session.autoGlossary.message,/더 듣고/);
-  assert.ok(h.session.glossary.startsWith('김희찬 서귀포시장, '),'rebuilt from the words that were there before');assert.ok(h.session.glossary.includes('체납률'));assert.ok(h.session.glossary.length<=500);
+  assert.ok(h.session.glossary.startsWith('김희찬 서귀포시장, '),'rebuilt from the words that were there before');assert.ok(h.session.glossary.includes('체납률'));assert.ok(h.session.glossary.length<=3000);
   assert.equal(h.session.glossary.split('김희찬 서귀포시장').length,2);
   const final=h.session.glossary;await speak(h,[...council,...council],100);assert.equal(h.session.glossary,final);assert.equal(h.count('ko_update_stt_glossary'),0);
  }));

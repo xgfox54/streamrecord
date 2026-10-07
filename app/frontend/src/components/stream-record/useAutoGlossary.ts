@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import {glossaryLimitLabel} from '../meeting-ko/glossary';
 import type {TranscriptRow} from '../meeting-ko/core';
 import {correctedText} from '../meeting-ko/transcript-correction';
 import {appendGlossaryTerms,interleaveTerms} from './GlossaryPicker';
@@ -52,7 +53,7 @@ export function useAutoGlossary(input:Input){
    // Set words that appear in the title itself, such as the committee name, go first.
    const next=appendGlossaryTerms(current.base??glossary,[...current.titleWords,...interleaveTerms(packs.map(pack=>pack.terms))]).text;
    const names=packs.map(pack=>`‘${pack.label}’`).join(', ');
-   const message=next===glossary?`${basis} ${names} 용어 세트가 맞지만 이미 들어 있거나 500자 한도가 차서 더 넣지 않았습니다.`:`${basis} ${names} 용어 세트를 AI 보정 참고용으로 자동으로 넣었습니다. 받아쓰기 원문에는 사용하지 않습니다.`;
+   const message=next===glossary?`${basis} ${names} 용어 세트가 맞지만 이미 들어 있거나 ${glossaryLimitLabel}자 한도가 차서 더 넣지 않았습니다.`:`${basis} ${names} 용어 세트를 AI 보정 참고용으로 자동으로 넣었습니다. 받아쓰기 원문에는 사용하지 않습니다.`;
    if(next!==glossary){input.setGlossary(next);glossary=next;carry.current={applied:next,base:current.base??''};writeCarry(carry.current);}
    setResult({epoch:current.epoch,labels:packs.map(pack=>pack.label),message});input.notice(message);
   };

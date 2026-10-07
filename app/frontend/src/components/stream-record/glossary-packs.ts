@@ -1,8 +1,11 @@
+import {appendGlossaryTerms} from '../meeting-ko/glossary';
+import {commonMeetingTerms,glossaryPackExpansions} from './glossary-pack-expansions';
+
 export const glossaryPackSource = {
  title: '제454회 제7차 본회의 (2026-09-22)',
  url: 'https://record.council.jeju.kr/CLRecords/Retrieval2/index.php?daesu=13&hfile=13A0110454071.html',
  reviewedAt: '2026-10-07',
- method: 'agenda-topics + field-test-misrecognitions + common-council-terms',
+ method: 'agenda-topics + field-test-misrecognitions + editorial-topic-and-meeting-vocabulary',
 } as const;
 
 type GlossaryPack = {
@@ -12,10 +15,11 @@ type GlossaryPack = {
  readonly terms: readonly string[];
 };
 
-// 500 distinct terms in 11 meeting topics, used only by AI transcript correction.
+// Representative words remain the topic-selection anchors. Each AI correction pack
+// extends them with topic vocabulary and shared meeting terms, up to 3,000 characters.
 // Terms that were actually misheard in a 5-hour council field recording
 // (질의, 서귀포, 읍면동, 의원님, 행정사무감사, 워케이션, 체납률, 준공, 용역, 권한, 애로사항 ...) come first.
-export const glossaryPacks = [
+const topicPacks = [
  {id:'council',label:'의회 회의·호칭',scope:'본회의·상임위 진행, 질의·답변, 직책 호칭',terms:[
   '질의','의원님','실장님','위원장','시장님','부시장님','국장님','본회의','임시회','정례회','답변','위원님','의장','부의장','과장님','팀장님','도지사','행정부지사','정무부지사','교육감','부교육감','읍장','면장','동장','상임위원회','특별위원회','집행부','전문위원','의사일정','개의','정회','속개','산회','상정','의결','가결','부결','원안가결','수정가결','이의 없으십니까','보충질의','추가질의','신상발언','5분 자유발언','의사진행발언','제안설명','검토보고','심사보고',
  ]},
@@ -50,3 +54,9 @@ export const glossaryPacks = [
   '교육위원회','교육청','지방교육재정교부금','학교 신설','과밀학급','작은학교','늘봄학교','방과후학교','돌봄교실','학교폭력','교권 보호','기초학력','고교학점제','특성화고','지역인재','인재 육성','평생교육','청소년수련관','학교급식','무상급식','마을키움터','학업중단학생','의무교육단계','드론 아카데미','공학아카데미','제주청소년 로스쿨','교육재정','학생 수 감소','통폐합','교원 정원','특수교육','유보통합','진로교육','교육복지','디지털 교과서','교육공무직','학부모','운영위원회','교육행정',
  ]},
 ] as const satisfies readonly GlossaryPack[];
+
+export const glossaryPacks=topicPacks.map(pack=>({
+ ...pack,
+ selectionTerms:pack.terms,
+ terms:appendGlossaryTerms('',[...pack.terms,...glossaryPackExpansions[pack.id],...commonMeetingTerms]).text.split(', '),
+}));

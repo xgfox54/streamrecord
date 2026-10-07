@@ -6,12 +6,12 @@ export type PackScore={readonly id:string;readonly label:string;readonly score:n
 const courtesy=/감사(?:합니다|드립니다|드리|하다|하고|했|하겠|해요|해)/g;
 const compact=(text:string)=>text.replace(courtesy,' ').replace(/\s+/g,'');
 
-/** Scores each word set by the distinct set words that appear in the text. Longer words and repeats weigh more. */
+/** Scores representative topic words; expanded shared vocabulary must not bias topic selection. */
 export function scoreGlossaryPacks(text:string):PackScore[]{
  const body=compact(text);
  return glossaryPacks.map(pack=>{
   const hits:string[]=[];let score=0;
-  for(const term of pack.terms){
+  for(const term of pack.selectionTerms){
    const word=term.replace(/\s+/g,'');if(Array.from(word).length<2)continue;
    let count=0;for(let at=body.indexOf(word);at>=0&&count<5;at=body.indexOf(word,at+word.length))count++;
    if(count){hits.push(term);score+=Math.min(Array.from(word).length,6)*(1+Math.log2(count));}

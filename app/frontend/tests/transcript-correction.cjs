@@ -12,6 +12,19 @@ module.exports=async function correctionTests({test,using,deferred}){
   await h.run(()=>h.session.save('transcript'));assert.ok(h.calls.filter(c=>c.command==='ko_export').at(-1).args.content.includes('회의을'));
   await h.run(()=>h.session.save('corrected'));const exported=h.calls.filter(c=>c.command==='ko_export').at(-1);assert.ok(exported.args.content.includes('[직접 수정] 사람이 검토한 문장'),'a human edit outranks the AI correction in the corrected export');assert.equal(h.session.rows[0].ai_correction.text,'오늘 회의를 시작합니다.');assert.ok(exported.args.title.endsWith('-AI보정본'));
  }));
+ await test('A full 3000-character dictionary reaches every correction batch without additional requests or raw-STT hints',()=>using({overrides:{ko_generate:async args=>answer(args)}},async h=>{
+  const {glossaryPacks}=h.load(require('node:path').resolve(__dirname,'../src/components/stream-record/glossary-packs.ts'));
+  const glossary=glossaryPacks.find(pack=>pack.id==='audit').terms.join(', ');assert.equal(glossary.length,3000);
+  await h.run(()=>h.session.setGlossary(glossary));
+  const field=h.renderer.root.findAllByType('input').find(node=>node.props.value===glossary);assert.ok(field);assert.equal(field.props.maxLength,3000);
+  await h.start();assert.equal(Object.hasOwn(h.calls.find(call=>call.command==='ko_start_recording').args,'glossary'),false);
+  await h.run(()=>h.session.setRows(Array.from({length:8},(_,i)=>row('오늘 회의을 시작합니다.',i+1))));
+  await h.advance(3000);await h.advance(3000);
+  const calls=h.calls.filter(call=>call.command==='ko_generate'&&call.args.stage==='correction');assert.equal(calls.length,2);
+  for(const call of calls){const data=JSON.parse(call.args.text);assert.equal(data.glossary,glossary);assert.ok(data.glossary.includes(glossary.split(', ').at(-1)));assert.equal(data.segments.length,4);assert.ok(call.args.text.length<=6000);}
+  assert.equal(h.session.rows.length,8);for(const result of h.session.rows){assert.equal(result.text,'오늘 회의을 시작합니다.');assert.equal(result.ai_correction.glossary,glossary);}
+  await h.advance(30000);assert.equal(h.count('ko_generate'),2);assert.equal(h.count('ko_update_stt_glossary'),0);assert.equal(h.snapshots.at(-1).glossary,glossary);
+ }));
  await test('Only final Whisper rows are corrected and finalization resumes the queue',()=>using({overrides:{ko_generate:async args=>answer(args)}},async h=>{
   await h.start();
   await h.run(()=>h.emit('transcript-update',{...row('회의을 시작합니다.'),is_partial:true}));assert.equal(h.count('ko_generate'),0);

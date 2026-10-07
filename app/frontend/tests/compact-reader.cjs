@@ -85,7 +85,8 @@ test('Original comparison shows the saved model name without internal IDs and ke
   const h=fixture();try{
    h.update({rows:[{sequence_id:1,text:'최초 원문',ai_correction:{version:1,source_text:'최초 원문',text:'AI 보정 문장',model_key:key,glossary:''}}],models:[{id:'other-model',provider:'chatgpt'}],model:'other-model'});
    h.run(()=>button(h,'AI 보정본').props.onClick());h.run(()=>checkbox(h,'원문 함께 보기').props.onChange({target:{checked:true}}));
-   assert.equal(text(h.renderer.root.findByType('small')),'최초 원문 · 보정 모델: '+name);
+   assert.equal(text(h.renderer.root.findByType('small')),'최초 원문(보정 전)');
+   assert.ok(h.renderer.root.findAllByType('span').some(node=>text(node)==='AI 보정됨 · '+name));
    assert.equal(h.session.rows[0].ai_correction.model_key,key);assert.equal(h.session.rows[0].text,'최초 원문');
   }finally{h.close();}
  }

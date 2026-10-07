@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {rowTime,splitText,type TranscriptRow} from './core';
+import {correctionGlossary} from './glossary';
 
 export type CorrectionModel={readonly id:string;readonly provider:string;readonly revision?:string};
 export type CorrectionSource={readonly index:number;readonly row:TranscriptRow};
@@ -58,7 +59,7 @@ export async function correctTranscript(input:{readonly batch:readonly Correctio
  for(let start=0;start<parts.length;){
   const group:Part[]=[];let length=0;
   while(start<parts.length&&group.length<4){const part=parts[start];if(group.length&&length+part.text.length>1800)break;group.push(part);length+=part.text.length;start++;}
-  const response=await input.generate(JSON.stringify({glossary:input.glossary.slice(0,500),context,segments:group.map(({id,text})=>({id,text}))}));
+  const response=await input.generate(JSON.stringify({glossary:correctionGlossary(input.glossary),context,segments:group.map(({id,text})=>({id,text}))}));
   const found=readCorrectionParts(response,group);
   for(const part of group){const text=found.get(part.id)??'';const reason=input.ignoreContentChecks?null:rejectedReason(part.text,text);if(reason)rejected.set(part.index,reason);corrected.set(part.id,text);}
  }

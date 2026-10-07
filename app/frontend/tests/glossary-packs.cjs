@@ -21,6 +21,7 @@ function load(filename){
  return module.exports;
 }
 const {GlossaryPicker,appendGlossaryTerms,interleaveTerms}=load(path.join(root,'src/components/stream-record/GlossaryPicker.tsx'));
+const {correctionGlossary}=load(path.join(root,'src/components/meeting-ko/glossary.ts'));
 const {glossaryPacks}=load(path.join(root,'src/components/stream-record/glossary-packs.ts'));
 const copy=value=>JSON.parse(JSON.stringify(value));
 const results=[];
@@ -38,11 +39,11 @@ test('Given manual separators when terms repeat then manual text survives and ad
  assert.equal(result.text,manual+', 기금운용결산');assert.deepEqual(copy(result.omitted),[]);
 });
 test('Given an exact limit when a longer term is omitted then later fitting terms still append',()=>{
- const result=appendGlossaryTerms('가'.repeat(495),['너무긴용어','예비비','추가']);
- assert.equal(result.text,'가'.repeat(495)+', 예비비');assert.equal(result.text.length,500);assert.deepEqual(copy(result.omitted),['너무긴용어','추가']);
+ const result=appendGlossaryTerms('가'.repeat(2995),['너무긴용어','예비비','추가']);
+ assert.equal(result.text,'가'.repeat(2995)+', 예비비');assert.equal(result.text.length,3000);assert.deepEqual(copy(result.omitted),['너무긴용어','추가']);
 });
 test('Given manual input already beyond the limit when adding terms then it is never truncated',()=>{
- const manual='가'.repeat(501);const result=appendGlossaryTerms(manual,['예비비']);
+ const manual='가'.repeat(3001);const result=appendGlossaryTerms(manual,['예비비']);
  assert.equal(result.text,manual);assert.deepEqual(copy(result.omitted),['예비비']);
 });
 test('Given a new picker when untouched then no terms are selected or applied',()=>{
@@ -55,7 +56,7 @@ test('Given selected packs when switching records then draft selection and statu
  const h=harness();try{h.select('budget');h.update({activeRecordId:'record-b',glossary:'다른 기록'});assert.equal(h.renderer.root.findAllByType('input').some(node=>node.props.checked),false);assert.equal(h.renderer.root.findAllByProps({role:'status'}).length,0);assert.deepEqual(h.calls,[]);}finally{h.close();}
 });
 test('Given a full glossary when applying a pack then omissions are reported and manual text stays intact',()=>{
- const manual='가'.repeat(500);const h=harness(manual);try{h.select('welfare');h.apply();assert.equal(h.calls[0],manual);const status=h.renderer.root.findByProps({role:'status'});assert.ok(JSON.stringify(status.children).includes('가족친화'));}finally{h.close();}
+ const manual='가'.repeat(3000);const h=harness(manual);try{h.select('welfare');h.apply();assert.equal(h.calls[0],manual);const status=h.renderer.root.findByProps({role:'status'});assert.ok(JSON.stringify(status.children).includes('가족친화'));}finally{h.close();}
 });
 test('Given an active recording when a selection exists then applying is disabled',()=>{
  const h=harness();try{h.select('budget');h.update({busy:true});h.apply();assert.deepEqual(h.calls,[]);assert.equal(h.renderer.root.findAllByType('fieldset').every(node=>node.props.disabled),true);}finally{h.close();}
@@ -66,16 +67,24 @@ test('Given pending selection when manual input changes then application uses th
 test('Given a selected pack when unchecked then it contributes no terms',()=>{
  const h=harness();try{h.select('budget');h.select('education');act(()=>h.renderer.root.findByProps({value:'budget'}).props.onChange({target:{checked:false}}));h.apply();assert.equal(h.calls[0].includes('예비비'),false);assert.ok(h.calls[0].includes('마을키움터'));}finally{h.close();}
 });
-test('Given the meeting word sets then there are 500 distinct terms in 11 topics, each fitting the recognition hint',()=>{
- const all=glossaryPacks.flatMap(item=>[...item.terms]);assert.equal(glossaryPacks.length,11);assert.equal(all.length,500);assert.equal(new Set(all).size,500);
- for(const item of glossaryPacks){assert.ok(item.terms.length>=39,item.id);assert.ok(item.terms.join(', ').length<=310,item.id);assert.ok(item.terms.every(term=>term===term.trim()&&term.length>0&&!/[,;\n]/.test(term)),item.id);}
+test('Given the meeting word sets then every topic has about 3000 characters of distinct AI reference terms',()=>{
+ const all=glossaryPacks.flatMap(item=>[...item.terms]);assert.equal(glossaryPacks.length,11);assert.ok(all.length>5000);
+ for(const item of glossaryPacks){assert.ok(item.terms.length>=450,item.id);assert.equal(new Set(item.terms).size,item.terms.length,item.id);assert.ok(item.terms.join(', ').length>=2990&&item.terms.join(', ').length<=3000,item.id);for(const term of item.selectionTerms)assert.ok(item.terms.includes(term),term);assert.ok(item.terms.every(term=>term===term.trim()&&term.length>0&&!/[,;\n]/.test(term)),item.id);}
  for(const term of ['행정사무감사','사무감사','감사','행감','위성곤','위원장','의원님','시장님','부시장님','국장님','질의','서귀포시','읍면동','워케이션','체납률','준공','용역','애로사항'])assert.ok(all.includes(term),term);
 });
-test('Given two word sets beyond 500 characters when combined then each set keeps its leading terms',()=>{
+test('Given two word sets beyond 3000 characters when combined then each set keeps its leading terms',()=>{
  assert.deepEqual(copy(interleaveTerms([['a1','a2','a3'],['b1']])),['a1','b1','a2','a3']);
  const budget=glossaryPacks.find(item=>item.id==='budget'),audit=glossaryPacks.find(item=>item.id==='audit');
- const result=appendGlossaryTerms('',interleaveTerms([budget.terms,audit.terms]));assert.ok(result.text.length<=500);assert.ok(result.omitted.length>0);
+ const result=appendGlossaryTerms('',interleaveTerms([budget.terms,audit.terms]));assert.ok(result.text.length<=3000);assert.ok(result.omitted.length>0);
  for(const term of [...budget.terms.slice(0,15),...audit.terms.slice(0,15)])assert.ok(result.text.split(', ').includes(term),term);
+});
+test('Given a whole pack when adding then terms after the old 500-character boundary are retained',()=>{
+ const pack=glossaryPacks.find(item=>item.id==='education');const full=pack.terms.join(', ');const result=appendGlossaryTerms('',pack.terms);assert.equal(result.text,full);assert.equal(result.omitted.length,0);assert.equal(correctionGlossary(result.text),full);
+ const h=harness('');try{h.select('education');h.apply();assert.equal(h.calls[0],full);assert.ok(JSON.stringify(h.renderer.toJSON()).includes('3,000'));}finally{h.close();}
+});
+test('Given oversized legacy input when limiting an AI request then whole terms and stored input survive',()=>{
+ const full='가'.repeat(2990)+', 마지막용어, 넘치는용어';assert.ok(full.length>3000);assert.equal(correctionGlossary(full),'가'.repeat(2990)+', 마지막용어');assert.equal(appendGlossaryTerms(full,['추가']).text,full);
+ assert.equal(correctionGlossary('나'.repeat(3001)),'');
 });
 const {chooseGlossaryPacks,choosePacksFromTitle,scoreGlossaryPacks}=load(path.join(root,'src/components/stream-record/glossary-auto.ts'));
 test('Given council audit speech when scoring then the audit set is chosen',()=>{
@@ -97,6 +106,9 @@ test('Given real YouTube titles when choosing from a title then only clear meeti
  assert.ok(council.includes('audit'));assert.ok(council.includes('administration'));assert.equal(council.includes('jeju'),false,'the institution name alone is not a topic');
  assert.deepEqual(copy(choosePacksFromTitle('제주특별자치도의회 제455회 임시회 제3차 보건복지안전위원회').map(item=>item.id)),['welfare']);
  for(const title of ['2026 03 16 생중계   더불어민주당 - 시·도당위원장협의회 회의 - 국회 본관 당대표회의실','하지말라는 먹방 대구까지 가서 하는 이채연','이 대통령, 제3차 메가프로젝트 민관합동 점검회의…정주 여건 지원안 논의 - [끝까지LIVE] MBC 중계방송 2026년 09월 29일'])assert.deepEqual(copy(choosePacksFromTitle(title)),[],title);
+});
+test('Given shared procedural vocabulary when selecting a topic then it cannot create a false topic match',()=>{
+ assert.deepEqual(copy(chooseGlossaryPacks('담당부서의 추진계획과 사업현황을 자료로 제출하고 현장점검 결과보고서와 개선대책을 함께 검토하겠습니다.')),[]);
 });
 const report={passed:results.filter(item=>item.status==='passed').length,failed:results.filter(item=>item.status==='failed').length,scope:'Offline pure helper and real React component behavior; no speech inference or native capture.',tests:results};
 fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results/glossary-packs.json'),JSON.stringify(report,null,2));if(report.failed)process.exitCode=1;

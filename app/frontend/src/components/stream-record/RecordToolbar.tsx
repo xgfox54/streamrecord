@@ -3,6 +3,7 @@ import {useState} from 'react';
 import {Mic,MonitorPlay,Youtube,Upload,Square,Settings2} from 'lucide-react';
 import {microphoneInputs} from '../meeting-ko/core';
 import {deviceKey,systemAudioDevices,selectedSystemDevice} from './recording-source';
+import {glossaryCharacterLimit} from '../meeting-ko/glossary';
 import type {MeetingSession} from './useMeetingSession';
 import {GlossaryPicker} from './GlossaryPicker';
 import {StereoMixPanel} from './StereoMixPanel';
@@ -47,7 +48,7 @@ export function RecordToolbar({session:s,input,onInputChange}:{readonly session:
   {(input==='pc'||input==='youtube')&&<p className={styles.hint}>선택한 장치에서 재생되는 다른 영상·알림 소리도 함께 녹음됩니다.</p>}
   {(input==='pc'||input==='youtube')&&<StereoMixPanel session={s}/>}
   <div className={layout.optionsRow}><button className={layout.optionsButton} aria-expanded={optionsOpen} aria-controls="record-options" onClick={()=>setOptionsOpen(value=>!value)}><Settings2 size={18} aria-hidden="true"/>추가 녹음 설정</button><button disabled={s.busy} onClick={()=>void s.refreshDevices().catch(error=>s.setError(s.messageOf(error)))}>소리 장치 새로고침</button></div>
-  <div id="record-options" hidden={!optionsOpen} className={layout.optionsBody}><label>AI 보정에 참고할 용어<input value={s.glossary} maxLength={500} disabled={s.busy} onChange={event=>s.setGlossary(event.target.value)} placeholder="사람 이름 · 기관명 · 전문 용어"/></label><GlossaryPicker session={s}/><p className={styles.hint}>{s.modelStatus}</p><details className={styles.disclosure}><summary>소리 장치가 보이지 않을 때</summary><p>Windows 설정 → 시스템 → 소리에서 장치를 연결하고 목록을 새로고침하세요. 마이크는 개인정보 설정의 마이크 접근 권한도 확인하세요. PC 소리는 실제 스피커·헤드폰 장치로 녹음하며 스테레오 믹스가 없어도 사용할 수 있습니다. 스테레오 믹스가 꺼져 있으면 PC 소리·YouTube 화면의 ‘스테레오 믹스 켜기’로 켤 수 있습니다.</p></details></div>
+  <div id="record-options" hidden={!optionsOpen} className={layout.optionsBody}><label>AI 보정에 참고할 용어<input value={s.glossary} maxLength={glossaryCharacterLimit} disabled={s.busy} onChange={event=>s.setGlossary(event.target.value)} placeholder="사람 이름 · 기관명 · 전문 용어"/></label><GlossaryPicker session={s}/><p className={styles.hint}>{s.modelStatus}</p><details className={styles.disclosure}><summary>소리 장치가 보이지 않을 때</summary><p>Windows 설정 → 시스템 → 소리에서 장치를 연결하고 목록을 새로고침하세요. 마이크는 개인정보 설정의 마이크 접근 권한도 확인하세요. PC 소리는 실제 스피커·헤드폰 장치로 녹음하며 스테레오 믹스가 없어도 사용할 수 있습니다. 스테레오 믹스가 꺼져 있으면 PC 소리·YouTube 화면의 ‘스테레오 믹스 켜기’로 켤 수 있습니다.</p></details></div>
   {input==='youtube'?<p className={styles.hint}>2. 아래 영상을 불러온 뒤 영상 오른쪽 아래에서 녹음을 시작하세요.</p>:<CaptureActions session={s} input={input}/>}
  </section>;
 }
