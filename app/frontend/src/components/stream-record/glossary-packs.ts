@@ -12,8 +12,8 @@ type GlossaryPack = {
  readonly terms: readonly string[];
 };
 
-// 500 distinct terms in 11 meeting topics. Each set is about 300 characters, the part of the glossary Whisper
-// receives as a recognition hint. Terms that were actually misheard in a 5-hour council field recording
+// 500 distinct terms in 11 meeting topics, used only by AI transcript correction.
+// Terms that were actually misheard in a 5-hour council field recording
 // (질의, 서귀포, 읍면동, 의원님, 행정사무감사, 워케이션, 체납률, 준공, 용역, 권한, 애로사항 ...) come first.
 export const glossaryPacks = [
  {id:'council',label:'의회 회의·호칭',scope:'본회의·상임위 진행, 질의·답변, 직책 호칭',terms:[

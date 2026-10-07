@@ -20,7 +20,7 @@ namespace StreamRecordSetup {
         public static Release Embedded() {
             using (var stream = typeof(Release).Assembly.GetManifestResourceStream("release.json")) {
                 var release = (Release)new DataContractJsonSerializer(typeof(Release)).ReadObject(stream);
-                if (release.version != "0.7.1" || release.variant != "cpu" || release.parts.Length != 5)
+                if (release.version != "0.7.2" || release.variant != "cpu" || release.parts.Length != 5)
                     throw new InvalidDataException("지원하지 않는 배포 정보입니다.");
                 return release;
             }
@@ -69,6 +69,7 @@ namespace StreamRecordSetup {
                     if(!Cached(file,part)) {
                         for(var attempt=0; ; attempt++) {
                             try { await Fetch(part,completed,token); break; }
+                            catch(DownloadLaunchException) { throw; }
                             catch(IOException) { if(attempt>=2) throw; }
                             await Task.Delay(1000*(attempt+1),token);
                         }

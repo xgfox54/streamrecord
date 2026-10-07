@@ -3,7 +3,7 @@ pub mod commands;
 pub mod model_integrity;
 pub mod parallel_commands;
 pub mod parallel_processor;
-pub mod stt_context;
+
 pub mod system_monitor;
 pub mod whisper_engine;
 // pub mod stderr_suppressor;

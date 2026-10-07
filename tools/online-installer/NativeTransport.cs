@@ -7,6 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace StreamRecordSetup {
+    internal sealed class DownloadLaunchException : IOException {
+        public DownloadLaunchException(string message,Exception inner):base(message,inner) {}
+    }
     internal static class NativeTransport {
         private static Artifact Metadata() {
             using(var stream=typeof(NativeTransport).Assembly.GetManifestResourceStream("downloader.json"))
@@ -37,11 +40,21 @@ namespace StreamRecordSetup {
             catch(InvalidOperationException) {}
             catch(Win32Exception) {}
         }
+        private static Process StartDownloader(ProcessStartInfo start) {
+            try { return Process.Start(start); }
+            catch(Win32Exception error) {
+                var message="다운로드 모듈을 실행하지 못했습니다: "+Path.GetFileName(start.FileName)+" (Windows 오류 "+error.NativeErrorCode+"). ";
+                if(error.NativeErrorCode==5)
+                    message+="Windows가 파일 실행을 거부했습니다. 보안 프로그램의 차단 기록과 파일 실행 권한을 확인하세요. GitLab 배포 페이지에서 전체 설치 파일을 받아 Stream-Record를 종료한 뒤 설치할 수 있습니다.";
+                else message+=error.Message;
+                throw new DownloadLaunchException(message,error);
+            }
+        }
         public static async Task CopyProcess(ProcessStartInfo start,string destination,Artifact part,Action<long> report,CancellationToken token) {
             token.ThrowIfCancellationRequested();
             start.UseShellExecute=false; start.CreateNoWindow=true;
             start.RedirectStandardOutput=true; start.RedirectStandardError=true;
-            using(var child=Process.Start(start)) {
+            using(var child=StartDownloader(start)) {
                 if(child==null) throw new IOException("다운로드 모듈을 실행하지 못했습니다.");
                 using(token.Register(()=>Stop(child))) {
                     var error=child.StandardError.ReadToEndAsync();

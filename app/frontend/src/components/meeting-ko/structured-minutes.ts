@@ -96,11 +96,11 @@ export function renderMinutes(notes:readonly StructuredNote[],parts:readonly Sou
   out.push('','---','받아쓰기 원문은 별도로 보존됩니다. 안건 통합·사실 확정·참여자 식별을 자동 완료한 결과가 아닙니다.');
   return out.join('\n');
 }
-export async function createStructuredMinutes(options:{rows:readonly TranscriptRow[];title:string;glossary:string;modelKey:string;generate:(text:string)=>Promise<string>;progress:(message:string)=>void;cancelled:()=>boolean;checkpoint:SummaryCheckpoint|null;save:(value:SummaryCheckpoint)=>Promise<void>}):Promise<string>{
+export async function createStructuredMinutes(options:{rows:readonly TranscriptRow[];title:string;modelKey:string;generate:(text:string)=>Promise<string>;progress:(message:string)=>void;cancelled:()=>boolean;checkpoint:SummaryCheckpoint|null;save:(value:SummaryCheckpoint)=>Promise<void>}):Promise<string>{
   if(options.rows.some(row=>row.is_partial&&reviewText(row).trim()))throw new Error('미확정 받아쓰기 구간이 남아 있습니다. 마지막 음성을 처리해 확정한 뒤 회의록을 만드세요. 원문은 유지됩니다.');
   const parts=sourceParts(options.rows);if(!parts.length)throw new Error('확정된 받아쓰기 내용이 없습니다. 마지막 음성 처리가 끝났는지 확인하세요.');
-  const reference=Array.from(options.glossary).slice(0,500).join('');
-  const source=JSON.stringify({version:3,parts,reference,model:options.modelKey});
+
+  const source=JSON.stringify({version:4,parts,model:options.modelKey});
   if(source.length>2_000_000)throw new Error('받아쓰기 내용이 너무 큽니다. 회의를 나누어 처리하세요.');
   const hash=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
   // Batch boundaries are measured on the unchanging Whisper text of hand-edited rows, so correcting a sentence
@@ -111,7 +111,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   const same=plain.length===stable.length&&plain.every((group,i)=>group.length===stable[i].length&&group[0].id===stable[i][0].id);
   // Each batch is saved under a hash of its own transcript text, prompt policy and model.
   // Correcting one sentence after a failure re-processes only the batch that contains it.
-  const batchKey=(group:SourcePart[])=>hash(JSON.stringify({version:3,batch:group,reference,model:options.modelKey}));
+  const batchKey=(group:SourcePart[])=>hash(JSON.stringify({version:4,batch:group,model:options.modelKey}));
   const [key,...keys]=await Promise.all([hash(source),...(same?plain:[...plain,...stable]).map(batchKey)]);
   // Checkpoints saved before per-batch keys are indexed by position and valid only for the identical whole transcript.
   const legacy=options.checkpoint?.key===key;
@@ -125,7 +125,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
     const saved=cache.notes[batchKeys[i]]??(legacy?previous[String(i)]:undefined);
     if(saved){try{note=parseNote(saved,groups[i],'lenient');cache.notes[batchKeys[i]]=note;}catch{delete cache.notes[batchKeys[i]];}}
     if(!note){
-      const prompt=(reference?`용어 참고(발언 사실 아님): ${reference}\n\n`:'')+groups[i].map(p=>`[${p.id}][${p.time}] ${p.text}`).join('\n');
+      const prompt=groups[i].map(p=>`[${p.id}][${p.time}] ${p.text}`).join('\n');
       let retry='';
       for(let attempt=0;attempt<2;attempt++){
         if(options.cancelled())throw new Error('요약을 취소했습니다. 원문과 완료된 구간은 보존됩니다.');

@@ -120,22 +120,12 @@ fn valid_model(model: &str) -> bool {
         && !model.contains("://")
 }
 
-/// Updates the recognition hint mid-recording, e.g. after word sets were chosen from the meeting content.
-#[tauri::command]
-pub fn ko_update_stt_glossary(glossary: String) -> Result<bool, String> {
-    if glossary.chars().count() > 500 {
-        return Err("회의 용어는 500자 이내로 입력하세요.".into());
-    }
-    crate::whisper_engine::stt_context::update(&glossary)
-}
-
 #[tauri::command]
 pub async fn ko_start_recording<R: Runtime>(
     app: AppHandle<R>,
     mic_name: Option<String>,
     system_name: Option<String>,
     title: String,
-    glossary: Option<String>,
 ) -> Result<(), String> {
     let _transition = RECORDING_TRANSITION
         .try_lock()
@@ -178,11 +168,6 @@ pub async fn ko_start_recording<R: Runtime>(
     } else {
         clean_title
     };
-    let glossary = glossary.unwrap_or_default();
-    if glossary.chars().count() > 500 {
-        return Err("회의 용어는 500자 이내로 입력하세요.".into());
-    }
-    crate::whisper_engine::stt_context::begin(&glossary)?;
     let result = crate::start_recording(
         app,
         Some(mic),
@@ -190,9 +175,6 @@ pub async fn ko_start_recording<R: Runtime>(
         Some(name),
     )
     .await;
-    if result.is_err() {
-        crate::whisper_engine::stt_context::end();
-    }
     result
 }
 
@@ -214,9 +196,6 @@ pub async fn ko_stop_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), Stri
             .into_owned(),
     };
     let result = crate::stop_recording(app, args).await;
-    if !crate::audio::recording_commands::is_recording().await {
-        crate::whisper_engine::stt_context::end();
-    }
     result
 }
 

@@ -1,6 +1,8 @@
 ![Stream Record - 영상 스트리밍 회의록 생성기 표지](assets/branding/streamrecord-cover.png)
 
-# Stream-Record v0.7.0
+# Stream-Record v0.7.2
+
+단어장은 AI 보정에서만 사용하며 최초 받아쓰기와 원음 복구에는 전달하지 않습니다. 영상 제목·회의 내용 기반 자동 선택을 유지하고 업데이트 실행 실패 안내를 개선했습니다.
 
 AI 보정이 숫자나 문장 길이 차이로 보류되면 ‘무시하고 보정 처리’로 AI 문장을 적용할 수 있습니다. 최초 원문은 보존되며, 안내문 글자 크기는 2pt 줄였습니다.
 
@@ -16,7 +18,7 @@ Windows x64용 한국어 녹음·전사·회의록 앱입니다. 마이크 또�
 
 ## 설치
 
-[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.7.1)에서 온라인 설치 EXE 또는 전체 CPU 설치파일 조각·복원 스크립트를 받습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
+[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.7.2)에서 온라인 설치 EXE 또는 전체 CPU 설치파일 조각·복원 스크립트를 받습니다. 이전 버전을 사용 중이면 녹음·전사·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
 
 설치 프로그램은 미서명입니다. SHA-256은 파일 무결성 확인이며 게시자 코드 서명을 대신하지 않습니다. Windows WebView2 등 선행 런타임이 없는 PC에서는 최초 런타임 설치에 인터넷이 필요할 수 있습니다. 음성모델의 오프라인 사용과 선행 런타임 설치는 별개입니다.
 

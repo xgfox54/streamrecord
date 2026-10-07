@@ -419,11 +419,6 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
     app: &AppHandle<R>,
 ) -> std::result::Result<TranscriptResult, TranscriptionError> {
     let chunk_id = chunk.chunk_id;
-    let prompt_ticket = crate::whisper_engine::stt_context::for_chunk(
-        chunk.timestamp,
-        chunk.data.len() as f64 / chunk.sample_rate as f64,
-    );
-    let prompt = prompt_ticket.as_ref().map(|ticket| ticket.text.clone());
     // Convert to 16kHz mono for transcription
     let transcription_data = if chunk.sample_rate != 16000 {
         crate::audio::audio_processing::resample_audio(&chunk.data, chunk.sample_rate, 16000)
@@ -460,7 +455,7 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
         TranscriptionEngine::Whisper(whisper_engine) => {
             let language = crate::get_language_preference_internal();
             match whisper_engine
-                .transcribe_audio_with_prompt(speech_samples, language, prompt)
+                .transcribe_audio_with_result(speech_samples, language)
                 .await
             {
                 Ok(result) => {
@@ -542,7 +537,7 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
         TranscriptionEngine::Provider(provider) => {
             let language = crate::get_language_preference_internal();
             match provider
-                .transcribe_with_prompt(speech_samples, language, prompt)
+                .transcribe(speech_samples, language)
                 .await
             {
                 Ok(result) => {

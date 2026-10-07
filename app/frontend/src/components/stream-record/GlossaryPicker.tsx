@@ -48,8 +48,8 @@ function RecordGlossaryPicker({session:s}:{readonly session:MeetingSession}){
   <summary>회의 주제별 용어 세트</summary>
   <p className={styles.hint}>회의 주제를 여러 개 선택하고 용어를 확인한 뒤 추가하세요. 기존 입력은 그대로 유지하며, 체크만으로 적용되지 않습니다.</p>
   {s.autoGlossary&&<label className={styles.check}><input type="checkbox" checked={s.autoGlossary.enabled} onChange={event=>s.autoGlossary.setEnabled(event.target.checked)}/>회의 내용에 맞는 용어 세트 자동 선택</label>}
-  <p className={styles.hint}>자동 선택을 켜 두면 녹음을 시작할 때 회의 제목을, 약 1분 뒤에는 받아쓴 내용을 보고 맞는 세트를 1~2개 골라 넣습니다. 직접 입력한 용어는 그대로 앞에 두고, 녹음 한 번에 한 번만 바꿉니다. 저장된 기록을 열 때는 바꾸지 않습니다.</p>
-  <p className={styles.hint}>한 기록에는 500자(약 60~70단어)까지 넣을 수 있습니다. 앞 300자는 받아쓰기 인식에 바로 쓰이고, 500자 전체는 AI 보정에 참고됩니다. 세트 하나가 약 300자이므로 회의 성격에 맞는 세트를 1~2개 고르세요. 여러 세트를 고르면 각 세트에서 자주 틀리는 앞쪽 용어부터 번갈아 넣습니다.</p>
+  <p className={styles.hint}>자동 선택을 켜 두면 녹음을 시작할 때 회의 제목을, 약 1분 뒤에는 받아쓴 내용을 보고 맞는 세트를 1~2개 골라 넣습니다. 직접 입력한 용어는 그대로 앞에 두고, 처음 선택한 뒤 약 5분에 주제를 한 번 더 확인합니다. 저장된 기록을 열 때는 바꾸지 않습니다.</p>
+  <p className={styles.hint}>한 기록에는 500자(약 60~70단어)까지 넣을 수 있습니다. 500자 전체를 AI 보정에만 참고하며, 받아쓰기 원문에는 사용하지 않습니다. 세트 하나가 약 300자이므로 회의 성격에 맞는 세트를 1~2개 고르세요. 여러 세트를 고르면 각 세트에서 자주 틀리는 앞쪽 용어부터 번갈아 넣습니다.</p>
   <fieldset disabled={s.busy}><legend>참고할 회의 주제</legend><div className={styles.formGrid}>
    {glossaryPacks.map(item=><label className={styles.check} key={item.id} title={item.scope}>
     <input type="checkbox" value={item.id} checked={selectedSets.includes(item.id)} onChange={event=>{setSelectedSets(current=>event.target.checked?[...current,item.id]:current.filter(id=>id!==item.id));setMessage('');}}/>

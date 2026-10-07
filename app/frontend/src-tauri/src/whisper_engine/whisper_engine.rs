@@ -1356,9 +1356,7 @@ mod tests {
         let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
         engine.discover_models().await.unwrap();
         engine.load_model("small-q5_1").await.unwrap();
-        crate::whisper_engine::stt_context::begin("").unwrap();
-        let configured = crate::whisper_engine::stt_context::for_chunk(1092.0, 12.0)
-            .map(|ticket| ticket.text);
+        let configured = None::<String>;
         let mut results = Vec::new();
         for (label, prompt) in [
             ("none", None),
@@ -1375,7 +1373,6 @@ mod tests {
         let output = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_RESULT").unwrap());
         crate::review_paths::fs::write(output, serde_json::to_vec_pretty(&results).unwrap()).unwrap();
         engine.unload_model().await;
-        crate::whisper_engine::stt_context::end();
         assert_eq!(results[2]["text"], "이에 대해 전해 드릴 수 있습니다.");
         let configured_text = results[3]["text"].as_str().unwrap();
         assert!(!configured_text.contains("이에 대해 전해 드릴 수 있습니다"));
@@ -1536,7 +1533,6 @@ mod tests {
         let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
         engine.discover_models().await.unwrap();
         engine.load_model("small-q5_1").await.unwrap();
-        crate::whisper_engine::stt_context::begin("").unwrap();
         let mut results = Vec::new();
         for fixture in manifest.as_array().unwrap() {
             let bytes = crate::review_paths::fs::read(root.join(fixture["file"].as_str().unwrap())).unwrap();
@@ -1544,9 +1540,7 @@ mod tests {
             let samples: Vec<f32> = bytes.chunks_exact(4)
                 .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect();
             assert_eq!(samples.len() as u64, fixture["samples"].as_u64().unwrap());
-            let ticket = crate::whisper_engine::stt_context::for_chunk(
-                fixture["start"].as_f64().unwrap(), samples.len() as f64 / 16000.0);
-            let configured = ticket.map(|ticket| ticket.text);
+            let configured = None::<String>;
             for (label, prompt) in [
                 ("configured", configured),
                 ("static", Some("한국어 회의 발언.".to_owned())),
@@ -1560,12 +1554,54 @@ mod tests {
                     serde_json::to_vec_pretty(&results).unwrap()).unwrap();
             }
         }
-        crate::whisper_engine::stt_context::end();
         assert!(!results.is_empty());
         for comparison in results.chunks_exact(3) {
             assert_eq!(comparison[0]["text"], comparison[2]["text"],
-                "an empty user glossary must not inject generated meeting prose");
+                "original transcription must not inject glossary terms");
         }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires preserved laptop speech and local small-q5_1 model"]
+    async fn stream_record_glossary_isolation_actual_speech() {
+        let root = PathBuf::from(std::env::var("STREAM_RECORD_AI_ONLY_ROOT").unwrap());
+        let model_dir = PathBuf::from(std::env::var("STREAM_RECORD_PROMPT_MODELS").unwrap());
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &crate::review_paths::fs::read(root.join("fixtures.json")).unwrap()).unwrap();
+        let glossary = manifest["glossary"].as_str().unwrap().chars().take(300).collect::<String>();
+        let engine = WhisperEngine::new_with_models_dir(Some(model_dir)).unwrap();
+        engine.discover_models().await.unwrap();
+        engine.load_model("small-q5_1").await.unwrap();
+        let mut results = Vec::new();
+        for fixture in manifest["fixtures"].as_array().unwrap() {
+            let bytes = crate::review_paths::fs::read(root.join(fixture["file"].as_str().unwrap())).unwrap();
+            assert_eq!(bytes.len() % 4, 0);
+            let samples: Vec<f32> = bytes.chunks_exact(4)
+                .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect();
+            assert_eq!(samples.len() as u64, fixture["samples"].as_u64().unwrap());
+            for repeat in 0..2 {
+                for use_glossary in [true, false] {
+                    let started = std::time::Instant::now();
+                    let result = if use_glossary {
+                        engine.transcribe_audio_with_prompt(samples.clone(), Some("ko".into()), Some(glossary.clone())).await
+                    } else {
+                        engine.transcribe_audio_with_result(samples.clone(), Some("ko".into())).await
+                    }.unwrap();
+                    results.push(serde_json::json!({"sequence":fixture["sequence"],"repeat":repeat,
+                        "glossary":use_glossary,"seconds":started.elapsed().as_secs_f64(),"text":result.text,
+                        "raw":result.raw_text,"sample_count":samples.len()}));
+                    crate::review_paths::fs::write(root.join("inference-results.json"),
+                        serde_json::to_vec_pretty(&results).unwrap()).unwrap();
+                }
+            }
+        }
+        assert_eq!(results.len(), manifest["fixtures"].as_array().unwrap().len() * 4);
+        for comparison in results.chunks_exact(4) {
+            assert_eq!(comparison[1]["text"], comparison[3]["text"], "unprompted decoding must be reproducible");
+            assert!(comparison[1]["text"].as_str().unwrap().chars().count() > 10,
+                "preserved sentence audio must not collapse to a single word");
+        }
+        engine.unload_model().await;
     }
 
     fn tiny_model(models: &[ModelInfo]) -> &ModelInfo {

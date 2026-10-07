@@ -140,12 +140,8 @@ pub async fn ko_transcribe_review_window(
     start: f64,
     duration: f64,
     model: String,
-    glossary: String,
 ) -> Result<RecoveredWindow, String> {
     checked_window(start, duration)?;
-    if glossary.chars().count() > 500 {
-        return Err("용어 참고는 500자 이내여야 합니다.".into());
-    }
     if crate::audio::recording_commands::is_recording().await
         || crate::audio::import::is_import_in_progress()
     {
@@ -241,14 +237,8 @@ pub async fn ko_transcribe_review_window(
     let text = if samples.iter().all(|sample| *sample == 0.0) {
         String::new()
     } else {
-        let hint = crate::whisper_engine::stt_context::clean_hint(&glossary, 300);
-        let prompt = if hint.is_empty() {
-            None
-        } else {
-            Some(format!("한국어 회의 발언. 용어: {hint}"))
-        };
         engine
-            .transcribe_audio_with_prompt(samples, Some("ko".into()), prompt)
+            .transcribe_audio_with_result(samples, Some("ko".into()))
             .await
             .map_err(|e| e.to_string())?
             .text

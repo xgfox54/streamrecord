@@ -85,7 +85,7 @@ export function useMeetingSession(){
   const next=text===row.text.trim()?(({reviewed_text:_removed,...rest})=>rest)(row):{...row,reviewed_text:text};
   setRows(rowsRef.current.map((item,i)=>i===index?next:item));await persist();
  };
- const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
+ const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),epoch,mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
  const diarization=useDiarization({audio:audioSource,rows,rowsRef,mode,epoch,busy:mode!=='idle',setBusy:value=>setMode(value?'diarizing':'idle'),setRows,persist,report:setError});
  const correction=useTranscriptCorrection({rows,rowsRef,setRows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,persist});
  const applyGlossary=(value:string)=>{glossaryRef.current=value;setGlossaryState(value);dirty.current++;};
@@ -143,7 +143,7 @@ export function useMeetingSession(){
  const start=async(inputName:string,successNotice:string,deviceType:AudioInput['device_type']='Input')=>{
   if(modeRef.current!=='idle'||!ready||!consent||!inputName)return;
   setMode('starting');setVideoCapture(false);setError('');setNotice('입력 장치와 한국어 모델 확인 중');
-  try{await whisperConfig();await archive();await persist();await invoke('ko_start_recording',{micName:deviceType==='Input'?inputName:null,systemName:deviceType==='Output'?inputName:null,title:titleRef.current,glossary:glossaryRef.current});startedAt.current=new Date().toISOString();setElapsed(0);setMode('recording');setNotice(successNotice);await persist();}
+  try{await whisperConfig();await archive();await persist();await invoke('ko_start_recording',{micName:deviceType==='Input'?inputName:null,systemName:deviceType==='Output'?inputName:null,title:titleRef.current});startedAt.current=new Date().toISOString();setElapsed(0);setMode('recording');setNotice(successNotice);await persist();}
   catch(e){setError(messageOf(e));setMode(await recordingMode('idle'));}
  };
  const validateVideo=async()=>{const validated=await invoke<string>('ko_validate_video',{url:videoUrlRef.current.trim()});const embed=youtubeEmbedUrl(validated);videoUrlRef.current=validated;setVideoUrlState(validated);setVideoEmbedUrl(embed);dirty.current++;void loadVideoTitle(validated);return validated;};
@@ -153,7 +153,7 @@ export function useMeetingSession(){
   if(modeRef.current!=='idle'||!ready||!consent||!source||!videoUrlRef.current.trim())return;
   setMode('starting');setVideoCapture(true);setError('');setNotice('영상 링크와 한국어 모델 확인 중');
   let recordingStarted=false;
-  try{await whisperConfig();await validateVideo();await archive();if(!titleRef.current.trim())setTitle('YouTube 영상 기록');await persist();await invoke('ko_start_recording',{micName:source.device_type==='Input'?source.name:null,systemName:source.device_type==='Output'?source.name:null,title:titleRef.current,glossary:glossaryRef.current});startedAt.current=new Date().toISOString();setElapsed(0);recordingStarted=true;setMode('recording');setNotice('녹음 중입니다. 영상에서 재생을 누르세요. 선택한 스피커·헤드폰으로 재생되는 소리를 받아씁니다.');await persist();}
+  try{await whisperConfig();await validateVideo();await archive();if(!titleRef.current.trim())setTitle('YouTube 영상 기록');await persist();await invoke('ko_start_recording',{micName:source.device_type==='Input'?source.name:null,systemName:source.device_type==='Output'?source.name:null,title:titleRef.current});startedAt.current=new Date().toISOString();setElapsed(0);recordingStarted=true;setMode('recording');setNotice('녹음 중입니다. 영상에서 재생을 누르세요. 선택한 스피커·헤드폰으로 재생되는 소리를 받아씁니다.');await persist();}
   catch(e){const rollback=recordingStarted?await invoke('ko_stop_recording').then(()=>'',x=>` 녹음 정리 실패: ${messageOf(x)}`):'';setError(messageOf(e)+rollback);setMode(await recordingMode('idle'));}
  };
  const stop=async()=>{
@@ -174,7 +174,7 @@ export function useMeetingSession(){
   if(!chosen){setMinutesError('요약 모델을 선택하세요. 모델 목록이 비어 있으면 AI 연결 관리에서 연결 상태를 확인한 뒤 모델 새로고침을 누르세요.');return;}
   setMode('summarizing');setError('');setMinutesError('');cancelSummary.current=false;
   let step='회의록 생성 준비 중';const progress=(value:string)=>{step=value;setMinutesProgress(value);setNotice(value);};progress(step);
-  try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,glossary:glossaryRef.current,modelKey:`${modelKey(chosen)}@${chosen.revision??''}`,generate:text=>generateText({model:chosen.id,revision:chosen.revision,text,stage:'structured',provider:chosen.provider},undefined,state=>setMinutesProgress(`${step} · ${state==='waiting'?'앞서 시작한 AI 처리가 끝나기를 기다리고 있습니다.':'AI 응답을 기다리고 있습니다.'}`)),progress,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);progress('회의록을 저장하고 있습니다.');await persist();await exportFile('minutes');progress('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
+  try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,modelKey:`${modelKey(chosen)}@${chosen.revision??''}`,generate:text=>generateText({model:chosen.id,revision:chosen.revision,text,stage:'structured',provider:chosen.provider},undefined,state=>setMinutesProgress(`${step} · ${state==='waiting'?'앞서 시작한 AI 처리가 끝나기를 기다리고 있습니다.':'AI 응답을 기다리고 있습니다.'}`)),progress,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);progress('회의록을 저장하고 있습니다.');await persist();await exportFile('minutes');progress('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
   catch(e){const failure=messageOf(e);setError(failure);setMinutesError(failure);setMinutesProgress('');try{await persist();}catch(saveError){setMinutesError(`${failure} 오류 내역 저장도 실패했습니다: ${messageOf(saveError)}`);}}
   finally{if(chosen.provider==='local'){try{await generateText({model:chosen.id,revision:chosen.revision,text:'',stage:'release',provider:'local'});}catch(e){setNotice(`자료는 보존되어 있습니다. 로컬 모델 메모리 해제 실패: ${messageOf(e)}`);}}setMode('idle');}
  };
@@ -191,7 +191,7 @@ export function useMeetingSession(){
  const playRow=(row:TranscriptRow)=>{const player=audioElement.current;const range=audioSource?playbackRange(row,audioSource.duration_seconds):null;if(modeRef.current!=='idle'||!player||!range)return;if(player.readyState<1){setNotice('원음 재생정보를 읽는 중입니다. 잠시 후 구간 듣기를 다시 누르세요.');return;}playbackEnd.current=range.end;player.currentTime=range.start;void player.play().catch(e=>setError(`원음 재생 실패: ${messageOf(e)}`));};
  const recover=async()=>{
   if(modeRef.current!=='idle'||!audioSource||!consent)return;setMode('recovering');setError('');audioElement.current?.pause();cancelRecovery.current=false;
-  try{const c=await whisperConfig();const recovered=await recoverAudio({audio:audioSource,model:c.model,glossary:glossaryRef.current,checkpoint:recoveryDraft.current,decode:(start,duration)=>invoke('ko_transcribe_review_window',{path:audioSource.path,start,duration,model:c.model,glossary:glossaryRef.current}),save:async value=>{recoveryDraft.current=value;dirty.current++;await persist();},progress:setNotice,cancelled:()=>cancelRecovery.current});
+  try{const c=await whisperConfig();const recovered=await recoverAudio({audio:audioSource,model:c.model,checkpoint:recoveryDraft.current,decode:(start,duration)=>invoke('ko_transcribe_review_window',{path:audioSource.path,start,duration,model:c.model}),save:async value=>{recoveryDraft.current=value;dirty.current++;await persist();},progress:setNotice,cancelled:()=>cancelRecovery.current});
    if(rowsRef.current.length||minutesRef.current)await exportFile('bundle');setEpoch(value=>value+1);setRows(recovered);setMinutes('');summaryDraft.current=null;liveSummaryDraft.current=null;setLiveSummary('');setPage(0);setQuery('');setEditing(null);await persist();await exportFile('bundle');setNotice(`저장 음성 전체 처리 완료 · ${recovered.length}개 발언 구간. 이전 원문은 JSON으로 보관했습니다. 경계의 누락·오인식은 원음과 대조하세요.`);
   }catch(e){setError(messageOf(e));}finally{setMode('idle');}
  };

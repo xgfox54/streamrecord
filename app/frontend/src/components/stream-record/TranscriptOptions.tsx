@@ -16,7 +16,7 @@ export function TranscriptOptions({session:s,corrected,compare,setCompare}:{read
   <label className={styles.check}><input type="checkbox" checked={s.correction.enabled} onChange={event=>s.correction.setEnabled(event.target.checked)}/>AI 보정</label>
   {s.models.length>0&&<label className={layout.modelSelect}>보정 AI<select value={s.model} onChange={event=>s.setModel(event.target.value)}><option value="">AI 선택</option><ModelOptions session={s}/></select></label>}
   <label className={styles.check}><input type="checkbox" checked={s.diarization.enabled} onChange={event=>s.diarization.setEnabled(event.target.checked)}/>참여자 구분</label>
-  <label className={styles.check} title="회의 내용에 맞는 용어 세트를 받아쓰기 참고 용어에 자동으로 넣습니다."><input type="checkbox" checked={s.autoGlossary.enabled} onChange={event=>s.autoGlossary.setEnabled(event.target.checked)}/>용어 자동 선택</label>
+  <label className={styles.check} title="회의 내용과 영상 제목에 맞는 용어 세트를 AI 보정 참고용으로 선택합니다. 받아쓰기 원문에는 사용하지 않습니다."><input type="checkbox" checked={s.autoGlossary.enabled} onChange={event=>s.autoGlossary.setEnabled(event.target.checked)}/>용어 자동 선택</label>
   {corrected&&<label className={styles.check}><input type="checkbox" checked={compare} onChange={event=>setCompare(event.target.checked)}/>원문 함께 보기</label>}
  </div>;
 }

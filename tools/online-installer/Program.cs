@@ -45,6 +45,15 @@ namespace StreamRecordSetup {
             cancel.Click+=(sender,args)=>{ if(busy) cancellation.Cancel(); else Close(); };
             FormClosing+=(sender,args)=>{ if(busy) { args.Cancel=true; if(!installing) cancellation.Cancel(); } };
         }
+        internal void ShowFailure(Exception error) {
+            status.Text="설치 진행 실패\n"+error.Message;
+            var height=TextRenderer.MeasureText(status.Text,status.Font,new Size(status.Width,int.MaxValue),TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl).Height+8;
+            var shift=Math.Max(65,height)-status.Height;
+            status.Height+=shift;bar.Top+=shift;retry.Top+=shift;cancel.Top+=shift;
+            foreach(var license in Controls.OfType<LinkLabel>()) license.Top+=shift;
+            ClientSize=new Size(ClientSize.Width,ClientSize.Height+shift);
+            retry.Enabled=true;
+        }
         private async Task Start() {
             busy=true; installing=false; retry.Enabled=false; cancel.Enabled=true; var installed=false;
             cancellation=new CancellationTokenSource();
@@ -68,7 +77,7 @@ namespace StreamRecordSetup {
                 bar.Value=100; cancel.Text="닫기";
             }
             catch(OperationCanceledException) { status.Text=cancellation.IsCancellationRequested?"다운로드를 취소했습니다. 다시 시도하면 검증된 조각을 재사용합니다.":"서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.";retry.Enabled=true; }
-            catch(Exception error) { var detail=error;while(detail.InnerException!=null) detail=detail.InnerException;status.Text="설치 진행 실패\n"+detail.Message;retry.Enabled=true; }
+            catch(Exception error) { ShowFailure(error); }
             finally { busy=false; installing=false; cancel.Enabled=true; cancellation.Dispose(); }
             if(installed && afterAppExit) { await Task.Delay(3000); Close(); }
         }

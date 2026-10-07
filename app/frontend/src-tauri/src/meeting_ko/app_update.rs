@@ -159,7 +159,13 @@ pub async fn ko_update_install<R: Runtime>(app: AppHandle<R>, version: String) -
         const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
         command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
     }
-    command.spawn().map_err(|e| format!("업데이트 설치 프로그램을 시작하지 못했습니다: {e}"))?;
+    command.spawn().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            format!("Windows가 업데이트 설치 파일 ‘{}’의 실행을 거부했습니다: {e}\n보안 프로그램의 차단 기록과 파일 실행 권한을 확인하세요. GitLab 배포 페이지에서 전체 설치 파일을 받아 Stream-Record를 종료한 뒤 설치할 수 있습니다.", installer.name)
+        } else {
+            format!("업데이트 설치 프로그램 ‘{}’을 시작하지 못했습니다: {e}", installer.name)
+        }
+    })?;
     Ok(())
 }
 
