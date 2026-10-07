@@ -23,23 +23,23 @@ pub struct DiarizationRequest {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DiarizationError {
-    #[error("화자분리를 취소했습니다.")]
+    #[error("참여자 구분을 취소했습니다.")]
     Cancelled,
-    #[error("화자분리 엔진 또는 모델을 찾을 수 없습니다. 설치 상태를 확인해 주세요.")]
+    #[error("참여자 구분 엔진 또는 모델을 찾을 수 없습니다. 설치 상태를 확인해 주세요.")]
     Unavailable,
-    #[error("화자분리 모델의 무결성 검사에 실패했습니다.")]
+    #[error("참여자 구분 모델의 무결성 검사에 실패했습니다.")]
     ModelIntegrity,
-    #[error("화자분리할 저장 WAV 음성과 유효한 길이가 필요합니다.")]
+    #[error("참여자를 구분할 저장 WAV 음성과 유효한 길이가 필요합니다.")]
     InvalidAudio,
-    #[error("화자분리 엔진 실행에 실패했습니다 (종료 코드 {0:?}).")]
+    #[error("참여자 구분 엔진 실행에 실패했습니다 (종료 코드 {0:?}).")]
     EngineExit(Option<i32>),
-    #[error("화자분리 제한 시간을 초과했습니다.")]
+    #[error("참여자 구분 제한 시간을 초과했습니다.")]
     Timeout,
-    #[error("화자분리 결과에 유효하지 않은 시간 또는 화자 번호가 포함되어 있습니다.")]
+    #[error("참여자 구분 결과에 유효하지 않은 시간 또는 참여자 번호가 포함되어 있습니다.")]
     InvalidSegments,
-    #[error("화자분리 파일 처리 오류: {0}")]
+    #[error("참여자 구분 파일 처리 오류: {0}")]
     Io(#[from] std::io::Error),
-    #[error("화자분리 결과 형식 오류: {0}")]
+    #[error("참여자 구분 결과 형식 오류: {0}")]
     Json(#[from] serde_json::Error),
 }
 

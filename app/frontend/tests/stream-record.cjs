@@ -68,6 +68,15 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
  await test('Invented quotation is rejected',()=>assert.throws(()=>structured.parseNote(note('S000001','예산 900만원'),parts),/근거/));
  await test('Invented owner is rejected',()=>{const n=note();n.decisions[0].owner='홍길동';assert.throws(()=>structured.parseNote(n,parts),/owner/);});
  await test('Malformed JSON is rejected',()=>assert.throws(()=>structured.parseNote('{bad',parts)));
+ // Laptop field test: 5-hour meeting stopped at batch 12/38 because the model quoted a word it had silently fixed.
+ const field=[{id:'S000309',time:'01:02:03',text:'관심을 갖고 업무를 추진하겠다는 말씀을 드리고 그다음에 관광과 또 문화 스포츠를 통해서 지역경제의 활력을 불러놓을 수 있는 그런'}];
+ await test('A quote the model silently corrected is replaced with the exact transcript wording',()=>{const parsed=structured.parseNote(note('S000309','관광과 또 문화 스포츠를 통해서 지역경제의 활력을 불어넣을 수 있는'),field);assert.equal(parsed.decisions[0].quote,'관광과 또 문화 스포츠를 통해서 지역경제의 활력을 불러놓을 수 있는');assert.equal(parsed.unverified,undefined);});
+ await test('Spacing and punctuation differences in a quote are repaired to transcript wording',()=>{const parsed=structured.parseNote(note('S000001','예산 300만 원을 확정한다'),parts);assert.equal(parsed.decisions[0].quote,'예산 300만원을 확정한다');});
+ await test('A near-match with a changed number is never accepted as evidence',()=>{assert.equal(structured.locateQuote('예산 900만원을 확정한다.','예산 300만원을 확정한다.'),null);assert.equal(structured.locateQuote('2030년까지 연합 캠퍼스','2031년까지 연합 캠퍼스를 만들어'),null);});
+ await test('Final attempt keeps a long meeting going by removing only unverifiable items',()=>{const n=note();n.decisions.push({text:'예산 900만원',source_id:'S000001',quote:'예산 900만원을 확정한다.',owner:null,due:null},{text:'없는 구간',source_id:'S999999',quote:'예산 300만원을 확정한다.',owner:null,due:null});n.actions=[{text:'집행',source_id:'S000001',quote:'예산 300만원을 확정한다.',owner:'홍길동',due:null}];
+  const parsed=structured.parseNote(n,parts,'lenient');assert.equal(parsed.decisions.length,1);assert.equal(parsed.unverified,2);assert.equal(parsed.actions[0].owner,null);
+  const minutes=structured.renderMinutes([parsed],parts,'회의');assert.ok(minutes.includes('근거를 찾지 못한 항목 2개'));assert.ok(!minutes.includes('900만원'));assert.ok(!minutes.includes('홍길동'));});
+ await test('A model-supplied removal count is ignored',()=>{const n={...note(),unverified:7};assert.equal(structured.parseNote(n,parts).unverified,undefined);});
  await test('All decision rows survive deterministic final rendering',()=>{const result=structured.renderMinutes([note(),note()],parts,'회의');assert.equal(result.split('예산 300만원 확정').length-1,2);assert.ok(result.includes('S000001'));});
  let snapshot=null;let requests=0;
  const opts={rows:[{text:'예산 300만원을 확정한다.',audio_start_time:1}],title:'시험',glossary:'',modelKey:'local:test',generate:async()=>{requests++;return JSON.stringify(note());},progress:()=>{},cancelled:()=>false,checkpoint:null,save:async value=>{snapshot=copy(value);}};
@@ -76,6 +85,11 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
  await test('Invalid evidence is repaired with validation feedback rather than repeating the same request',async()=>{const prompts=[];await structured.createStructuredMinutes({...opts,generate:async prompt=>{prompts.push(prompt);return JSON.stringify(prompts.length===1?note('S000001','예산 900만원'):note());},save:async()=>{}});assert.equal(prompts.length,2);assert.notEqual(prompts[0],prompts[1]);assert.match(prompts[1],/검증 결과/);assert.match(prompts[1],/연속 문자열/);});
  await test('Later chunk failure preserves earlier checkpoints and resumes only unfinished chunks',async()=>{const rows=Array.from({length:30},(_,i)=>({text:`발언 ${i+1}: `+'검토할 사항입니다. '.repeat(30),audio_start_time:i*120}));const groups=structured.groupSources(structured.sourceParts(rows));let checkpoint=null;let generated=0;const good={summary:'사항을 검토했습니다.',decisions:[],proposals:[],actions:[],numbers:[],open_questions:[]};await assert.rejects(()=>structured.createStructuredMinutes({...opts,rows,generate:async()=>{generated++;if(generated>2)throw new Error('연결 끊김');return JSON.stringify(good);},save:async value=>{checkpoint=copy(value);}}),/앞선 2개 묶음/);assert.equal(Object.keys(checkpoint.notes).length,2);let resumed=0;const result=await structured.createStructuredMinutes({...opts,rows,checkpoint,generate:async()=>{resumed++;return JSON.stringify(good);},save:async value=>{checkpoint=copy(value);}});assert.equal(resumed,groups.length-2);assert.match(result,/모든 구간 처리 완료/);assert.equal(rows.length,30);});
  await test('Unchanged completed chunk is reused without another model request',async()=>{await structured.createStructuredMinutes({...opts,checkpoint:snapshot});assert.equal(requests,1);});
+ await test('Correcting one sentence after a failure re-processes only the batch that contains it',async()=>{const rows=Array.from({length:30},(_,i)=>({text:`발언 ${i+1}: `+'검토할 사항입니다. '.repeat(30),audio_start_time:i*120}));const groups=structured.groupSources(structured.sourceParts(rows));assert.ok(groups.length>4);const good={summary:'사항을 검토했습니다.',decisions:[],proposals:[],actions:[],numbers:[],open_questions:[]};let checkpoint=null;let generated=0;
+  await assert.rejects(()=>structured.createStructuredMinutes({...opts,rows,generate:async()=>{generated++;if(generated>3)throw new Error('연결 끊김');return JSON.stringify(good);},save:async value=>{checkpoint=copy(value);}}),/앞선 3개 묶음/);
+  const edited=rows.map((row,i)=>i===0?{...row,reviewed_text:'발언 1: 고친 문장입니다.'}:row);const prompts=[];
+  await structured.createStructuredMinutes({...opts,rows:edited,checkpoint,generate:async prompt=>{prompts.push(prompt);return JSON.stringify(good);},save:async value=>{checkpoint=copy(value);}});
+  assert.equal(prompts.length,groups.length-2);assert.ok(prompts[0].includes('고친 문장'));assert.equal(Object.keys(checkpoint.notes).length,groups.length);});
  await test('Changed model invalidates previous checkpoint',async()=>{await structured.createStructuredMinutes({...opts,modelKey:'local:other',checkpoint:snapshot});assert.equal(requests,2);});
  await test('Earlier structured prompt policy cannot reuse its completed checkpoint',async()=>{for(const version of [1,2]){const source=JSON.stringify({version,parts:structured.sourceParts(opts.rows),reference:'',model:opts.modelKey});const digest=await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode(source));const key=Buffer.from(digest).toString('hex');let regenerated=0;await structured.createStructuredMinutes({...opts,checkpoint:{key,notes:{'0':note()}},generate:async()=>{regenerated++;return JSON.stringify(note());},save:async()=>{}});assert.equal(regenerated,1);}});
  await test('Cancellation does not make a model request',async()=>{const before=requests;await assert.rejects(()=>structured.createStructuredMinutes({...opts,cancelled:()=>true}),/취소/);assert.equal(requests,before);});
@@ -153,6 +167,29 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
   }
   assert.equal(state.windowEndSeconds,10800);
   assert.equal(liveSpeakers.mergeLiveSpeakers(last.rows,liveWindow(358,10710,10770,[]),state).state,state);
+ });
+ await test('Returning voices after eight isolated windows regain labels through whole-recording analysis',()=>{
+  let state=null,rows=[];const segments=[];
+  for(let i=0;i<12;i++){
+   const start=i*60+1;rows.push({text:`speech ${i}`,audio_start_time:start,audio_end_time:start+4});
+   segments.push({start,end:start+10,speaker:i%2+1});
+   const merged=liveSpeakers.mergeLiveSpeakers(rows,liveWindow(i*2,i*60,i*60+30,[{start,end:start+10,speaker:1}]),state);
+   state=merged.state;rows=merged.rows;
+  }
+  assert.equal(rows.filter(r=>r.speaker_assignment).length,8,'reproduces exhausted IDs');
+  const reviewed={...rows[0],speaker_assignment:{sourceText:rows[0].text,audioSha256:'a'.repeat(64),modelId:'verified',speakers:[2]}};
+  rows[0]=reviewed;
+  const anchored=liveSpeakers.mergeFullSpeakers(rows,liveWindow(23,0,720,segments),state);
+  assert.equal(anchored.rows.filter(r=>r.speaker_assignment).length,12);
+  assert.equal(anchored.rows[0],reviewed,'verified identities remain unchanged');
+  const ids=anchored.rows.slice(1).map(r=>speakers.speakerNumbers(r)[0]);
+  assert.equal(new Set(ids).size,2);assert.equal(ids[0],ids[2]);assert.equal(ids[1],ids[3]);
+  assert.deepEqual(anchored.rows.map(r=>r.text),rows.map(r=>r.text));
+  const late=liveSpeakers.applyLiveSpeakerState([{text:'late speech',audio_start_time:602,audio_end_time:604}],anchored.state);
+  assert.equal(speakers.speakerNumbers(late[0])[0],ids[1]);
+  const next=liveSpeakers.mergeLiveSpeakers(anchored.rows,liveWindow(24,690,750,[{start:721,end:740,speaker:1}]),anchored.state);
+  assert.ok(next.state.segments.some(s=>s.start===1),'the next short window keeps the identity history');
+  assert.equal(next.state.windowStartSeconds,0);
  });
  await test('Malformed live inference cannot change original transcript rows',()=>{
   const rows=[{text:'original',audio_start_time:1,audio_end_time:2}];

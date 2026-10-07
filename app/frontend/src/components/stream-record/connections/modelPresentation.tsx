@@ -30,11 +30,11 @@ export function modelDestination(model:DisplayModel):string {
 
 export function correctionModelName(modelKey:string|undefined):string {
  const key=modelKey?.trim()??'';
- // Stored keys include provider, connection ID and a UUID revision; keep them for validation only.
+ // Stored keys include provider, connection ID and a revision after '@'; keep them for validation only.
  const connection=key.match(/^connection:[^:]+:(.+)$/);
  if(key.startsWith('connection:')&&!connection)return '모델 정보 없음';
  const model=connection?.[1]??key.replace(/^(?:local|builtin|chatgpt|subscription):/,'');
- const name=model.replace(/@[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,'').trim();
+ const name=model.replace(/@[^@\s]*$/,'').trim();
  return name||'모델 정보 없음';
 }
 

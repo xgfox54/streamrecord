@@ -626,6 +626,7 @@ pub fn run() {
         .invoke_handler({ let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
             bundled_whisper::ko_prepare_bundled_whisper,
             meeting_ko::ko_start_recording,
+            meeting_ko::ko_update_stt_glossary,
             meeting_ko::ko_stop_recording,
             meeting_ko::ko_exit_app,
             meeting_ko::app_update::ko_update_check,
@@ -636,6 +637,7 @@ pub fn run() {
             meeting_ko::ko_enable_stereo_mix,
             meeting_ko::ko_open_exports_folder,
             meeting_ko::ko_validate_video,
+            meeting_ko::ko_video_title,
             meeting_ko::ko_open_video,
             meeting_ko::ko_close_video,
             meeting_ko::ko_models,

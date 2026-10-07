@@ -25,7 +25,7 @@ function fixture(video=false){
  let renderer;
  const scroll={scrollTop:0,scrollHeight:1000,clientHeight:300};const scrolled=[];
  const session={readerSessionKey:0,rows:[{sequence_id:1,text:'최초 원문',is_partial:false}],follow:true,models:[],model:'',saving:false,busy:false,audioSource:null,mode:'idle',
-  correction:{enabled:true,status:'AI 연결 필요',total:0,completed:0,blocked:0,blockedRows:[],error:'',canForceApply:true,setEnabled:value=>{session.correction={...session.correction,enabled:value};render();},retry:()=>{},forceApply:async()=>false},diarization:{status:'원음 연결 필요',running:false,enabled:true,setEnabled:value=>{session.diarization={...session.diarization,enabled:value};render();},run:()=>{},cancel:()=>{}},
+  correction:{enabled:true,status:'AI 연결 필요',total:0,completed:0,blocked:0,blockedRows:[],error:'',canForceApply:true,setEnabled:value=>{session.correction={...session.correction,enabled:value};render();},retry:()=>{},forceApply:async()=>false},autoGlossary:{enabled:true,setEnabled:()=>{},message:'',labels:[]},diarization:{status:'원음 연결 필요',running:false,enabled:true,setEnabled:value=>{session.diarization={...session.diarization,enabled:value};render();},run:()=>{},cancel:()=>{}},
   setFollow:value=>{session.follow=value;render();},saveReview:async(index,sequence,value)=>{session.reviews.push({index,sequence,value});session.rows=session.rows.map((row,i)=>i===index?{...row,reviewed_text:value}:row);render();},reviews:[],setNotice:()=>{},messageOf:error=>String(error),mode:'idle',navigate:()=>{},save:()=>{},prepareAudio:()=>{},modelKey:model=>model.id,setModel:()=>{},liveSummary:'',liveSummaryEnabled:false,setLiveSummaryEnabled:()=>{},liveSummaryStatus:'대기',liveSummaryRunning:false,liveSummaryHistory:[]};
  const render=()=>renderer.update(React.createElement(DictationConversation,{session:{...session},compact:true,video}));
  act(()=>{renderer=Renderer.create(React.createElement(DictationConversation,{session:{...session},compact:true,video}),{createNodeMock:element=>element.props.role==='log'?scroll:{id:element.props.id,scrollIntoView(){scrolled.push(element.props.id);},focus(){}}});});
@@ -95,7 +95,7 @@ for(const video of [false,true])test(`${video?'Video':'Microphone and PC sound'}
   assert.equal(h.renderer.root.findAllByType('button').some(node=>text(node).includes('받아쓰기 설정')),false);assert.equal(h.renderer.root.findAllByType('details').length,0);
   const line=h.renderer.root.findByProps({role:'group','aria-label':'대화 표시 방식'}).parent;
   assert.equal(line.findAllByProps({role:'group','aria-label':'받아쓰기 설정'}).length,1);assert.ok(line.findAllByType('label').some(node=>text(node).startsWith('대화 내용 검색')));
-  assert.equal(checkbox(h,'AI 보정').props.checked,true);assert.equal(checkbox(h,'화자 구분').props.checked,true);assert.equal(checkbox(h,'원문 함께 보기'),undefined);
+  assert.equal(checkbox(h,'AI 보정').props.checked,true);assert.equal(checkbox(h,'참여자 구분').props.checked,true);assert.equal(checkbox(h,'원문 함께 보기'),undefined);
   h.run(()=>button(h,'AI 보정본').props.onClick());assert.ok(checkbox(h,'원문 함께 보기'));
  }finally{h.close();}
 });
@@ -103,8 +103,8 @@ test('Without a correction model a notice links to AI connections, and speaker g
  const h=fixture();try{
   const all=()=>text(h.renderer.root);
   assert.ok(all().includes('AI 후보정 모델이 지정되지 않아'));assert.ok(h.renderer.root.findAllByType('a').some(node=>node.props.href==='#ai'&&text(node).includes('보정 모델 선택')));
-  assert.ok(all().includes('AI 보정과 화자 구분은 기본으로 켜져 있어 받아쓰기가 느려질 수 있습니다'));
-  h.run(()=>checkbox(h,'화자 구분').props.onChange({target:{checked:false}}));assert.equal(checkbox(h,'화자 구분').props.checked,false);assert.ok(all().includes('실시간 화자 구분이 꺼져 있습니다'));
+  assert.ok(all().includes('AI 보정과 참여자 구분은 기본으로 켜져 있어 받아쓰기가 느려질 수 있습니다'));
+  h.run(()=>checkbox(h,'참여자 구분').props.onChange({target:{checked:false}}));assert.equal(checkbox(h,'참여자 구분').props.checked,false);assert.ok(all().includes('실시간 참여자 구분이 꺼져 있습니다'));
   h.run(()=>checkbox(h,'AI 보정').props.onChange({target:{checked:false}}));assert.equal(all().includes('AI 후보정 모델이 지정되지 않아'),false);assert.equal(all().includes('받아쓰기가 느려질 수 있습니다'),false);
  }finally{h.close();}
 });

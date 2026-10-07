@@ -10,8 +10,8 @@ module.exports=function finalFixture(){
   const log=()=>window.__qa.calls.push({command,args});
   if(command==='ko_save_snapshot')window.__qa.currentSnapshot=JSON.parse(args.content);
   if(command==='ko_open_review_audio'){log();return {path:'/qa-audio.wav',filename:'검증용 음성.wav',duration_seconds:10,sha256:hash};}
-  if(command==='ko_run_diarization'){log();if(window.__qa.diarMode==='failure')throw new Error('검증용 화자분리 엔진 오류');if(window.__qa.diarMode==='pending')return new Promise((resolve,reject)=>{rejectPending=reject;});return result;}
-  if(command==='ko_cancel_diarization'){log();rejectPending?.(new Error('사용자가 화자분리를 취소했습니다.'));rejectPending=null;return;}
+  if(command==='ko_run_diarization'){log();if(window.__qa.diarMode==='failure')throw new Error('검증용 참여자 구분 엔진 오류');if(window.__qa.diarMode==='pending')return new Promise((resolve,reject)=>{rejectPending=reject;});return result;}
+  if(command==='ko_cancel_diarization'){log();rejectPending?.(new Error('사용자가 참여자 구분을 취소했습니다.'));rejectPending=null;return;}
   if(command==='ko_list_transcription_recovery'){log();return candidates;}
   if(command==='ko_resume_transcription_recovery'){log();if(window.__qa.recoveryMode==='failure')throw new Error('검증용 대기열 오류');return {rows:[{sourceId:'queue-source-1',update:{sequence_id:1,text:'복구된 첫 번째 발언입니다.',audio_start_time:0,audio_end_time:2,is_partial:false}},{sourceId:'queue-source-2',update:{sequence_id:2,text:'복구된 두 번째 발언입니다.',audio_start_time:2,audio_end_time:4,is_partial:false}}],complete:false,pending:1,failed:1,deferred:1,cancelled:1,partialWrites:1};}
   if(command==='ko_list_connections')return [];

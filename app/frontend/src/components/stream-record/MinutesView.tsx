@@ -1,4 +1,6 @@
 'use client';
+import {FolderOpen} from 'lucide-react';
+import {invoke} from '@tauri-apps/api/core';
 import {FeatureIcon} from './FeatureIcon';
 import type {MeetingSession} from './useMeetingSession';
 import styles from '../meeting-ko/workspace.module.css';
@@ -14,11 +16,11 @@ export function MinutesView({session:s,onEvidence}:{session:MeetingSession;onEvi
   {(s.minutesError||s.minutesProgress)&&<div className={styles.destination} data-testid="minutes-feedback" role={s.minutesError?'alert':'status'} aria-live={s.minutesError?'assertive':'polite'}>
    <strong>{s.minutesError?'회의록 생성을 완료하지 못했습니다.':s.mode==='summarizing'?'회의록 생성 진행 상황':'회의록 생성 결과'}</strong>
    <p>{s.minutesError||s.minutesProgress}</p>
-   {s.minutesError&&<p>받아쓰기와 완료된 구간은 보존됩니다. 위의 요약 모델과 AI 연결을 확인한 뒤 ‘회의록 생성’을 다시 누르세요. 같은 내용과 모델이면 저장된 구간 다음부터 이어서 처리합니다.</p>}
+   {s.minutesError&&<p>받아쓰기와 완료된 구간은 보존됩니다. 위의 요약 모델과 AI 연결을 확인한 뒤 ‘회의록 생성’을 다시 누르세요. 같은 모델이면 이미 처리한 묶음은 건너뜁니다. 받아쓰기를 고친 묶음만 다시 처리합니다.</p>}
    {s.mode==='summarizing'&&!s.minutesError&&<p>긴 기록은 여러 묶음으로 처리하며 완료된 결과를 구간마다 저장합니다. AI 응답이 늦으면 몇 분 동안 같은 구간이 표시될 수 있습니다.</p>}
   </div>}
   <label className={styles.minutesLabel}>회의록 본문 (Markdown)<textarea className={styles.minutes} value={s.minutes} disabled={s.busy} onChange={event=>s.setMinutes(event.target.value)} placeholder="생성한 회의록이 여기에 표시됩니다. 기존 Markdown 회의록도 원래 형식으로 유지됩니다."/></label>
   {evidence.length>0&&<details open className={styles.disclosure}><summary>받아쓰기 근거 찾아가기 · {evidence.length}개</summary><p className={styles.hint}>회의록에 적힌 ID의 받아쓰기 구간으로 이동합니다. 잘못된 ID는 오류로 표시합니다.</p><div className={styles.actions}>{evidence.map(id=><button key={id} onClick={()=>onEvidence(id)}>{sourceLabel(id)} 원문 보기</button>)}</div></details>}
-  <div className={styles.actions}><button disabled={s.saving||!s.minutes} onClick={()=>s.save('minutes')}>회의록 Markdown 저장</button><button disabled={s.saving||(!s.rows.length&&!s.minutes)} onClick={()=>s.save('bundle')}>원문·검토본·회의록 JSON 저장</button></div><p className={styles.hint}>결정사항·담당자·기한은 원문 근거를 대조하세요. 기존 Markdown에 없는 구조화 항목을 임의로 채우지 않습니다.</p>
+  <div className={styles.actions}><button disabled={s.saving||!s.minutes} onClick={()=>s.save('minutes')}>회의록 Markdown 저장</button><button onClick={()=>void invoke('ko_open_exports_folder').catch(error=>s.setError(`저장 폴더 열기 실패: ${s.messageOf(error)}`))}><FolderOpen size={18} aria-hidden="true"/>저장 폴더 열기</button><button disabled={s.saving||(!s.rows.length&&!s.minutes)} onClick={()=>s.save('bundle')}>원문·검토본·회의록 JSON 저장</button></div><p className={styles.hint}>결정사항·담당자·기한은 원문 근거를 대조하세요. 기존 Markdown에 없는 구조화 항목을 임의로 채우지 않습니다.</p>
  </section>;
 }

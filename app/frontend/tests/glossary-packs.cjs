@@ -20,7 +20,8 @@ function load(filename){
  vm.runInNewContext(compiled.outputText,{module,exports:module.exports,require:localRequire,console},{filename});
  return module.exports;
 }
-const {GlossaryPicker,appendGlossaryTerms}=load(path.join(root,'src/components/stream-record/GlossaryPicker.tsx'));
+const {GlossaryPicker,appendGlossaryTerms,interleaveTerms}=load(path.join(root,'src/components/stream-record/GlossaryPicker.tsx'));
+const {glossaryPacks}=load(path.join(root,'src/components/stream-record/glossary-packs.ts'));
 const copy=value=>JSON.parse(JSON.stringify(value));
 const results=[];
 function test(name,fn){try{fn();results.push({name,status:'passed'});console.log('PASS '+name);}catch(error){results.push({name,status:'failed',error:String(error.stack)});console.error(error.stack);}}
@@ -64,6 +65,38 @@ test('Given pending selection when manual input changes then application uses th
 });
 test('Given a selected pack when unchecked then it contributes no terms',()=>{
  const h=harness();try{h.select('budget');h.select('education');act(()=>h.renderer.root.findByProps({value:'budget'}).props.onChange({target:{checked:false}}));h.apply();assert.equal(h.calls[0].includes('예비비'),false);assert.ok(h.calls[0].includes('마을키움터'));}finally{h.close();}
+});
+test('Given the meeting word sets then there are 500 distinct terms in 11 topics, each fitting the recognition hint',()=>{
+ const all=glossaryPacks.flatMap(item=>[...item.terms]);assert.equal(glossaryPacks.length,11);assert.equal(all.length,500);assert.equal(new Set(all).size,500);
+ for(const item of glossaryPacks){assert.ok(item.terms.length>=39,item.id);assert.ok(item.terms.join(', ').length<=310,item.id);assert.ok(item.terms.every(term=>term===term.trim()&&term.length>0&&!/[,;\n]/.test(term)),item.id);}
+ for(const term of ['행정사무감사','사무감사','감사','행감','위성곤','위원장','의원님','시장님','부시장님','국장님','질의','서귀포시','읍면동','워케이션','체납률','준공','용역','애로사항'])assert.ok(all.includes(term),term);
+});
+test('Given two word sets beyond 500 characters when combined then each set keeps its leading terms',()=>{
+ assert.deepEqual(copy(interleaveTerms([['a1','a2','a3'],['b1']])),['a1','b1','a2','a3']);
+ const budget=glossaryPacks.find(item=>item.id==='budget'),audit=glossaryPacks.find(item=>item.id==='audit');
+ const result=appendGlossaryTerms('',interleaveTerms([budget.terms,audit.terms]));assert.ok(result.text.length<=500);assert.ok(result.omitted.length>0);
+ for(const term of [...budget.terms.slice(0,15),...audit.terms.slice(0,15)])assert.ok(result.text.split(', ').includes(term),term);
+});
+const {chooseGlossaryPacks,choosePacksFromTitle,scoreGlossaryPacks}=load(path.join(root,'src/components/stream-record/glossary-auto.ts'));
+test('Given council audit speech when scoring then the audit set is chosen',()=>{
+ const text='위원장님, 행정사무감사 질의를 시작하겠습니다. 전년도 행정사무감사 지적사항 처리결과와 시정요구 조치결과를 자료로 제출해 주십시오. 의원님 말씀하신 애로사항은 감사위원회와 협의하겠습니다.';
+ const picks=chooseGlossaryPacks(text);assert.ok(picks.length>=1&&picks.length<=2);assert.equal(picks[0].id,'audit');
+});
+test('Given polite thanks only when scoring then courtesy is not counted as an audit',()=>{
+ assert.equal(scoreGlossaryPacks('감사합니다. 정말 감사드립니다. 감사했습니다. 감사하고요.').find(item=>item.id==='audit').hits.length,0);
+});
+test('Given unrelated talk when scoring then no set is chosen',()=>{
+ assert.deepEqual(copy(chooseGlossaryPacks('오늘 시장에서 국수와 꿀떡을 먹었는데 국물이 시원하고 빙수 과일이 달아서 맛있었어요. 다음에도 또 오고 싶네요.')),[]);
+});
+test('Given a meeting title when one clear word matches then the title can choose sets',()=>{
+ const picks=chooseGlossaryPacks('행정자치위원회 행정사무감사',{minHits:1});assert.ok(picks.some(item=>item.id==='audit'));assert.ok(picks.some(item=>item.id==='administration'));
+ assert.deepEqual(copy(chooseGlossaryPacks('새 기록',{minHits:1})),[]);assert.deepEqual(copy(chooseGlossaryPacks('YouTube 영상 기록',{minHits:1})),[]);
+});
+test('Given real YouTube titles when choosing from a title then only clear meeting names count',()=>{
+ const council=choosePacksFromTitle('제454회 제주특별자치도의회 임시회 제2차 행정자치위원회 행정사무감사').map(item=>item.id);
+ assert.ok(council.includes('audit'));assert.ok(council.includes('administration'));assert.equal(council.includes('jeju'),false,'the institution name alone is not a topic');
+ assert.deepEqual(copy(choosePacksFromTitle('제주특별자치도의회 제455회 임시회 제3차 보건복지안전위원회').map(item=>item.id)),['welfare']);
+ for(const title of ['2026 03 16 생중계   더불어민주당 - 시·도당위원장협의회 회의 - 국회 본관 당대표회의실','하지말라는 먹방 대구까지 가서 하는 이채연','이 대통령, 제3차 메가프로젝트 민관합동 점검회의…정주 여건 지원안 논의 - [끝까지LIVE] MBC 중계방송 2026년 09월 29일'])assert.deepEqual(copy(choosePacksFromTitle(title)),[],title);
 });
 const report={passed:results.filter(item=>item.status==='passed').length,failed:results.filter(item=>item.status==='failed').length,scope:'Offline pure helper and real React component behavior; no speech inference or native capture.',tests:results};
 fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results/glossary-packs.json'),JSON.stringify(report,null,2));if(report.failed)process.exitCode=1;

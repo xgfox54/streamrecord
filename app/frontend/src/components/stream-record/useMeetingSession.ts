@@ -17,6 +17,7 @@ import {createStructuredMinutes,reviewText,type SummaryCheckpoint} from '../meet
 import {playbackRange,recoverAudio,type ReviewAudio,type RecoveryCheckpoint} from '../meeting-ko/review-core';
 import {type WorkspaceView} from '../stream-record/AppShell';
 import {useStoredFlag} from './useStoredFlag';
+import {useAutoGlossary} from './useAutoGlossary';
 type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'importing'|'summarizing'|'reviewing'|'recovering'|'diarizing';
 type Config={provider:string;model:string};
 export type ModelOption={id:string;provider:string;connectionId?:string;connectionLabel?:string;destination?:string;revision?:string};
@@ -66,7 +67,14 @@ export function useMeetingSession(){
  const setRows=(v:TranscriptRow[])=>{rowsRef.current=v;setRowsState(v);dirty.current++;};
  const setMinutes=(v:string)=>{minutesRef.current=v;setMinutesState(v);dirty.current++;};
  const setTitle=(v:string)=>{titleRef.current=v;setTitleState(v);dirty.current++;};
- const setVideoUrl=(v:string)=>{videoUrlRef.current=v;setVideoUrlState(v);setVideoEmbedUrl('');dirty.current++;};
+ const setVideoUrl=(v:string)=>{videoUrlRef.current=v;setVideoUrlState(v);setVideoEmbedUrl('');videoTitleJob.current=null;setVideoTitle('');dirty.current++;};
+ // The public video title (YouTube oEmbed) helps choose word sets: council broadcasts usually name the meeting there.
+ const [videoTitle,setVideoTitle]=useState('');const videoTitleJob=useRef<{url:string;promise:Promise<string>}|null>(null);const [videoCapture,setVideoCapture]=useState(false);
+ const loadVideoTitle=(url:string)=>{
+  if(videoTitleJob.current?.url===url)return videoTitleJob.current.promise;
+  const promise=invoke<string|null>('ko_video_title',{url}).then(value=>typeof value==='string'?value.trim():'',()=>'').then(value=>{if(videoTitleJob.current?.url===url)setVideoTitle(value);return value;});
+  videoTitleJob.current={url,promise};return promise;
+ };
  const setLiveSummary=(v:string)=>{liveSummaryRef.current=v;setLiveSummaryState(v);dirty.current++;};
  const snapshot=():Snapshot=>({version:1,title:titleRef.current,rows:rowsRef.current,minutes:minutesRef.current,startedAt:startedAt.current,videoUrl:videoUrlRef.current,glossary:glossaryRef.current,liveSummary:liveSummaryRef.current,liveSummaryDraft:liveSummaryDraft.current,summaryDraft:summaryDraft.current,minutesFailure:minutesFailure.current,audioPath:audioPath.current,audioSha256:audioSha256.current,recoveryDraft:recoveryDraft.current});
  const persist=():Promise<unknown>=>{const next=recordHistory.persist();snapshotQueue.current=next;return next;};
@@ -80,6 +88,8 @@ export function useMeetingSession(){
  const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
  const diarization=useDiarization({audio:audioSource,rows,rowsRef,mode,epoch,busy:mode!=='idle',setBusy:value=>setMode(value?'diarizing':'idle'),setRows,persist,report:setError});
  const correction=useTranscriptCorrection({rows,rowsRef,setRows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,persist});
+ const applyGlossary=(value:string)=>{glossaryRef.current=value;setGlossaryState(value);dirty.current++;};
+ const autoGlossary=useAutoGlossary({rows,mode,epoch,title,videoTitle:videoCapture?videoTitle:'',glossary,setGlossary:applyGlossary,notice:setNotice});
  const applySnapshot=(old:Snapshot)=>{setMinutesError(typeof old.minutesFailure==='string'?old.minutesFailure:'');setMinutesProgress('');audioElement.current?.pause();diarization.resetStatus();setError('');setEpoch(value=>value+1);setRows(readRows(old.rows));setTitle(old.title||'새 기록');setMinutes(old.minutes||'');setVideoUrl(typeof old.videoUrl==='string'?old.videoUrl:'');setLiveSummary(typeof old.liveSummary==='string'?old.liveSummary:'');liveSummaryDraft.current=readLiveSummaryCheckpoint(old.liveSummaryDraft);glossaryRef.current=typeof old.glossary==='string'?old.glossary:'';setGlossaryState(glossaryRef.current);summaryDraft.current=old.summaryDraft??null;audioPath.current=old.audioPath??'';audioSha256.current=old.audioSha256??'';recoveryDraft.current=old.recoveryDraft?.version===1?old.recoveryDraft:null;startedAt.current=old.startedAt;setAudioSource(null);setElapsed(0);setQuery('');setPage(0);setEditing(null);setFollow(true);setConsent(false);setSavedPath('');};
  const recordHistory=useRecordHistory({capture:snapshot,apply:applySnapshot,onTransition:active=>{setMode(active?'reviewing':'idle');if(active)setEpoch(value=>value+1);},blockedReason:()=>modeRef.current!=='idle'?'진행 중인 작업을 마친 뒤 기록을 바꿀 수 있습니다.':saveInFlight.current?'내보내기가 끝난 뒤 다시 시도하세요.':correction.running||cumulative.running?'AI 처리가 끝난 뒤 기록을 바꿀 수 있습니다.':''});
  const exportFile=async(kind:'transcript'|'corrected'|'minutes'|'bundle')=>{
@@ -132,16 +142,16 @@ export function useMeetingSession(){
  useEffect(()=>{if(mode!=='recording'||!startedAt.current)return;const tick=()=>setElapsed(Math.max(0,Math.floor((Date.now()-Date.parse(startedAt.current||''))/1000)));tick();const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[mode]);
  const start=async(inputName:string,successNotice:string,deviceType:AudioInput['device_type']='Input')=>{
   if(modeRef.current!=='idle'||!ready||!consent||!inputName)return;
-  setMode('starting');setError('');setNotice('입력 장치와 한국어 모델 확인 중');
+  setMode('starting');setVideoCapture(false);setError('');setNotice('입력 장치와 한국어 모델 확인 중');
   try{await whisperConfig();await archive();await persist();await invoke('ko_start_recording',{micName:deviceType==='Input'?inputName:null,systemName:deviceType==='Output'?inputName:null,title:titleRef.current,glossary:glossaryRef.current});startedAt.current=new Date().toISOString();setElapsed(0);setMode('recording');setNotice(successNotice);await persist();}
   catch(e){setError(messageOf(e));setMode(await recordingMode('idle'));}
  };
- const validateVideo=async()=>{const validated=await invoke<string>('ko_validate_video',{url:videoUrlRef.current.trim()});const embed=youtubeEmbedUrl(validated);videoUrlRef.current=validated;setVideoUrlState(validated);setVideoEmbedUrl(embed);dirty.current++;return validated;};
+ const validateVideo=async()=>{const validated=await invoke<string>('ko_validate_video',{url:videoUrlRef.current.trim()});const embed=youtubeEmbedUrl(validated);videoUrlRef.current=validated;setVideoUrlState(validated);setVideoEmbedUrl(embed);dirty.current++;void loadVideoTitle(validated);return validated;};
  const prepareVideo=async()=>{if(modeRef.current!=='idle'||!videoUrlRef.current.trim())return;setError('');setNotice('YouTube 링크 확인 중');try{await validateVideo();setNotice('영상 준비 완료. 플레이어에서 재생할 수 있습니다. 녹음은 아직 시작되지 않았습니다.');}catch(e){setVideoEmbedUrl('');setError(messageOf(e));}};
  const startVideo=async()=>{
   const source=selectedSystemDevice(devices,systemDevice);
   if(modeRef.current!=='idle'||!ready||!consent||!source||!videoUrlRef.current.trim())return;
-  setMode('starting');setError('');setNotice('영상 링크와 한국어 모델 확인 중');
+  setMode('starting');setVideoCapture(true);setError('');setNotice('영상 링크와 한국어 모델 확인 중');
   let recordingStarted=false;
   try{await whisperConfig();await validateVideo();await archive();if(!titleRef.current.trim())setTitle('YouTube 영상 기록');await persist();await invoke('ko_start_recording',{micName:source.device_type==='Input'?source.name:null,systemName:source.device_type==='Output'?source.name:null,title:titleRef.current,glossary:glossaryRef.current});startedAt.current=new Date().toISOString();setElapsed(0);recordingStarted=true;setMode('recording');setNotice('녹음 중입니다. 영상에서 재생을 누르세요. 선택한 스피커·헤드폰으로 재생되는 소리를 받아씁니다.');await persist();}
   catch(e){const rollback=recordingStarted?await invoke('ko_stop_recording').then(()=>'',x=>` 녹음 정리 실패: ${messageOf(x)}`):'';setError(messageOf(e)+rollback);setMode(await recordingMode('idle'));}
@@ -196,7 +206,7 @@ export function useMeetingSession(){
    await invoke('ko_exit_app');
   }catch(e){setError(`종료하지 않았습니다. ${messageOf(e)}`);}finally{setExiting(false);}
  };
- return {records:recordHistory.records,activeRecordId:recordHistory.activeRecordId,recordsLoading:recordHistory.recordsLoading,historyError:recordHistory.historyError,recordSwitchBlocked:recordHistory.recordSwitchBlocked,recordSwitchBlockedReason:recordHistory.recordSwitchBlockedReason,readerSessionKey:recordHistory.activeRecordId,refreshRecords:recordHistory.refreshRecords,newRecord:async()=>{await recordHistory.newRecord();navigate('recording');setNotice('새 기록을 준비했습니다. 입력과 동의를 확인한 뒤 시작하세요.');},openRecord:async(id:string)=>{await recordHistory.openRecord(id);navigate('dictation');setNotice('저장된 기록을 열었습니다. 원음은 다시 연결해 확인할 수 있습니다.');},applyQueueRecovery,setRecoveryBusy:(busy:boolean)=>setMode(busy?'recovering':'idle'),diarization,correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:(value:string)=>{glossaryRef.current=value;setGlossaryState(value);dirty.current++;},
+ return {records:recordHistory.records,activeRecordId:recordHistory.activeRecordId,recordsLoading:recordHistory.recordsLoading,historyError:recordHistory.historyError,recordSwitchBlocked:recordHistory.recordSwitchBlocked,recordSwitchBlockedReason:recordHistory.recordSwitchBlockedReason,readerSessionKey:recordHistory.activeRecordId,refreshRecords:recordHistory.refreshRecords,newRecord:async()=>{await recordHistory.newRecord();navigate('recording');setNotice('새 기록을 준비했습니다. 입력과 동의를 확인한 뒤 시작하세요.');},openRecord:async(id:string)=>{await recordHistory.openRecord(id);navigate('dictation');setNotice('저장된 기록을 열었습니다. 원음은 다시 연결해 확인할 수 있습니다.');},applyQueueRecovery,setRecoveryBusy:(busy:boolean)=>setMode(busy?'recovering':'idle'),diarization,correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:applyGlossary,autoGlossary,
   recordingKind,setRecordingKind,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
   liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
   error,setError,notice,setNotice,minutesError,minutesProgress,savedPath,saving,progress,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,

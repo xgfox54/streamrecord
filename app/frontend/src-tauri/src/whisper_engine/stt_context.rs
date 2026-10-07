@@ -25,6 +25,14 @@ impl LiveContext {
         self.active = true;
         self.glossary = clean_hint(glossary, 300);
     }
+    /// Replaces the hint for the rest of an active recording. Returns false when no recording is active.
+    fn update(&mut self, glossary: &str) -> bool {
+        if !self.active {
+            return false;
+        }
+        self.glossary = clean_hint(glossary, 300);
+        true
+    }
     fn ticket(&self, start: f64, end: f64) -> Option<PromptTicket> {
         if !self.active || self.glossary.is_empty() || !start.is_finite() || !end.is_finite() || start < 0.0 || end < start {
             return None;
@@ -36,6 +44,10 @@ impl LiveContext {
 pub fn begin(glossary: &str) -> Result<(), String> {
     LIVE.lock().map_err(|_| "받아쓰기 문맥 잠금 오류".to_string())?.begin(glossary);
     Ok(())
+}
+/// Applies a word list chosen during the recording to the following chunks.
+pub fn update(glossary: &str) -> Result<bool, String> {
+    Ok(LIVE.lock().map_err(|_| "받아쓰기 문맥 잠금 오류".to_string())?.update(glossary))
 }
 pub fn end() {
     if let Ok(mut state) = LIVE.lock() {
@@ -77,9 +89,14 @@ mod tests {
 
     #[test]
     fn stream_record_inactive_or_invalid_audio_gets_no_hint() {
+        let mut idle = LiveContext::default();
+        assert!(!idle.update("행정사무감사"));
+        assert!(idle.ticket(0.0, 12.0).is_none());
         let mut state = LiveContext::default();
         assert!(state.ticket(0.0, 12.0).is_none());
         state.begin("제주");
+        assert!(state.update("제주, 행정사무감사"));
+        assert_eq!(state.ticket(12.0, 24.0).unwrap().text, "제주, 행정사무감사");
         for (start, end) in [(f64::NAN, 12.0), (0.0, f64::INFINITY), (-1.0, 12.0), (12.0, 0.0)] {
             assert!(state.ticket(start, end).is_none());
         }

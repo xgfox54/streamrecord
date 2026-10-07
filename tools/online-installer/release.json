@@ -1,37 +1,39 @@
 {
-  "version": "0.7.0",
+  "version": "0.7.1",
   "variant": "cpu",
   "installer": {
-    "name": "Stream-Record-0.7.0-korean-bundled-cpu-windows-x64-setup.exe",
-    "bytes": 325377905,
-    "crc32": "489567b8",
-    "sha256": "85d94898adee9a90f22db79457d7b0440504a38d017d5c119b26cc80f9f00b03"
+    "name": "Stream-Record-0.7.1-korean-bundled-cpu-windows-x64-setup.exe",
+    "bytes": 325552730,
+    "crc32": "835b4b9c",
+    "sha256": "3c21c908a80e54b9f09ee31b4c77e94586fb5ce3af5af3ac89f521b5fc4213b5",
+    "unsigned": true
   },
   "parts": [
     {
-      "name": "Stream-Record-0.7.0-korean-bundled-cpu-windows-x64-setup.exe.part-000",
+      "name": "Stream-Record-0.7.1-korean-bundled-cpu-windows-x64-setup.exe.part-000",
       "bytes": 75497472,
-      "sha256": "e739c674f5d1ac7f6d80de5ead65351652a1a5c77e75fd923b5e56ce4bdabe59"
+      "sha256": "7aaa31e767ea93c663322fce8bbeb86e133d194a739b4ba94e62a1f2d7c606f1"
     },
     {
-      "name": "Stream-Record-0.7.0-korean-bundled-cpu-windows-x64-setup.exe.part-001",
+      "name": "Stream-Record-0.7.1-korean-bundled-cpu-windows-x64-setup.exe.part-001",
       "bytes": 75497472,
-      "sha256": "29764de81a54d8070e9f027f067ee87fe5c188616d4b028cf15451f402d354c6"
+      "sha256": "fc829717db03ff91d2eb903544bec249b5e06e531eb36bf78808796e18fc32c1"
     },
     {
-      "name": "Stream-Record-0.7.0-korean-bundled-cpu-windows-x64-setup.exe.part-002",
+      "name": "Stream-Record-0.7.1-korean-bundled-cpu-windows-x64-setup.exe.part-002",
       "bytes": 75497472,
-      "sha256": "f8708473fc397cec19cc53dce47946d1c320798fd757e1540f584544f96e0764"
+      "sha256": "3a49110207c3ea19fec6e5431fd76e04e1cf53eb493d3a3e7f840dcfe4b463c3"
     },
     {
-      "name": "Stream-Record-0.7.0-korean-bundled-cpu-windows-x64-setup.exe.part-003",
+      "name": "Stream-Record-0.7.1-korean-bundled-cpu-windows-x64-setup.exe.part-003",
       "bytes": 75497472,
-      "sha256": "cdbc5905a564c927f706371b2ef25b45a1e4ffe16d0a8bdb50f3404aa0fa205f"
+      "sha256": "3ef77d772565071e903889ad18e5e56adf5c852a7fb7f3a3079bfd04960fc06f"
     },
     {
-      "name": "Stream-Record-0.7.0-korean-bundled-cpu-windows-x64-setup.exe.part-004",
-      "bytes": 23388017,
-      "sha256": "e2aa2476b72ba093284c8ffd77d7e80852b06d583c7c20b628368e4b597dd609"
+      "name": "Stream-Record-0.7.1-korean-bundled-cpu-windows-x64-setup.exe.part-004",
+      "bytes": 23562842,
+      "sha256": "c2a6cb5085b5cf7fc88f21eb5937e8766abc715e4e82c81658f26e0d0164fdda"
     }
   ]
 }
+

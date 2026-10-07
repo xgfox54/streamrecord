@@ -6,7 +6,7 @@ module.exports=async({test,using,deferred})=>{
  const audio={path:'original.wav',sha256:'a'.repeat(64),duration_seconds:30};
  const connectAudio=async h=>{h.overrides.set('ko_open_review_audio',async()=>audio);await h.run(()=>h.session.prepareAudio(false));assert.equal(h.session.audioSource.sha256,audio.sha256);};
  await test('Opening another record clears cancelled diarization status and error without changing either transcript',()=>using({snapshot:first,records:[first,second]},async h=>{
-  await connectAudio(h);h.overrides.set('ko_run_diarization',async()=>{throw new Error('화자분리를 취소했습니다.');});
+  await connectAudio(h);h.overrides.set('ko_run_diarization',async()=>{throw new Error('참여자 구분을 취소했습니다.');});
   await h.run(h.session.diarization.run);assert.match(h.session.diarization.status,/취소/);assert.match(h.session.error,/취소/);
   await h.run(()=>h.session.openRecord('record-one'));assert.match(h.session.diarization.status,/취소/);
   await h.run(()=>assert.rejects(h.session.openRecord('missing'),/record missing/));assert.match(h.session.diarization.status,/취소/);assert.match(h.session.error,/취소/);
@@ -16,8 +16,8 @@ module.exports=async({test,using,deferred})=>{
  }));
  await test('A new record does not inherit the previous successful speaker analysis status',()=>using({snapshot:first,records:[first]},async h=>{
   await connectAudio(h);h.overrides.set('ko_run_diarization',async()=>({modelId:'fixture',modelRevision:'fixture',engineRevision:'fixture',audioSha256:audio.sha256,segments:[{start:0,end:10,speaker:1}]}));
-  await h.run(h.session.diarization.run);assert.match(h.session.diarization.status,/1명 화자 추정/);
-  await h.run(h.session.newRecord);assert.doesNotMatch(h.session.diarization.status,/1명 화자 추정/);assert.equal(h.session.rows.length,0);assert.equal(h.session.audioSource,null);
+  await h.run(h.session.diarization.run);assert.match(h.session.diarization.status,/참여자 1명 추정/);
+  await h.run(h.session.newRecord);assert.doesNotMatch(h.session.diarization.status,/참여자 1명 추정/);assert.equal(h.session.rows.length,0);assert.equal(h.session.audioSource,null);
  }));
  await test('Record switching saves edits and restores separate transcripts minutes and summary',()=>using({snapshot:first,records:[first,second]},async h=>{
   await h.run(()=>h.session.setTitle('수정한 제목'));await h.run(()=>h.session.openRecord('record-two'));

@@ -79,14 +79,14 @@ const server=http.createServer((request,res)=>{const name=decodeURIComponent(new
    const search=page.getByRole('searchbox',{name:'대화 내용 검색',exact:true});await search.scrollIntoViewIfNeeded();assert.equal(await search.isVisible(),true,'search visible at '+width);
    assert.equal(await page.getByText('대화 검색',{exact:true}).count(),0);
    assert.equal(await page.getByRole('button',{name:'받아쓰기 설정',exact:true}).count(),0);
-   const ai=page.getByRole('checkbox',{name:'AI 보정',exact:true}),speaker=page.getByRole('checkbox',{name:'화자 구분',exact:true});
+   const ai=page.getByRole('checkbox',{name:'AI 보정',exact:true}),speaker=page.getByRole('checkbox',{name:'참여자 구분',exact:true});
    assert.equal(await ai.isChecked(),true);assert.equal(await speaker.isChecked(),true);
    assert.equal(await page.getByRole('group',{name:'받아쓰기 설정',exact:true}).evaluate(node=>node.parentElement===document.querySelector('[aria-label="대화 표시 방식"]').parentElement),true);
    if(width===1280){const switcher=await page.getByRole('group',{name:'대화 표시 방식',exact:true}).boundingBox(),box=await ai.boundingBox();assert.ok(Math.abs((box.y+box.height/2)-(switcher.y+switcher.height/2))<16,'options share the switcher line at 1280');}
    await page.getByText('AI 후보정 모델이 지정되지 않아',{exact:false}).waitFor();await page.getByTestId('option-speed-note').waitFor();
    await speaker.scrollIntoViewIfNeeded();await capture('options-'+width);await axeCheck('options-'+width);
   }
-  checks.push('AI 보정 and 화자 구분 are on by default beside 실시간 원문/AI 보정본, with no-model and speaker guidance, at 1280, 768 and 375 px');
+  checks.push('AI 보정 and 참여자 구분 are on by default beside 실시간 원문/AI 보정본, with no-model and speaker guidance, at 1280, 768 and 375 px');
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(out,'activity-browser.json'),JSON.stringify({passed:true,checks,captures,scope:'Production Chromium; native commands simulated.'},null,2));
   console.log('PASS activity browser: '+checks.length+' groups');

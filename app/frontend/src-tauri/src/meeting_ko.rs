@@ -120,6 +120,15 @@ fn valid_model(model: &str) -> bool {
         && !model.contains("://")
 }
 
+/// Updates the recognition hint mid-recording, e.g. after word sets were chosen from the meeting content.
+#[tauri::command]
+pub fn ko_update_stt_glossary(glossary: String) -> Result<bool, String> {
+    if glossary.chars().count() > 500 {
+        return Err("회의 용어는 500자 이내로 입력하세요.".into());
+    }
+    crate::whisper_engine::stt_context::update(&glossary)
+}
+
 #[tauri::command]
 pub async fn ko_start_recording<R: Runtime>(
     app: AppHandle<R>,
@@ -402,6 +411,45 @@ pub async fn ko_open_video<R: Runtime>(app: AppHandle<R>, url: String) -> Result
     .build()
     .map_err(|e| format!("영상 창을 열지 못했습니다: {e}"))?;
     Ok(watch)
+}
+
+/// Reads the public title of a YouTube video through oEmbed. Council broadcasts usually name the meeting there,
+/// which helps choose word sets. Any failure returns None so recording never waits on it.
+#[tauri::command]
+pub async fn ko_video_title(url: String) -> Result<Option<String>, String> {
+    let watch = youtube_watch_url(&url)?;
+    let endpoint = reqwest::Url::parse_with_params("https://www.youtube.com/oembed", &[("format", "json"), ("url", watch.as_str())])
+        .map_err(|e| format!("영상 제목 주소 오류: {e}"))?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(6))
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .build()
+        .map_err(|e| format!("영상 제목 조회 준비 실패: {e}"))?;
+    let Ok(response) = client.get(endpoint).send().await else { return Ok(None) };
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+    let Ok(bytes) = response.bytes().await else { return Ok(None) };
+    if bytes.len() > 64 * 1024 {
+        return Ok(None);
+    }
+    let Ok(body) = serde_json::from_slice::<Value>(&bytes) else { return Ok(None) };
+    Ok(body.get("title").and_then(Value::as_str).map(clean_video_title).filter(|title| !title.is_empty()))
+}
+
+fn clean_video_title(raw: &str) -> String {
+    let visible: String = raw.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    visible.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(200).collect()
+}
+
+#[cfg(test)]
+mod video_title_tests {
+    #[test]
+    fn video_title_is_single_line_and_bounded() {
+        assert_eq!(super::clean_video_title(" 제454회 임시회\n\t제2차   행정자치위원회\u{0}"), "제454회 임시회 제2차 행정자치위원회");
+        assert_eq!(super::clean_video_title(&"가".repeat(300)).chars().count(), 200);
+        assert_eq!(super::clean_video_title(" \n "), "");
+    }
 }
 
 #[tauri::command]

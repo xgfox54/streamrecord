@@ -15,7 +15,8 @@ export function TranscriptOptions({session:s,corrected,compare,setCompare}:{read
  return <div className={layout.transcriptOptions} role="group" aria-label="받아쓰기 설정">
   <label className={styles.check}><input type="checkbox" checked={s.correction.enabled} onChange={event=>s.correction.setEnabled(event.target.checked)}/>AI 보정</label>
   {s.models.length>0&&<label className={layout.modelSelect}>보정 AI<select value={s.model} onChange={event=>s.setModel(event.target.value)}><option value="">AI 선택</option><ModelOptions session={s}/></select></label>}
-  <label className={styles.check}><input type="checkbox" checked={s.diarization.enabled} onChange={event=>s.diarization.setEnabled(event.target.checked)}/>화자 구분</label>
+  <label className={styles.check}><input type="checkbox" checked={s.diarization.enabled} onChange={event=>s.diarization.setEnabled(event.target.checked)}/>참여자 구분</label>
+  <label className={styles.check} title="회의 내용에 맞는 용어 세트를 받아쓰기 참고 용어에 자동으로 넣습니다."><input type="checkbox" checked={s.autoGlossary.enabled} onChange={event=>s.autoGlossary.setEnabled(event.target.checked)}/>용어 자동 선택</label>
   {corrected&&<label className={styles.check}><input type="checkbox" checked={compare} onChange={event=>setCompare(event.target.checked)}/>원문 함께 보기</label>}
  </div>;
 }
@@ -25,10 +26,11 @@ export function TranscriptOptionNotes({session:s,showStatus,onReveal}:{readonly 
  const transcriptLink=<a href="#transcript" onClick={()=>s.navigate('transcript')}>원음 듣기·직접 수정</a>;
  const slowdown=correction.enabled||s.diarization.enabled;
  return <div className={layout.optionNotes}>
-  {slowdown&&<p className={styles.hint} data-testid="option-speed-note">AI 보정과 화자 구분은 기본으로 켜져 있어 받아쓰기가 느려질 수 있습니다. 더 빠르게 받아쓰려면 위의 ‘AI 보정’과 ‘화자 구분’을 끄세요.<br/>기능을 꺼도 녹음과 원문은 그대로 보존되며, 선택은 다음 실행에도 유지됩니다.</p>}
+  {slowdown&&<p className={styles.hint} data-testid="option-speed-note">AI 보정과 참여자 구분은 기본으로 켜져 있어 받아쓰기가 느려질 수 있습니다. 더 빠르게 받아쓰려면 위의 ‘AI 보정’과 ‘참여자 구분’을 끄세요.<br/>기능을 꺼도 녹음과 원문은 그대로 보존되며, 선택은 다음 실행에도 유지됩니다.</p>}
   {correction.enabled&&!chosen&&<div role="status" className={styles.information}><p>AI 후보정 모델이 지정되지 않아 AI 보정을 하지 않습니다. 받아쓰기 원문은 그대로 저장되고, AI 보정본에는 원문이 표시됩니다. ChatGPT 계정 연결은 Plus 이상 유료 계정만 지원합니다.</p><a href="#ai" onClick={()=>s.navigate('ai')}>AI 연결에서 보정 모델 선택</a></div>}
   {correction.enabled&&chosen&&<p className={styles.hint}>{showStatus?`AI 보정: ${correction.status}${correction.total>0?` · ${correction.completed}/${correction.total}구간`:''} · `:''}{chosen.id} · 전송 위치: {modelDestination(chosen)}{onThisPc?'. 이 PC에서 처리하므로 원격 AI를 선택하면 받아쓰기가 덜 느려집니다.':''}</p>}
   <CorrectionNotice correction={correction} onReveal={onReveal}/>
-  {s.diarization.enabled?s.mode==='recording'&&<p className={styles.hint}>{s.diarization.status}</p>:<p className={styles.hint}>실시간 화자 구분이 꺼져 있습니다. 녹음 후 {transcriptLink}에서 전체 화자분리를 할 수 있습니다.</p>}
+  {s.autoGlossary.message&&<p className={styles.hint} data-testid="auto-glossary-note">{s.autoGlossary.message}</p>}
+  {s.diarization.enabled?s.mode==='recording'&&<p className={styles.hint}>{s.diarization.status}</p>:<p className={styles.hint}>실시간 참여자 구분이 꺼져 있습니다. 녹음 후 {transcriptLink}에서 전체 참여자 구분을 할 수 있습니다.</p>}
  </div>;
 }

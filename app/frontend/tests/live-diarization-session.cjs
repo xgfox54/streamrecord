@@ -26,6 +26,32 @@ module.exports=async({test,using,deferred})=>{
   assert.deepEqual(assignment(h.session.rows[2]),[2]);
   assert.equal(h.calls.filter(c=>c.command==='ko_poll_live_diarization').at(-1).args.afterCheckpoint,0);
  }));
+ await test('Periodic whole-recording inference relabels unassigned rows and resumes after the snapshot cursor',()=>using({},async h=>{
+  let fullCalls=0;
+  h.overrides.set('ko_poll_live_diarization',async args=>{
+   if(args.full){fullCalls++;return windowResult(11,0,360,[{start:1,end:10,speaker:1},{start:302,end:310,speaker:1}]);}
+   if(args.afterCheckpoint>=3)return null;
+   const index=args.afterCheckpoint+1;return windowResult(index,Math.max(0,(index-1)*30),(index+1)*30,[{start:index*30+1,end:index*30+10,speaker:1}]);
+  });
+  await h.start();for(let i=0;i<3;i++)await h.advance(3000);
+  await h.run(()=>h.emit('transcript-update',row(1,302,305)));
+  assert.equal(h.session.rows[0].speaker_assignment,undefined);
+  await h.advance(300000);assert.equal(fullCalls,1);
+  assert.deepEqual(assignment(h.session.rows[0]),[1]);
+  await h.advance(3000);
+  assert.equal(h.calls.filter(c=>c.command==='ko_poll_live_diarization').at(-1).args.afterCheckpoint,11);
+  await h.advance(3000);assert.equal(fullCalls,1,'whole analysis does not run every poll');
+ }));
+ await test('Stopping discards pending whole-recording results and cancels the native job',()=>using({},async h=>{
+  const gate=deferred();
+  h.overrides.set('ko_poll_live_diarization',async args=>args.full?gate.promise:windowResult(3,60,120,[]));
+  h.overrides.set('ko_cancel_diarization',async()=>{});
+  await h.start();await h.advance(300000);
+  await h.run(()=>h.emit('transcript-update',row(1,1,4)));
+  await h.run(h.session.stop);assert.equal(h.count('ko_cancel_diarization'),1);
+  await h.run(()=>gate.resolve(windowResult(11,0,360,[{start:1,end:10,speaker:1}])));
+  assert.equal(h.session.rows[0].speaker_assignment,undefined);
+ }));
  await test('Failed live inference waits 30 seconds and retries the same cursor while transcription continues',()=>using({},async h=>{
   h.overrides.set('ko_poll_live_diarization',async()=>{throw new Error('missing local model');});
   await h.start();assert.equal(h.count('ko_poll_live_diarization'),1);

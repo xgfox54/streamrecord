@@ -20,7 +20,7 @@ export function DictationView({session:s}:{readonly session:MeetingSession}){
     </div></details>
     {s.mode==='recording'?<button className={styles.primary} onClick={()=>void s.stop()}><Square size={20} aria-hidden="true"/>받아쓰기 중지 및 저장</button>:<button className={styles.primary} disabled={Boolean(disabledReason)} aria-describedby="dictation-start-help" onClick={()=>{s.setRecordingKind('microphone');void s.start(microphone,'받아쓰기를 시작했습니다. 확정된 문장은 AI 자동 보정을 켜면 순서대로 처리됩니다.');}}><Mic size={20} aria-hidden="true"/>{s.mode==='starting'?'음성 모델 준비 중…':s.mode==='stopping'?'마지막 문장 저장 중…':'받아쓰기 시작'}</button>}
    </div>
-   <label className={styles.check}><input type="checkbox" checked={s.consent} disabled={s.busy} onChange={event=>s.setConsent(event.target.checked)}/>발화자에게 녹음을 알렸으며 녹음·처리 권한을 확인했습니다.</label>
+   <label className={styles.check}><input type="checkbox" checked={s.consent} disabled={s.busy} onChange={event=>s.setConsent(event.target.checked)}/>참여자에게 녹음을 알렸으며 녹음·처리 권한을 확인했습니다.</label>
    <p id="dictation-start-help" className={styles.hint}>{disabledReason||`입력: ${microphone} · 동봉된 한국어 Whisper로 이 PC에서 받아씁니다.`}</p>
   </section>
   <DictationConversation session={s}/>

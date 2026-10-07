@@ -353,6 +353,7 @@ async function using(options,fn) {const h = harness(options); await h.mount(); t
   await require('./minutes-session.cjs')({test,using,deferred});
   await require('./transcript-correction.cjs')({test,using,deferred});
   await require('./live-diarization-session.cjs')({test,using,deferred});
+  await require('./auto-glossary-session.cjs')({test,using,deferred});
   const passed = results.filter(result=>result.status==='passed').length, failed = results.length-passed;
   const report = {passed,failed,executedAt:new Date().toISOString(),scope:'Offline React 18 renderer with real session hook, transcript editor, AppShell and helpers; mocked Tauri/browser boundary. StrictMode wrapper plus explicit teardown/remount; no native capture, network, model inference or WebView rendering.',results};
   fs.mkdirSync(path.join(root,'test-results'),{recursive:true}); fs.writeFileSync(path.join(root,'test-results/ui-session.json'),JSON.stringify(report,null,2));

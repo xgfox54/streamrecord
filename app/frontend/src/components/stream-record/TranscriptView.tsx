@@ -23,7 +23,7 @@ export function TranscriptView({session:s,evidence,onEvidenceShown}:{session:Mee
  useEffect(()=>{if(!evidence)return;if(repeatsOnly){setRepeatsOnly(false);return;}const target=document.getElementById(`source-${evidence.replace(/p\d+$/,'')}`);if(target){target.focus();target.scrollIntoView({block:'center'});onEvidenceShown();}},[evidence,page,repeatsOnly,onEvidenceShown]);
  const recent=()=>{s.setEditing(null);s.setQuery('');setRepeatsOnly(false);s.setPage(0);s.setFollow(true);setNewRows(0);};
  return <section className={styles.panel} aria-label="받아쓰기 원문과 검토본"><div className={styles.panelHead}><h2>받아쓰기 원문 <span className={styles.badge}>{s.rows.length}구간</span></h2><label className={styles.check}><input type="checkbox" checked={s.follow} onChange={event=>{s.setFollow(event.target.checked);if(event.target.checked)recent();}}/>새 구간 따라가기</label></div>
-  <p className={styles.hint}>최초 원문은 수정되지 않습니다. 검토본 편집은 사람이 검증을 마쳤다는 뜻이 아닙니다. 화자 번호는 저장 원음 분석 결과이며 사람 이름을 식별하지 않습니다.</p>
+  <p className={styles.hint}>최초 원문은 수정되지 않습니다. 검토본 편집은 사람이 검증을 마쳤다는 뜻이 아닙니다. 참여자 번호는 저장 원음 분석 결과이며 사람 이름을 식별하지 않습니다.</p>
   <div className={guide.reviewToolbar}><p>{s.audioSource?'원음이 연결됐습니다. 각 문장의 듣기 버튼으로 확인하세요.':'오인식이 의심되나요? 원음을 연결하면 문장별로 다시 들을 수 있습니다.'}</p><button disabled={s.busy} onClick={()=>void s.prepareAudio(false)}>{s.audioSource?'연결된 원음 확인':'원음 연결하고 검토'}</button></div>
   <DiarizationControls session={s}/><QueueRecoveryPanel session={s}/>
   {repeats.size>0&&<label className={styles.check}><input type="checkbox" checked={repeatsOnly} onChange={event=>{setRepeatsOnly(event.target.checked);s.setPage(0);s.setFollow(false);}}/>반복 확인 대상만 보기 · {repeats.size}구간 (원문은 그대로 보존)</label>}

@@ -18,6 +18,13 @@ export function appendGlossaryTerms(manual:string,terms:readonly string[],budget
  return {text,omitted};
 }
 
+/** Takes terms from each selected set in turn, so every set's leading, most often misheard terms fit in 500 characters. */
+export function interleaveTerms(lists:readonly (readonly string[])[]):string[]{
+ const out:string[]=[];const longest=Math.max(0,...lists.map(list=>list.length));
+ for(let i=0;i<longest;i++)for(const list of lists)if(i<list.length)out.push(list[i]);
+ return out;
+}
+
 export function GlossaryPicker({session}:{readonly session:MeetingSession}){
  return <RecordGlossaryPicker key={session.activeRecordId} session={session}/>;
 }
@@ -28,7 +35,7 @@ function RecordGlossaryPicker({session:s}:{readonly session:MeetingSession}){
  const [message,setMessage]=useState('');
  const previewId=useId();
  const chosenSets=glossaryPacks.filter(item=>selectedSets.includes(item.id));
- const selected=[...new Set([...chosenSets.flatMap(item=>[...item.terms]),...selectedTerms])];
+ const selected=[...new Set([...interleaveTerms(chosenSets.map(item=>item.terms)),...selectedTerms])];
  const preview=appendGlossaryTerms(s.glossary,selected);
  const append=()=>{
   if(s.busy||!selected.length)return;
@@ -40,6 +47,9 @@ function RecordGlossaryPicker({session:s}:{readonly session:MeetingSession}){
  return <details className={styles.disclosure}>
   <summary>회의 주제별 용어 세트</summary>
   <p className={styles.hint}>회의 주제를 여러 개 선택하고 용어를 확인한 뒤 추가하세요. 기존 입력은 그대로 유지하며, 체크만으로 적용되지 않습니다.</p>
+  {s.autoGlossary&&<label className={styles.check}><input type="checkbox" checked={s.autoGlossary.enabled} onChange={event=>s.autoGlossary.setEnabled(event.target.checked)}/>회의 내용에 맞는 용어 세트 자동 선택</label>}
+  <p className={styles.hint}>자동 선택을 켜 두면 녹음을 시작할 때 회의 제목을, 약 1분 뒤에는 받아쓴 내용을 보고 맞는 세트를 1~2개 골라 넣습니다. 직접 입력한 용어는 그대로 앞에 두고, 녹음 한 번에 한 번만 바꿉니다. 저장된 기록을 열 때는 바꾸지 않습니다.</p>
+  <p className={styles.hint}>한 기록에는 500자(약 60~70단어)까지 넣을 수 있습니다. 앞 300자는 받아쓰기 인식에 바로 쓰이고, 500자 전체는 AI 보정에 참고됩니다. 세트 하나가 약 300자이므로 회의 성격에 맞는 세트를 1~2개 고르세요. 여러 세트를 고르면 각 세트에서 자주 틀리는 앞쪽 용어부터 번갈아 넣습니다.</p>
   <fieldset disabled={s.busy}><legend>참고할 회의 주제</legend><div className={styles.formGrid}>
    {glossaryPacks.map(item=><label className={styles.check} key={item.id} title={item.scope}>
     <input type="checkbox" value={item.id} checked={selectedSets.includes(item.id)} onChange={event=>{setSelectedSets(current=>event.target.checked?[...current,item.id]:current.filter(id=>id!==item.id));setMessage('');}}/>
@@ -65,6 +75,6 @@ function RecordGlossaryPicker({session:s}:{readonly session:MeetingSession}){
    <button type="button" disabled={s.busy||!selected.length} onClick={()=>{setSelectedSets([]);setSelectedTerms([]);setMessage('');}}>선택 해제</button>
   </div>
   {message&&<p role="status" className={styles.hint}>{message}</p>}
-  <p className={styles.hint}>출처: <a href={glossaryPackSource.url} target="_blank" rel="noreferrer">{glossaryPackSource.title} (새 창)</a>. 이 회의의 안건을 주제별로 직접 분류한 초안이며, 전체 회의록 자동 분석 결과가 아닙니다. 전문 검수와 음성 인식 효과 평가는 미완료입니다.</p>
+  <p className={styles.hint}>11개 주제 500개 용어입니다. <a href={glossaryPackSource.url} target="_blank" rel="noreferrer">{glossaryPackSource.title} (새 창)</a> 안건, 약 5시간 실제 회의 녹음에서 AI 보정으로 바로잡힌 오인식 단어(질의, 서귀포, 읍면동 등), 지방의회 회의 공통 용어로 구성했습니다. 인물 이름은 직책이 바뀌면 직접 고쳐 입력하세요. 전문 검수와 받아쓰기 효과 측정은 아직 하지 않았습니다.</p>
  </details>;
 }

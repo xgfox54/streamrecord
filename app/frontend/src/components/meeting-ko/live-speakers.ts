@@ -44,15 +44,49 @@ export function mergeLiveSpeakers(rows:readonly TranscriptRow[],input:unknown,pr
   const [local,global]=key.split(':').map(Number);
   if(!mapping.has(local)&&!claimed.has(global)){mapping.set(local,global);claimed.add(global);}
  }
- let nextSpeaker=previous?.nextSpeaker??1;
+ const occupied=new Set(previous?.segments.map(s=>s.speaker)??[]);
+ let nextSpeaker=1;
  for(const local of [...new Set(window.segments.map(s=>s.speaker))].sort((a,b)=>a-b)){
-  if(!mapping.has(local)&&nextSpeaker<=8)mapping.set(local,nextSpeaker++);
+  if(mapping.has(local))continue;
+  while(occupied.has(nextSpeaker))nextSpeaker++;
+  if(nextSpeaker<=8){mapping.set(local,nextSpeaker);occupied.add(nextSpeaker++);}
  }
  const segments=window.segments.flatMap(s=>{
   const speaker=mapping.get(s.speaker);
   return speaker?[{start:s.start,end:s.end,speaker}]:[];
  });
  const coveredStart=previous&&overlapEnd>window.windowStartSeconds?overlapEnd:window.windowStartSeconds;
- const state={checkpointIndex:window.checkpointIndex,windowStartSeconds:window.windowStartSeconds,windowEndSeconds:window.windowEndSeconds,modelId:window.modelId,segments,nextSpeaker};
+ const history=(previous?.segments??[]).filter(s=>s.end<=window.windowStartSeconds);
+ const state={checkpointIndex:window.checkpointIndex,windowStartSeconds:previous?.windowStartSeconds===0?0:window.windowStartSeconds,windowEndSeconds:window.windowEndSeconds,modelId:window.modelId,segments:[...history,...segments],nextSpeaker};
  return {rows:applyLiveSpeakerState(rows,state,coveredStart),state};
+}
+
+/** Applies a periodic analysis of the whole recording so far. One-minute windows can only match voices
+ * that keep talking across a window boundary, so a returning speaker gets a new number and the eight
+ * numbers run out. The whole-recording analysis recognises returning voices; its numbers are matched to the
+ * numbers already on screen by speech overlap, so people keep their number, and every provisional row is relabelled. */
+export function mergeFullSpeakers(rows:readonly TranscriptRow[],input:unknown,previous:LiveSpeakerState|null):
+ {rows:TranscriptRow[];state:LiveSpeakerState}{
+ const full=liveDiarizationSchema.parse(input);
+ if(full.windowStartSeconds!==0||full.segments.some(s=>s.end>full.windowEndSeconds+.1))throw new Error('Full live speaker times exceed the recording');
+ const weights=new Map<string,number>();
+ for(const current of full.segments)for(const old of previous?.segments??[]){
+  const overlap=Math.max(0,Math.min(current.end,old.end)-Math.max(current.start,old.start));
+  if(overlap>0){const key=`${current.speaker}:${old.speaker}`;weights.set(key,(weights.get(key)??0)+overlap);}
+ }
+ const mapping=new Map<number,number>();const claimed=new Set<number>();
+ for(const [key] of [...weights].sort((a,b)=>b[1]-a[1])){
+  const [local,global]=key.split(':').map(Number);
+  if(!mapping.has(local)&&!claimed.has(global)&&global<=8){mapping.set(local,global);claimed.add(global);}
+ }
+ let free=1;
+ for(const local of [...new Set(full.segments.map(s=>s.speaker))].sort((a,b)=>a-b)){
+  if(mapping.has(local))continue;while(claimed.has(free))free++;if(free>8)break;
+  mapping.set(local,free);claimed.add(free);
+ }
+ const anchored=full.segments.flatMap(s=>{const speaker=mapping.get(s.speaker);return speaker?[{start:s.start,end:s.end,speaker}]:[];});
+ // Windows analysed after this snapshot keep their labels until the next whole-recording analysis.
+ const newer=(previous?.segments??[]).filter(s=>s.start>=full.windowEndSeconds);
+ const state:LiveSpeakerState={checkpointIndex:Math.max(full.checkpointIndex,previous?.checkpointIndex??-1),windowStartSeconds:0,windowEndSeconds:Math.max(full.windowEndSeconds,previous?.windowEndSeconds??0),modelId:full.modelId,segments:[...anchored,...newer],nextSpeaker:Math.max(0,...claimed)+1};
+ return {rows:applyLiveSpeakerState(rows,{...state,segments:anchored,windowEndSeconds:full.windowEndSeconds},0),state};
 }
