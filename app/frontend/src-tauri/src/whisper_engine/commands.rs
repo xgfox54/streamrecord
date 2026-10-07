@@ -213,6 +213,15 @@ pub async fn whisper_is_model_loaded() -> Result<bool, String> {
 }
 
 #[command]
+pub async fn whisper_get_acceleration_status() -> Result<Option<super::acceleration::LoadedAcceleration>, String> {
+    let engine = WHISPER_ENGINE.lock().map_err(|error| error.to_string())?.as_ref().cloned();
+    match engine {
+        Some(engine) => Ok(engine.acceleration_status().await),
+        None => Ok(None),
+    }
+}
+
+#[command]
 pub async fn whisper_has_available_models() -> Result<bool, String> {
     let engine = {
         let guard = WHISPER_ENGINE.lock().unwrap();

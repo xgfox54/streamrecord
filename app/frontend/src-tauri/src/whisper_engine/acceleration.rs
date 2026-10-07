@@ -1,4 +1,21 @@
 use crate::audio::{GpuType, PerformanceTier};
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LoadedAcceleration {
+    pub backend: String,
+    pub gpu_requested: bool,
+    pub cpu_fallback: bool,
+}
+
+/// Retry only a failed GPU context creation. A CPU failure is returned unchanged.
+pub fn load_with_cpu_fallback<T, E>(use_gpu: bool, mut load: impl FnMut(bool) -> Result<T, E>) -> Result<(T, bool), E> {
+    match load(use_gpu) {
+        Ok(context) => Ok((context, use_gpu)),
+        Err(_) if use_gpu => load(false).map(|context| (context, false)),
+        Err(error) => Err(error),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WhisperCompiledBackend {
@@ -87,6 +104,26 @@ pub fn whisper_context_acceleration_for(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stream_record_acceleration_retries_a_failed_gpu_load_on_cpu() {
+        let mut calls = Vec::new();
+        let loaded = load_with_cpu_fallback(true, |gpu| {
+            calls.push(gpu);
+            if gpu { Err("GPU unavailable") } else { Ok("CPU context") }
+        }).unwrap();
+        assert_eq!(calls, vec![true, false]);
+        assert_eq!(loaded, ("CPU context", false));
+    }
+
+    #[test]
+    fn stream_record_acceleration_preserves_gpu_and_propagates_cpu_errors() {
+        assert_eq!(load_with_cpu_fallback(true, |_| Ok::<_, &str>("GPU context")).unwrap(), ("GPU context", true));
+        let mut calls = 0;
+        let failed = load_with_cpu_fallback(false, |_| { calls += 1; Err::<(), _>("bad model") });
+        assert_eq!(calls, 1);
+        assert_eq!(failed.unwrap_err(), "bad model");
+    }
 
     #[test]
     fn acceleration_vulkan_backend_ignores_runtime_cuda_flash_attention() {

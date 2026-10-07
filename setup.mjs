@@ -100,8 +100,8 @@ function prepareSidecar(release) {
 }
 try {
   if (Number(process.versions.node.split('.')[0]) < 20) throw new Error('Node.js 20 or later is required.');
-  if (!['doctor','prepare','check','dev','build'].includes(action)) throw new Error('Usage: node setup.mjs doctor|prepare|check|dev|build [cpu|cuda]');
-  if (!['cpu','cuda'].includes(acceleration)) throw new Error('Acceleration must be cpu or cuda. CUDA requires a compatible developer toolkit.');
+  if (!['doctor','prepare','check','dev','build'].includes(action)) throw new Error('Usage: node setup.mjs doctor|prepare|check|dev|build [cpu|cuda|vulkan]');
+  if (!['cpu','cuda','vulkan'].includes(acceleration)) throw new Error('Acceleration must be cpu, cuda or vulkan. GPU builds require the matching developer toolkit.');
   if (action === 'doctor') { if (!doctor()) process.exitCode = 1; }
   else {
     prepare();

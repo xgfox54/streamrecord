@@ -1,6 +1,6 @@
 // Commit name to recover the serial whisper engine processing for smaller meetings [Slower processing but dooes not fail] - "before parallel processing implementation"
 
-use super::acceleration::{whisper_context_acceleration_for, WhisperCompiledBackend};
+use super::acceleration::{load_with_cpu_fallback, whisper_context_acceleration_for, LoadedAcceleration, WhisperCompiledBackend};
 use crate::audio::transcription::{TranscriptResult, TranscriptScore, TranscriptSpan};
 use crate::config::WHISPER_MODEL_CATALOG;
 use anyhow::{anyhow, Result};
@@ -74,6 +74,8 @@ pub struct WhisperEngine {
     models_dir: PathBuf,
     current_context: Arc<RwLock<Option<WhisperContext>>>,
     current_model: Arc<RwLock<Option<String>>>,
+    loaded_acceleration: RwLock<Option<LoadedAcceleration>>,
+    prefer_gpu: RwLock<bool>,
     available_models: Arc<RwLock<HashMap<String, ModelInfo>>>,
     // State tracking for smart logging
     last_transcription_was_short: Arc<RwLock<bool>>,
@@ -203,6 +205,8 @@ impl WhisperEngine {
             models_dir,
             current_context: Arc::new(RwLock::new(None)),
             current_model: Arc::new(RwLock::new(None)),
+            loaded_acceleration: RwLock::new(None),
+            prefer_gpu: RwLock::new(true),
             available_models: Arc::new(RwLock::new(HashMap::new())),
             // Initialize state tracking
             last_transcription_was_short: Arc::new(RwLock::new(false)),
@@ -317,6 +321,14 @@ impl WhisperEngine {
     }
 
     pub async fn load_model(&self, model_name: &str) -> Result<()> {
+        self.load_model_with_gpu(model_name, true).await
+    }
+
+    pub async fn acceleration_status(&self) -> Option<LoadedAcceleration> {
+        self.loaded_acceleration.read().await.clone()
+    }
+
+    pub async fn load_model_with_gpu(&self, model_name: &str, prefer_gpu: bool) -> Result<()> {
         let models = self.available_models.read().await;
         let model_info = models
             .get(model_name)
@@ -329,7 +341,7 @@ impl WhisperEngine {
                 // FIX 5: Check if this model is already loaded
                 let current_model = self.current_model.read().await.clone();
                 if let Some(ref current_model) = current_model {
-                    if current_model == model_name {
+                    if current_model == model_name && *self.prefer_gpu.read().await == prefer_gpu {
                         log::info!("Model {} is already loaded, skipping reload", model_name);
                         return Ok(());
                     }
@@ -352,7 +364,7 @@ impl WhisperEngine {
                 // PERFORMANCE OPTIMIZATION: Use comprehensive hardware profile for optimal GPU configuration
                 let hardware_profile = crate::audio::HardwareProfile::detect();
                 let adaptive_config = hardware_profile.get_whisper_config();
-                let acceleration = whisper_context_acceleration_for(
+                let mut acceleration = whisper_context_acceleration_for(
                     WhisperCompiledBackend::current(),
                     hardware_profile.gpu_type,
                     hardware_profile.performance_tier,
@@ -364,17 +376,10 @@ impl WhisperEngine {
                         crate::audio::GpuType::Cuda
                     )
                 {
-                    return Err(anyhow!(
-                        "CUDA build requires a working NVIDIA CUDA device; CPU fallback is disabled"
-                    ));
+                    acceleration.use_gpu = false;
                 }
-
-                let context_param = WhisperContextParameters {
-                    use_gpu: acceleration.use_gpu,
-                    gpu_device: acceleration.gpu_device,
-                    flash_attn: acceleration.flash_attn,
-                    ..Default::default()
-                };
+                acceleration.use_gpu &= prefer_gpu;
+                acceleration.flash_attn &= acceleration.use_gpu;
 
                 log::info!(
                     "Whisper acceleration decision: compiled_backend={} runtime_detected_gpu={:?} use_gpu={} flash_attn={} gpu_device={}",
@@ -391,24 +396,35 @@ impl WhisperEngine {
 
                 // PERFORMANCE: Suppress verbose C library logs during model loading
                 // This hides the excessive Metal/GGML initialization logs in release builds
-                let ctx = {
-                    // let _suppressor = crate::whisper_engine::StderrSuppressor::new();
-
-                    // Load whisper context with hardware-optimized parameters
-                    WhisperContext::new_with_params(
-                        &model_info.path.to_string_lossy(),
-                        context_param,
-                    )
-                    .map_err(|e| anyhow!("Failed to load model {}: {}", model_name, e))?
-                    // Suppressor dropped here, stderr restored
-                };
+                let (ctx, gpu_requested) = load_with_cpu_fallback(acceleration.use_gpu, |use_gpu| {
+                    let params = WhisperContextParameters {
+                        use_gpu,
+                        gpu_device: acceleration.gpu_device,
+                        flash_attn: use_gpu && acceleration.flash_attn,
+                        ..Default::default()
+                    };
+                    WhisperContext::new_with_params(&model_info.path.to_string_lossy(), params)
+                        .map_err(|error| {
+                            log::warn!("Whisper context load failed (GPU requested: {}): {}", use_gpu, error);
+                            anyhow!("Failed to load model {}: {}", model_name, error)
+                        })
+                })?;
+                let cpu_fallback = !gpu_requested && prefer_gpu
+                    && !matches!(acceleration.compiled_backend, WhisperCompiledBackend::Cpu);
+                if cpu_fallback { log::warn!("GPU context unavailable; continuing transcription on CPU"); }
+                *self.loaded_acceleration.write().await = Some(LoadedAcceleration {
+                    backend: acceleration.compiled_backend.as_str().to_string(),
+                    gpu_requested,
+                    cpu_fallback,
+                });
+                *self.prefer_gpu.write().await = prefer_gpu;
 
                 // Update current context and model
                 *self.current_context.write().await = Some(ctx);
                 *self.current_model.write().await = Some(model_name.to_string());
 
                 // Enhanced acceleration status reporting
-                let acceleration_status = acceleration.status_label();
+                let acceleration_status = if gpu_requested { acceleration.status_label() } else { "CPU processing only" };
 
                 log::info!("Successfully loaded model: {} with {} (Performance Tier: {:?}, Beam Size: {}, Threads: {:?})",
                           model_name, acceleration_status, hardware_profile.performance_tier,
@@ -436,6 +452,7 @@ impl WhisperEngine {
 
         let mut model_name_guard = self.current_model.write().await;
         model_name_guard.take();
+        *self.loaded_acceleration.write().await = None;
 
         unloaded
     }

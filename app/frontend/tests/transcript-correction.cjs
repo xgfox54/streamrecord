@@ -4,6 +4,27 @@ module.exports=async function correctionTests({test,using,deferred}){
  const snapshot=rows=>({version:1,title:'correction',rows,minutes:'',startedAt:null});
  const row=(text,sequence_id=1)=>({sequence_id,text,is_partial:false});
  const answer=args=>JSON.stringify({corrections:JSON.parse(args.text).segments.map(part=>({id:part.id,text:part.text.replaceAll('회의을','회의를')}))});
+ await test('Corrected TXT contains only final AI or reviewed text with a blank line between entries',()=>using({},async h=>{
+  const {correctedTranscriptText}=h.load(require('node:path').resolve(__dirname,'../src/components/meeting-ko/transcript-correction.ts'));
+  const rows=[
+   {...row('최초 원문 하나'),ai_correction:{source_text:'최초 원문 하나',text:'AI 문장 하나'}},
+   row('아직 보정하지 않은 원문',2),
+   {...row('숫자 보정 취소 원문',3),ai_correction_issue:{source_text:'숫자 보정 취소 원문',candidate_text:'적용하지 않은 후보'}},
+   {...row('원문 둘',4),reviewed_text:'직접 확인한 문장'},
+   {...row('바뀐 원문',5),ai_correction:{source_text:'이전 원문',text:'오래된 보정본'}},
+   {...row('입력 중 원문',6),is_partial:true,reviewed_text:'임시 수정'},
+  ];
+  const text=correctedTranscriptText(rows);
+  assert.equal(text.split('\n\n').length,2);assert.ok(text.includes('AI 문장 하나'));assert.ok(text.includes('직접 확인한 문장'));
+  for(const excluded of ['최초 원문','보정하지','보정 취소','적용하지','오래된','임시 수정'])assert.equal(text.includes(excluded),false,excluded);
+  assert.equal(correctedTranscriptText([row('보정 전 원문')]),'');
+  const {transcriptText}=h.load(require('node:path').resolve(__dirname,'../src/components/meeting-ko/core.ts'));
+  assert.equal(transcriptText([row('문장 하나'),row('문장 둘',2)]).split('\n\n').length,2);
+ }));
+ await test('Saving corrected TXT before corrections exist reports the cause without exporting originals',()=>using({snapshot:snapshot([row('보정 전 원문')]),storage:new Map([['stream-record.option.transcript-correction','false']])},async h=>{
+  await h.run(()=>h.session.correction.setEnabled(false));const count=h.count('ko_export');
+  await h.run(()=>h.session.save('corrected'));assert.equal(h.count('ko_export'),count);assert.ok(h.session.error.includes('AI 보정본'));
+ }));
  await test('AI correction is on by default and preserves Whisper originals and manual review',()=>using({snapshot:snapshot([{...row('오늘 회의을 시작합니다.'),reviewed_text:'사람이 검토한 문장'}]),overrides:{ko_generate:async args=>answer(args)}},async h=>{
   assert.equal(h.session.correction.enabled,true);await h.run(()=>{});assert.equal(h.count('ko_generate'),1);
   assert.equal(h.session.rows[0].text,'오늘 회의을 시작합니다.');assert.equal(h.session.rows[0].reviewed_text,'사람이 검토한 문장');

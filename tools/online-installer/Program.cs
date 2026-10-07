@@ -24,11 +24,11 @@ namespace StreamRecordSetup {
         public SetupWindow(bool verifyOnly,bool installerUi,bool afterAppExit) {
             this.verifyOnly=verifyOnly; this.installerUi=installerUi; this.afterAppExit=afterAppExit;
             cache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"StreamRecordInstaller",release.version,Guid.NewGuid().ToString("N"));
-            Text="Stream-Record 온라인 설치 · Windows 10 / 11 · CPU"; ClientSize=new Size(558,295);
+            Text="Stream-Record 온라인 설치 · Windows 10 / 11 · GPU"; ClientSize=new Size(558,295);
             Font=new Font("맑은 고딕",10); FormBorderStyle=FormBorderStyle.FixedDialog;
             MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
             Controls.Add(new Label { Text="Stream-Record v"+release.version,Left=24,Top=24,Width=510,Height=35,Font=new Font(Font.FontFamily,17,FontStyle.Bold) });
-            Controls.Add(new Label { Text="한국어 모델 포함 · CPU 호환판 · 약 313 MB 다운로드",Left=24,Top=67,Width=510,Height=30 });
+            Controls.Add(new Label { Text="한국어 모델 포함 · GPU 가속 / CPU 호환 · 약 "+Math.Ceiling(release.installer.bytes/1048576.0)+" MB 다운로드",Left=24,Top=67,Width=510,Height=30 });
             Controls.AddRange(new Control[]{status,bar,retry,cancel});
             var license=new LinkLabel { Text="오픈소스 라이선스",Left=24,Top=235,Width=180,Height=25 };
             license.LinkClicked+=(sender,args)=>{

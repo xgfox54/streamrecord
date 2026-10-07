@@ -38,7 +38,7 @@ export function rowTime(row: TranscriptRow): string {
   return typeof seconds === 'number' ? timestamp(seconds) : row.timestamp || '시간 미상';
 }
 export function transcriptText(rows: TranscriptRow[]): string {
-  return rows.filter(r => r.text.trim()).map(r => `[${rowTime(r)}] ${r.is_partial ? '[미확정] ' : ''}${r.text}`).join('\n');
+  return rows.filter(r => r.text.trim()).map(r => `[${rowTime(r)}] ${r.is_partial ? '[미확정] ' : ''}${r.text.trim()}`).join('\n\n');
 }
 export function readRows(value: unknown): TranscriptRow[] {
   const parsed=Array.isArray(value)

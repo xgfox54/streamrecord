@@ -54,6 +54,7 @@ function harness(options = {}) {
     if (command === 'is_recording') return active;
     if (command === 'is_import_in_progress_command') return false;
     if (command === 'api_get_transcript_config') return {provider:'localWhisper',model:'base'};
+    if (command === 'whisper_get_acceleration_status') return {backend:'Cpu',gpu_requested:false,cpu_fallback:false};
     if (command === 'api_save_transcript_config' || command === 'set_language_preference') return;
     if (command === 'ko_start_recording') {active = true; return;}
     if (command === 'ko_stop_recording') {active = false; return;}
@@ -116,6 +117,21 @@ async function test(name,fn) {
 }
 async function using(options,fn) {const h = harness(options); await h.mount(); try {await fn(h);} finally {await h.unmount();}}
 (async()=>{
+  await test('File import estimates update while text stays hidden until completion',()=>using({overrides:{select_and_validate_audio_command:async()=>({path:'fixture.wav',filename:'fixture.wav'}),start_import_audio_command:async()=>{},api_get_meeting_transcripts:async()=>[{text:'완료된 문장',sequence_id:1,is_partial:false}]}},async h=>{
+    await h.run(()=>h.session.setConsent(true));await h.run(()=>h.session.importAudio());
+    await h.run(()=>h.emit('import-progress',{stage:'transcribing',progress_percentage:31,message:'working',timing:{elapsed_seconds:20,estimated_total_seconds:null,remaining_seconds:null}}));
+    assert.equal(h.session.rows.length,0);assert.equal(h.session.importProgress.timing.estimated_total_seconds,null);
+    await h.run(()=>h.emit('import-progress',{stage:'transcribing',progress_percentage:45,message:'working',timing:{elapsed_seconds:140,estimated_total_seconds:380,remaining_seconds:240}}));
+    await h.advance(30000);assert.equal(h.session.importElapsed,170);assert.equal(h.session.rows.length,0);
+    const {remainingImportTime}=h.load(path.join(root,'src/components/stream-record/import-progress.ts'));
+    assert.equal(remainingImportTime(h.session.importProgress,h.session.importElapsed),210);
+    await h.run(()=>h.emit('import-progress',{stage:'transcribing',progress_percentage:60,message:'working',timing:{elapsed_seconds:180,estimated_total_seconds:250,remaining_seconds:70}}));
+    assert.equal(remainingImportTime(h.session.importProgress,h.session.importElapsed),70);
+    await h.advance(90000);assert.equal(remainingImportTime(h.session.importProgress,h.session.importElapsed),null);
+    assert.equal(h.count('api_get_meeting_transcripts'),0);
+    await h.run(()=>h.emit('import-complete',{meeting_id:'fixture',title:'fixture',duration_seconds:3600}));
+    assert.equal(h.session.mode,'idle');assert.equal(h.session.rows.length,1);assert.equal(h.count('api_get_meeting_transcripts'),1);
+  }));
   for(const recording of [false,true]) await test(`X hides to tray while ${recording?'recording':'idle'} without stopping or exiting`,()=>using({},async h=>{
     if(recording)await h.start();
     let prevented=false;

@@ -9,6 +9,7 @@ import {DictationConversation} from './DictationConversation';
 import {LiveSummaryPanel} from './LiveSummaryPanel';
 import {MinutesView} from './MinutesView';
 import {TranscriptView} from './TranscriptView';
+import {FileImportProgress} from './FileImportProgress';
 import styles from '../meeting-ko/workspace.module.css';
 import layout from './record-workspace.module.css';
 export function RecordWorkspace({session:s,evidence,onEvidence,onEvidenceShown,focusMode,onFocusModeChange}:{readonly session:MeetingSession;readonly evidence:string|null;readonly onEvidence:(id:string)=>void;readonly onEvidenceShown:()=>void;readonly focusMode:boolean;readonly onFocusModeChange:()=>void}){
@@ -42,7 +43,7 @@ export function RecordWorkspace({session:s,evidence,onEvidence,onEvidenceShown,f
   <div className={layout.sessionMessages}>
    {s.error&&<div role="alert" className={styles.error}><p>{s.error}</p><button onClick={()=>s.setError('')}>오류 안내 닫기</button></div>}
    <p role="status" aria-live="polite" aria-atomic="true" className={!preparationOpen&&s.notice==='기록을 불러왔습니다. 왼쪽 목록에서 저장한 기록을 다시 열 수 있습니다.'?layout.srOnly:undefined}>{s.notice}</p>
-   {s.mode==='importing'&&<label>파일 받아쓰기 {Math.round(s.progress)}%<progress value={s.progress} max={100}/></label>}
+   {s.mode==='importing'&&<FileImportProgress session={s}/>}
    {s.savedPath&&<details><summary>저장 위치</summary><p>{s.savedPath}</p></details>}
   </div>
   <div ref={navigation} className={layout.documentTabs}><nav aria-label="현재 기록 보기"><a href="#dictation" aria-current={!isMinutes&&!summaryActive?'page':undefined} onClick={event=>{event.preventDefault();openDictation();}}><FeatureIcon kind="dictation" size="tab"/>받아쓰기 <span>{s.rows.length}</span></a><button className={layout.summaryTab} aria-pressed={summaryActive} aria-controls="record-summary" onClick={openSummary}><FeatureIcon kind="summary" size="tab"/>AI 요약</button><a href="#minutes" aria-current={isMinutes&&!summaryActive?'page':undefined} onClick={event=>{event.preventDefault();openMinutes();}}><FeatureIcon kind="minutes" size="tab"/>회의록</a></nav><div className={layout.documentActions}><button className={layout.summaryToggle} aria-expanded={summaryOpen&&!focusMode} aria-controls="record-summary" onClick={openSummary}><PanelRight size={18} aria-hidden="true"/>{summaryOpen&&!focusMode?'요약 접기':'요약 열기'}</button><button className={layout.organizeMinutes} disabled={!s.rows.length} onClick={openMinutes}>회의록 정리하기</button></div></div>

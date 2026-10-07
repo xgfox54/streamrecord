@@ -70,5 +70,9 @@ export async function correctTranscript(input:{readonly batch:readonly Correctio
  });
 }
 export function correctedTranscriptText(rows:readonly TranscriptRow[]):string{
- return ['AI 보정본 · 원음 대조가 필요합니다. 보정 전 구간은 원문으로 표시합니다.','',...rows.filter(row=>row.text.trim()).map(row=>`[${rowTime(row)}] ${row.is_partial?'[입력 중] ':typeof row.reviewed_text==='string'?'[직접 수정] ':correctedText(row)===null?'[보정 전 원문] ':''}${typeof row.reviewed_text==='string'?row.reviewed_text:correctedText(row)??row.text}`)].join('\n');
+ return rows.flatMap(row=>{
+  if(row.is_partial)return [];
+  const text=typeof row.reviewed_text==='string'?row.reviewed_text:correctedText(row);
+  return text?.trim()?[`[${rowTime(row)}] ${typeof row.reviewed_text==='string'?'[직접 수정] ':''}${text.trim()}`]:[];
+ }).join('\n\n');
 }

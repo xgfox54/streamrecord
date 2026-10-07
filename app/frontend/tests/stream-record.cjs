@@ -17,6 +17,7 @@ const api={WhisperAPI:{
   loadModel:async name=>{calls.push('load:'+name);}
 }};
 const invoke=async(command,args)=>{
+  if(command==='whisper_get_acceleration_status')return {backend:'Cpu',gpu_requested:false,cpu_fallback:false};
   if(command==='ko_prepare_bundled_whisper'){calls.push('bundle:small-q5_1');if(downloadFails)throw new Error('bundled model is corrupt');if(!cancelledDownload)models=[...models.filter(m=>m.name!=='small-q5_1'),{name:'small-q5_1',status:'Available',size_mb:181}];return 'small-q5_1';}
   if(command==='api_get_transcript_config')return config;
   if(command==='set_language_preference'){assert.equal(args.language,'ko');calls.push('language:ko');return;}

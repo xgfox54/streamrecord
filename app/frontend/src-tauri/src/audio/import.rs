@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
@@ -26,6 +27,9 @@ use super::common::{
     TranscriptDraft,
 };
 use super::constants::AUDIO_EXTENSIONS;
+#[path = "import_timing.rs"]
+mod import_timing;
+use import_timing::{estimate_import_time, ImportTiming};
 use super::recording_preferences::get_default_recordings_folder;
 
 /// Global flag to track if import is in progress
@@ -83,6 +87,7 @@ pub struct ImportProgress {
     pub stage: String, // "copying", "decoding", "vad", "transcribing", "saving"
     pub progress_percentage: u32,
     pub message: String,
+    pub timing: Option<ImportTiming>,
 }
 
 /// Result of import
@@ -311,6 +316,7 @@ async fn run_import<R: Runtime>(
     model: Option<String>,
     provider: Option<String>,
 ) -> Result<ImportResult> {
+    let import_started = Instant::now();
     let source = PathBuf::from(&source_path);
 
     // Validate source file
@@ -555,6 +561,11 @@ async fn run_import<R: Runtime>(
 
     // Process each speech segment
     let mut all_transcripts: Vec<TranscriptDraft> = Vec::new();
+    let total_audio_seconds: f64 = processable_segments.iter()
+        .map(|segment| (segment.end_timestamp_ms - segment.start_timestamp_ms).max(0.0) / 1000.0)
+        .sum();
+    let mut completed_audio_seconds = 0.0;
+    let inference_started = Instant::now();
 
     for (i, segment) in processable_segments.iter().enumerate() {
         if IMPORT_CANCELLED.load(Ordering::SeqCst) {
@@ -564,16 +575,17 @@ async fn run_import<R: Runtime>(
 
         let progress = 30 + ((i as f32 / processable_count.max(1) as f32) * 50.0) as u32;
         let segment_duration_sec = (segment.end_timestamp_ms - segment.start_timestamp_ms) / 1000.0;
-        emit_progress(
+        emit_progress_with_timing(
             &app,
             "transcribing",
             progress,
             &format!(
-                "Transcribing segment {} of {} ({:.1}s)...",
+                "받아쓰기 처리 중 · {} / {}구간 ({:.1}초)",
                 i + 1,
                 processable_count,
                 segment_duration_sec
             ),
+            Some(estimate_import_time(import_started.elapsed(), inference_started.elapsed(), completed_audio_seconds, total_audio_seconds)),
         );
 
         // Skip very short segments
@@ -583,6 +595,7 @@ async fn run_import<R: Runtime>(
                 i,
                 segment.samples.len()
             );
+            completed_audio_seconds += segment_duration_sec;
             continue;
         }
 
@@ -619,6 +632,7 @@ async fn run_import<R: Runtime>(
                 .await
                 .map_err(|e| anyhow!("Whisper transcription failed on segment {}: {}", i, e))?
         };
+        completed_audio_seconds += segment_duration_sec;
 
         let trimmed = result.text.trim();
         if !trimmed.is_empty() {
@@ -707,14 +721,19 @@ async fn run_import<R: Runtime>(
 
 /// Emit progress event
 fn emit_progress<R: Runtime>(app: &AppHandle<R>, stage: &str, progress: u32, message: &str) {
-    let _ = app.emit(
+    emit_progress_with_timing(app, stage, progress, message, None);
+}
+
+fn emit_progress_with_timing<R: Runtime>(app: &AppHandle<R>, stage: &str, progress: u32, message: &str, timing: Option<ImportTiming>) {
+    if let Err(error) = app.emit(
         "import-progress",
         ImportProgress {
             stage: stage.to_string(),
             progress_percentage: progress,
             message: message.to_string(),
+            timing,
         },
-    );
+    ) { warn!("Could not emit import progress: {}", error); }
 }
 
 /// Create a new meeting with transcripts in the database

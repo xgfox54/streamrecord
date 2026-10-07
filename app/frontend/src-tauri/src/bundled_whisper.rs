@@ -222,6 +222,35 @@ mod tests {
         );
     }
 
+    #[cfg(all(target_os = "windows", feature = "vulkan"))]
+    #[tokio::test]
+    #[ignore = "Opt-in real Vulkan/CPU comparison with a verified local model and public WAV fixture"]
+    async fn stream_record_vulkan_real_inference() {
+        use std::time::Instant;
+        assert_eq!(std::env::var("STREAM_RECORD_ACCEL_TEST").as_deref(), Ok("1"));
+        let gpu = match std::env::var("STREAM_RECORD_ACCEL_TEST_MODE").as_deref() {
+            Ok("gpu") => true,
+            Ok("cpu") => false,
+            _ => panic!("STREAM_RECORD_ACCEL_TEST_MODE must be gpu or cpu"),
+        };
+        let models = PathBuf::from(std::env::var_os("STREAM_RECORD_ACCEL_TEST_MODELS").expect("model directory required"));
+        let audio = PathBuf::from(std::env::var_os("STREAM_RECORD_ACCEL_TEST_AUDIO").expect("public WAV fixture required"));
+        let engine = crate::whisper_engine::WhisperEngine::new_with_models_dir(Some(models)).unwrap();
+        engine.discover_models().await.unwrap();
+        engine.load_model_with_gpu(DEFAULT_MODEL, gpu).await.unwrap();
+        let status = engine.acceleration_status().await.unwrap();
+        assert_eq!(status.backend, "Vulkan");
+        assert_eq!(status.gpu_requested, gpu);
+        assert!(!status.cpu_fallback);
+        let decoded = crate::audio::decoder::decode_audio_file(&audio).unwrap();
+        let duration = decoded.duration_seconds;
+        let started = Instant::now();
+        let result = engine.transcribe_audio_with_result(decoded.to_whisper_format(), Some("ko".to_string())).await.unwrap();
+        let elapsed = started.elapsed().as_secs_f64();
+        assert!(!result.text.trim().is_empty());
+        println!("ACCEL_INFERENCE_VERIFIED mode={} backend=Vulkan model=small-q5_1 audio_seconds={:.3} inference_seconds={:.3} rtf={:.4} transcript_chars={}", if gpu { "gpu" } else { "cpu" }, duration, elapsed, elapsed / duration, result.text.chars().count());
+    }
+
     #[cfg(all(target_os = "windows", feature = "cuda"))]
     #[tokio::test]
     #[ignore = "Requires the bundled model, a real WAV fixture and an NVIDIA CUDA device"]

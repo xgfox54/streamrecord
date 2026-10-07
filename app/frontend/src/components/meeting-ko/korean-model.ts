@@ -1,6 +1,7 @@
 /** Stream-Record: prepare a Korean-capable local Whisper model before capture. */
 import {invoke} from '@tauri-apps/api/core';
 import {WhisperAPI, type ModelInfo} from '@/lib/whisper';
+import {z} from 'zod';
 
 export const DEFAULT_KOREAN_MODEL = 'small-q5_1';
 export function isKoreanModel(name: string): boolean {
@@ -41,6 +42,13 @@ async function prepare(notify: (message: string) => void): Promise<{provider: st
   await WhisperAPI.loadModel(model);
   await invoke('set_language_preference', {language: 'ko'});
   await invoke('api_save_transcript_config', {provider: 'localWhisper', model, apiKey: null});
-  notify(`한국어 음성 인식 준비 완료 · ${model}`);
+  let acceleration='';
+  try {
+    const parsed=z.object({backend:z.string(),gpu_requested:z.boolean(),cpu_fallback:z.boolean()}).nullable().safeParse(await invoke<unknown>('whisper_get_acceleration_status'));
+    if(parsed.success&&parsed.data)acceleration=parsed.data.gpu_requested?` · GPU 자동 선택 (${parsed.data.backend})`:parsed.data.cpu_fallback?' · GPU를 사용할 수 없어 CPU로 처리합니다.':' · CPU 처리';
+  } catch(error) {
+    console.warn('음성 인식 가속 상태 조회 실패',error instanceof Error?error.message:String(error));
+  }
+  notify(`한국어 음성 인식 준비 완료 · ${model}${acceleration}`);
   return {provider: 'localWhisper', model};
 }
