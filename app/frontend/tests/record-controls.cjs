@@ -31,8 +31,20 @@ function harness(Component,input='microphone',overrides={}){
  act(()=>{renderer=Renderer.create(React.createElement(Component,{session,input,onInputChange:()=>{}}));});
  return {calls,session,renderer,click:label=>act(()=>{const node=renderer.root.findAllByType('button').find(button=>text(button).includes(label));assert.ok(node);if(!node.props.disabled)node.props.onClick();}),button:label=>renderer.root.findAllByType('button').find(button=>text(button).includes(label)),close:()=>act(()=>renderer.unmount())};
 }
+const {suggestedRecordTitle,recordDisplayTitle,durationLabel}=load(path.join(root,'src/components/stream-record/record-presentation.ts'));
 const results=[];
 function test(name,fn){try{fn();results.push({name,status:'passed'});console.log('PASS '+name);}catch(error){results.push({name,status:'failed',error:String(error.stack)});console.error(error.stack);}}
+test('Record titles preserve custom names and use an actual video title or input date for a new record',()=>{
+ const date=new Date(2026,9,7,14,5);
+ assert.equal(suggestedRecordTitle('사용자 제목','youtube',date,'영상 제목'),'사용자 제목');
+ assert.equal(suggestedRecordTitle('새 기록','youtube',date,' 영상 제목 '),'영상 제목');
+ assert.ok(suggestedRecordTitle('새 기록','pc',date).startsWith('PC 소리 기록 · '));
+ assert.equal(recordDisplayTitle('원래 제목','2026-10-07T00:00:00Z','pc'),'원래 제목');
+ assert.ok(recordDisplayTitle('새 기록','2026-10-07T00:00:00Z').startsWith('기록 · '));
+ assert.equal(recordDisplayTitle('새 기록','invalid'),'새 기록');
+ assert.equal(durationLabel(undefined),'');assert.equal(durationLabel(-1),'');assert.equal(durationLabel(NaN),'');
+ assert.equal(durationLabel(3601.5),'60분 1초');assert.equal(durationLabel(0),'0초');
+});
 test('Missing selected microphone reports a fix without silently recording another device',()=>{const h=harness(CaptureActions,'microphone',{microphone:'Removed Mic'});try{assert.equal(h.button('녹음 시작').props.disabled,false);h.click('녹음 시작');assert.equal(h.calls.length,1);assert.ok(h.calls[0].error.includes('장치'));}finally{h.close();}});
 for(const [input,expected] of [['microphone',{name:'Mic A',deviceType:'Input'}],['pc',{name:'Speakers',deviceType:'Output'}],['youtube','video'],['file','import']])test('Ready '+input+' uses only its intended capture source',()=>{const h=harness(CaptureActions,input);try{assert.equal(h.button(input==='file'?'파일 선택':'녹음 시작').props.disabled,false);h.click(input==='file'?'파일 선택':'녹음 시작');assert.deepEqual(h.calls,[expected]);}finally{h.close();}});
 test('Missing permission reports an actionable message without recording or importing',()=>{for(const input of ['microphone','pc','youtube','file']){const h=harness(CaptureActions,input,{consent:false});try{h.click(input==='file'?'파일 선택':'녹음 시작');assert.equal(h.calls.length,1);assert.ok(h.calls[0].error.includes('권한'));}finally{h.close();}}});

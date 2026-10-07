@@ -63,4 +63,26 @@
 .modelSelect { display: flex; align-items: center; gap: var(--jeju-space-2); min-width: 0; }
 .modelSelect select { max-width: var(--sr-field-min); }
 .optionNotes > p, .optionNotes > div { margin-block: var(--jeju-space-2) !important; }
+.commonAi { display:grid; gap:var(--sr-space-1); min-width:0; max-width:20rem; font-size:var(--sr-type-helper); }
+.commonAi small,.commonAi details { font-size:var(--sr-type-caption); color:var(--sr-text-subtle); }
+.commonAi select { max-width:100%; }
+.commonAi details p { overflow-wrap:anywhere; }
+.aiStatus { display:inline-flex; flex-wrap:wrap; align-items:center; gap:var(--sr-space-2); padding:var(--sr-space-1) var(--sr-space-2); border-radius:var(--sr-radius-control); background:var(--sr-surface-subtle); font-size:var(--sr-type-caption); }
+.aiStatus a { min-height:var(--sr-control-compact); display:inline-flex; align-items:center; }
+.speedHelp { font-size:var(--sr-type-caption); color:var(--sr-text-subtle); }
+.speedHelp summary { cursor:pointer; min-height:var(--sr-control-compact); display:flex; align-items:center; gap:var(--sr-space-1); }
+.speedHelp summary::before { content:'+'; }
+.speedHelp[open] summary::before { content:'−'; }
+
+.conversation .readingTools { display:grid; grid-template-columns:auto auto minmax(0,1fr); gap:var(--sr-space-2); padding-top:var(--sr-space-2); align-items:start; }
+.conversation .readingTools .search,.conversation .transcriptOptions { grid-column:1 / -1; }
+.commonAi .modelSelect { flex-direction:row; flex-wrap:wrap; justify-content:flex-start; font-size:var(--sr-type-helper); }
+.commonAi .modelSelect select { min-width:0; flex:1; width:12rem; }
+.conversation .readingTools > button { justify-self:start; }
+.conversation[data-video=true] .readingTools .commonAi { grid-column:1 / -1; max-width:none; }
+@media(max-width:600px) { .conversation .readingTools { grid-template-columns:minmax(0,1fr); } .conversation .readingTools .commonAi,.conversation .readingTools .search,.conversation .transcriptOptions { grid-column:1; } }
 .correctionNotice > p { font-size: var(--sr-type-correction-note); }
+
+.conversation { container-type:inline-size; }
+@container (max-width:42rem) { .conversation .readingTools { grid-template-columns:minmax(0,1fr) auto; } .conversation .readingTools .commonAi { grid-column:1 / -1; max-width:100%; } .commonAi .modelSelect select { flex:0 1 20rem; width:min(100%,20rem); } }
+@media(max-width:600px) { .conversation .readingTools { grid-template-columns:minmax(0,1fr); } .conversation .readingTools .commonAi { grid-column:1 / -1; } }

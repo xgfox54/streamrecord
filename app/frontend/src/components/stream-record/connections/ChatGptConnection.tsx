@@ -44,7 +44,7 @@ export function ChatGptConnection({session:s}:{readonly session:MeetingSession})
   {(error||status?.error)&&<p role="alert" className={styles.error}>{error||status?.error}</p>}
   {message&&<p role="status">{message}</p>}
   <div className={styles.actions}>
-   <button className={styles.primary} disabled={busy||!status||status.pending} onClick={()=>void login(false)}>Continue with ChatGPT</button>
+   <button className={styles.primary} disabled={busy||!status||status.pending} onClick={()=>void login(false)}>ChatGPT로 로그인</button>
    {active?.connected&&!active.planEnabled&&<button disabled={busy||status?.pending} onClick={()=>void login(true)}>요약 사용 동의하기</button>}
    {status?.pending&&<button disabled={busy} onClick={()=>void run(async()=>{await invoke('ko_chatgpt_cancel');setStatus(await readStatus());setMessage('로그인을 취소했습니다.');})}>로그인 취소</button>}
    {account&&account!==status?.activeAccountId&&<button disabled={busy||status?.pending} onClick={()=>void run(async()=>{setStatus(statusSchema.parse(await invoke('ko_chatgpt_select',{accountId:account})));await s.refreshModels();})}>선택 계정 사용</button>}

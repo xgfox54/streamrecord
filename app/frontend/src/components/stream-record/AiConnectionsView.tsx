@@ -6,19 +6,21 @@ import {ConnectionProfiles} from './connections/ConnectionProfiles';
 import {modelDestination} from './connections/modelPresentation';
 import styles from '../meeting-ko/workspace.module.css';
 import {BuiltinModelPanel} from './BuiltinModelPanel';
+import {AiModelControl} from './AiModelControl';
 
 export function AiConnectionsView({session:s}:{readonly session:MeetingSession}){
  const [refreshing,setRefreshing]=useState(false);
  const local=s.models.filter(model=>model.provider==='local');
  const builtin=s.models.filter(model=>model.provider==='builtin');
- const refresh=async()=>{setRefreshing(true);try{await s.refreshModels();s.setNotice('모델 목록을 새로 받았습니다. 실제 추론은 요약 또는 시험 요청으로 확인하세요.');}catch(reason){s.setError(s.messageOf(reason));}finally{setRefreshing(false);}};
+ const refresh=async()=>{setRefreshing(true);try{await s.refreshModels();s.setNotice('AI 목록을 새로 받았습니다. 사용할 AI를 선택한 뒤 기록으로 돌아가세요.');}catch(reason){s.setError(s.messageOf(reason));}finally{setRefreshing(false);}};
  return <div className={styles.viewStack}>
   <section className={styles.panel}>
-   <div className={styles.panelHead}><h2>요약에 사용할 AI 연결</h2><button disabled={refreshing} onClick={()=>void refresh()}>{refreshing?'모델 조회 중':'모델 목록 새로고침'}</button></div>
-   <p>이 PC의 모델, ChatGPT 계정, 서버·API 중에서 선택하세요. AI 연결은 선택 사항이며 녹음과 한국어 받아쓰기는 연결 없이도 동작합니다.</p>
-   <a className={styles.textLink} href="#minutes" onClick={()=>s.navigate('minutes')}>연결한 모델로 회의록 만들기 →</a>
+   <div className={styles.panelHead}><h2>보정·요약·회의록에 사용할 AI</h2><button disabled={refreshing} onClick={()=>void refresh()}>{refreshing?'AI 조회 중':'AI 목록 새로고침'}</button></div>
+   <p>아래에서 AI 연결 → 사용할 AI 선택 → 기록으로 돌아가기 순서로 진행하세요. 녹음과 한국어 받아쓰기는 AI 연결 없이도 사용할 수 있습니다.</p>
+   <AiModelControl session={s}/><a className={styles.textLink} href="#dictation" onClick={()=>s.navigate('dictation')}>사용할 AI를 선택했다면 기록으로 돌아가기</a>
   </section>
-  <section className={styles.panel} aria-label="로컬 모델과 계정 연결"><h2>로컬 모델과 ChatGPT 계정</h2><div className={styles.connectionGrid}>
+  <section className={styles.panel} aria-label="ChatGPT 계정 연결"><h2>ChatGPT 계정 연결</h2><ChatGptConnection session={s}/></section>
+  <section className={styles.panel}><h2>이 PC에서 처리</h2><details className={styles.disclosure}><summary>내장 AI 모델·Ollama 설정</summary><div className={styles.connectionGrid}>
    <article className={styles.connectionCard}><span className={styles.badge}>선택 다운로드</span><h3>내장 요약 모델</h3><p>원하는 모델을 선택해 이 PC에 내려받습니다. 최초 설치에서는 요약 모델을 자동으로 받지 않습니다.</p>
     <dl className={styles.facts}><div><dt>설치된 모델</dt><dd>{builtin.length?`${builtin.length}개 · 회의록·요약·보정에서 선택 가능`:'아직 설치된 모델 없음'}</dd></div><div><dt>전송 위치</dt><dd>이 PC의 내장 요약 엔진</dd></div></dl>
     <BuiltinModelPanel session={s}/><p className={styles.hint}>다운로드가 완료되고 모델이 준비되면 회의록·실시간 요약·AI 보정에서 선택할 수 있습니다. 이 PC에서 실행하므로 녹음 중에는 받아쓰기가 느려질 수 있습니다.</p>
@@ -27,8 +29,7 @@ export function AiConnectionsView({session:s}:{readonly session:MeetingSession})
     <dl className={styles.facts}><div><dt>모델 목록</dt><dd>{local.length?`${local.length}개 응답 수신`:'모델 응답 없음 · 서버 실행과 모델 설치 확인'}</dd></div><div><dt>전송 위치</dt><dd>{local[0]?modelDestination(local[0]):'모델 목록을 받은 뒤 연결 주소를 표시합니다.'}</dd></div><div><dt>실제 추론</dt><dd>요약 실행 결과로 확인</dd></div></dl>
     {local.length>0&&<ul>{local.map(model=><li key={s.modelKey(model)}>{model.id}</li>)}</ul>}<p className={styles.hint}>새 모델은 사용자가 Ollama에서 선택해 설치합니다.</p>
    </article>
-   <ChatGptConnection session={s}/>
-  </div></section>
-  <ConnectionProfiles session={s}/>
+  </div></details></section>
+  <section className={styles.panel}><h2>서버·API 연결</h2><details className={styles.disclosure}><summary>서버·API 연결 설정</summary><ConnectionProfiles session={s}/></details></section>
  </div>;
 }

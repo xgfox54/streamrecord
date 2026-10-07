@@ -78,6 +78,18 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
   const minutes=structured.renderMinutes([parsed],parts,'회의');assert.ok(minutes.includes('근거를 찾지 못한 항목 2개'));assert.ok(!minutes.includes('900만원'));assert.ok(!minutes.includes('홍길동'));});
  await test('A model-supplied removal count is ignored',()=>{const n={...note(),unverified:7};assert.equal(structured.parseNote(n,parts).unverified,undefined);});
  await test('All decision rows survive deterministic final rendering',()=>{const result=structured.renderMinutes([note(),note()],parts,'회의');assert.equal(result.split('예산 300만원 확정').length-1,2);assert.ok(result.includes('S000001'));});
+ await test('Minutes render topic headings and bullets with original evidence instead of a five-column table',()=>{
+  const memo={...note(),summary:'### 예산 검토\n- 예산 300만원을 확정함\n  - 집행 조건을 확인함\n\n### 후속 논의\n- 다음 회의에서 보고함'};
+  const result=structured.renderMinutes([memo],parts,'회의',[parts]);
+  assert.match(result,/## 주요 논의 사항/);assert.match(result,/### 예산 검토\n- 예산 300만원/);assert.match(result,/  - 집행 조건/);
+  assert.ok(result.includes(`**[${parts[0].time}~]**`));assert.ok(!result.includes('| 내용 |'));assert.ok(!result.includes('[확인 필요] |'));
+  assert.ok(result.includes('[S000001](#source-S000001)'));assert.ok(result.includes(note().decisions[0].quote));
+ });
+ await test('Literal Markdown in facts and quotes cannot inject links or document structure',()=>{
+  const memo={...note(),decisions:[{...note().decisions[0],text:'[링크](https://example.test) <img> | 내용',quote:'원문 **강조** <script> [S000009]'}]};
+  const result=structured.renderMinutes([memo],parts,'# 제목');
+  assert.ok(result.includes('\\[링크\\]'));assert.ok(result.includes('\\<img\\>'));assert.ok(result.includes('\\*\\*강조\\*\\*'));assert.ok(result.includes('# \\# 제목'));
+ });
  let snapshot=null;let requests=0;
  const opts={rows:[{text:'예산 300만원을 확정한다.',audio_start_time:1}],title:'시험',glossary:'',modelKey:'local:test',generate:async()=>{requests++;return JSON.stringify(note());},progress:()=>{},cancelled:()=>false,checkpoint:null,save:async value=>{snapshot=copy(value);}};
  await test('Array summaries cannot become completed minutes or checkpoints',async()=>{let generated=0;let saved=0;const malformed={...note(),summary:['예산을 논의했다.']};await assert.rejects(()=>structured.createStructuredMinutes({...opts,generate:async()=>{generated++;return JSON.stringify(malformed);},save:async()=>{saved++;}}),/Expected string, received array/);assert.equal(generated,2);assert.equal(saved,0);});
@@ -92,6 +104,10 @@ const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'
   assert.equal(prompts.length,groups.length-2);assert.ok(prompts[0].includes('고친 문장'));assert.equal(Object.keys(checkpoint.notes).length,groups.length);});
  await test('Changed model invalidates previous checkpoint',async()=>{await structured.createStructuredMinutes({...opts,modelKey:'local:other',checkpoint:snapshot});assert.equal(requests,2);});
  await test('Earlier structured prompt policy cannot reuse its completed checkpoint',async()=>{for(const version of [1,2]){const source=JSON.stringify({version,parts:structured.sourceParts(opts.rows),reference:'',model:opts.modelKey});const digest=await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode(source));const key=Buffer.from(digest).toString('hex');let regenerated=0;await structured.createStructuredMinutes({...opts,checkpoint:{key,notes:{'0':note()}},generate:async()=>{regenerated++;return JSON.stringify(note());},save:async()=>{}});assert.equal(regenerated,1);}});
+ await test('The previous table-format batch checkpoint is not reused after the document prompt changes',async()=>{
+  const batch=structured.sourceParts(opts.rows),digest=await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({version:4,batch,model:opts.modelKey})));let regenerated=0;
+  await structured.createStructuredMinutes({...opts,checkpoint:{key:'old',notes:{[Buffer.from(digest).toString('hex')]:note()}},generate:async()=>{regenerated++;return JSON.stringify(note());},save:async()=>{}});assert.equal(regenerated,1);
+ });
  await test('Cancellation does not make a model request',async()=>{const before=requests;await assert.rejects(()=>structured.createStructuredMinutes({...opts,cancelled:()=>true}),/취소/);assert.equal(requests,before);});
  await test('No summary for partial-only transcripts',async()=>await assert.rejects(()=>structured.createStructuredMinutes({...opts,rows:[{text:'진행중',is_partial:true}]}),/확정/));
  await test('Mixed final and partial rows cannot produce a falsely complete summary',async()=>await assert.rejects(()=>structured.createStructuredMinutes({...opts,rows:[{text:'완료된 발언'},{text:'진행중',is_partial:true}]}),/미확정/));

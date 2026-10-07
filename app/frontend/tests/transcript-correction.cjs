@@ -40,7 +40,7 @@ module.exports=async function correctionTests({test,using,deferred}){
   await h.run(()=>h.session.setModel(''));await h.run(()=>h.session.navigate('dictation'));
   assert.equal(h.session.correction.enabled,true);assert.equal(h.session.correction.status,'AI 연결 필요');
   const textOf=node=>typeof node==='string'?node:node.children.map(textOf).join('');
-  const notice=h.renderer.root.findAllByProps({role:'status'}).find(node=>textOf(node).includes('AI 후보정 모델이 지정되지 않아'));
+  const notice=h.renderer.root.findAllByProps({role:'status'}).find(node=>textOf(node).includes('AI 연결 필요'));
   assert.ok(notice);assert.ok(notice.findAllByType('a').some(node=>node.props.href==='#ai'));
  }));
  await test('Disabling correction while a request runs preserves raw data without applying its response',()=>{const gate=deferred();let request;return using({snapshot:snapshot([row('회의을 시작합니다.')]),overrides:{ko_generate:args=>{request=args;return gate.promise;}}},async h=>{

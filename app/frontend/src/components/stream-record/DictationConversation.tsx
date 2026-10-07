@@ -7,6 +7,7 @@ import {invoke} from '@tauri-apps/api/core';
 import {rowTime,segmentLabel} from '../meeting-ko/core';
 import {correctedText,correctionIssue,correctionIssueMessages} from '../meeting-ko/transcript-correction';
 import {TranscriptOptionNotes,TranscriptOptions} from './TranscriptOptions';
+import {AiModelControl} from './AiModelControl';
 import {correctionModelName} from './connections/modelPresentation';
 import {useStoredFlag} from './useStoredFlag';
 import type {MeetingSession} from './useMeetingSession';
@@ -38,10 +39,10 @@ export function DictationConversation({session:s,compact=false,video=false,compa
  const saveEdit=async(value:string)=>{if(!edit)return;try{await s.saveReview(edit.index,edit.sequence,value);setEdit(null);setEditError('');s.setNotice(`${segmentLabel(edit.index)} 수정 내용을 저장했습니다. 최초 원문은 그대로 보존됩니다.`);}catch(error){setEditError(s.messageOf(error));}};
  const latest=()=>{setQuery('');setSeen({key:s.readerSessionKey,ids:new Set(confirmed)});s.setFollow(true);if(scroll.current)scroll.current.scrollTop=scroll.current.scrollHeight;};
  return <section className={`${styles.panel} ${layout.conversation} ${compact?compactStyles.conversation:''}`} aria-label="전체 받아쓰기 대화" data-testid="dictation-conversation" data-video={video} data-compact-text={video||compactText}>
-  {!video&&<div className={layout.conversationHeading}><div><h2>{compact?'받아쓰기':'전체 받아쓰기'} <span className={styles.badge}>{s.rows.length}구간</span></h2>{!compact&&<p>1차 Whisper 받아쓰기 → 2차 AI 보정</p>}</div>{compact&&<span className={compactStyles.status} role="status">{s.correction.status}{s.correction.total>0?` · ${s.correction.completed}/${s.correction.total}구간`:''}</span>}<button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개 · 최신으로`:'최신 문장'}</button></div>}
-  <div className={layout.readingTools}><div className={layout.switcher} role="group" aria-label="대화 표시 방식"><button aria-pressed={!corrected} onClick={()=>setCorrected(false)}>실시간 원문</button><button aria-pressed={corrected} onClick={()=>setCorrected(true)}>AI 보정본</button></div>{video&&<button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개`:'최신 문장'}</button>}<TranscriptOptions session={s} corrected={corrected} compare={compare} setCompare={setCompare}/>{searchField}</div>
+  {!video&&!compact&&<div className={layout.conversationHeading}><div><h2>{compact?'받아쓰기':'전체 받아쓰기'} <span className={styles.badge}>{s.rows.length}구간</span></h2>{!compact&&<p>1차 Whisper 받아쓰기 → 2차 AI 보정</p>}</div><button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개 · 최신으로`:'최신 문장'}</button></div>}
+  <div className={layout.readingTools}><div className={layout.switcher} role="group" aria-label="대화 표시 방식"><button aria-pressed={!corrected} onClick={()=>setCorrected(false)}>실시간 원문</button><button aria-pressed={corrected} onClick={()=>setCorrected(true)}>AI 보정본</button></div>{(video||compact)&&<button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개`:'최신 문장'}</button>}<AiModelControl session={s} showDestination={false}/>{searchField}<TranscriptOptions session={s} corrected={corrected} compare={compare} setCompare={setCompare}/></div>
   <TranscriptOptionNotes session={s} showStatus={!compact||video} onReveal={reveal}/>
-  <p className={styles.hint}>{corrected?'AI 보정은 원음 검증이 아닙니다. 보정 전 문장도 빠짐없이 원문으로 표시합니다.':'Whisper가 인식한 최초 원문입니다. AI 보정과 관계없이 그대로 보존됩니다.'}</p>
+  <p hidden={compact} className={styles.hint}>{corrected?'AI 보정은 원음 검증이 아닙니다. 보정 전 문장도 빠짐없이 원문으로 표시합니다.':'Whisper가 인식한 최초 원문입니다. AI 보정과 관계없이 그대로 보존됩니다.'}</p>
   <div ref={scroll} className={`${layout.reader} ${compact?compactStyles.reader:''}`} tabIndex={0} role="log" aria-live="off" aria-label={corrected?'AI 보정 대화 내용':'Whisper 실시간 원문'} onScroll={event=>{const node=event.currentTarget;if(node.scrollHeight-node.scrollTop-node.clientHeight>64)s.setFollow(false);}}>
    {!s.rows.length&&(preparing?<LoadingPanel/>:live?<WaitingPanel stopping={s.mode==='stopping'}/>:<div className={layout.empty}><FeatureIcon kind="dictation" size="empty"/><h3>녹음을 시작하면 여기에 받아쓰기가 표시됩니다</h3><p>위에서 소리를 선택하고 녹음 시작을 누르세요.<br/>녹음이 끝나면 내용을 확인하고 회의록으로 정리할 수 있습니다.</p></div>)}
    {s.rows.length>0&&!filtered.length&&<p>검색어와 일치하는 대화가 없습니다.</p>}

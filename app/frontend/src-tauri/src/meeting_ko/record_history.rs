@@ -13,6 +13,12 @@ pub struct RecordSummary {
     pub title: String,
     pub updated_at: String,
     pub row_count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_seconds: Option<f64>,
+    #[serde(default)]
+    pub has_minutes: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -66,11 +72,25 @@ fn record_snapshot(dir: &Path, snapshot: &Value) -> Result<(), String> {
         title: snapshot["title"].as_str().unwrap_or("새 기록").to_owned(),
         updated_at: chrono::Utc::now().to_rfc3339(),
         row_count: snapshot["rows"].as_array().map_or(0, Vec::len),
+        input_kind: snapshot_input(snapshot),
+        duration_seconds: snapshot_duration(snapshot),
+        has_minutes: snapshot["minutes"].as_str().is_some_and(|value| !value.trim().is_empty()),
     };
     let records = dir.join("records");
     fs::create_dir_all(&records).map_err(|e| e.to_string())?;
     let record = Record { summary, snapshot: snapshot.clone() };
     atomic_write(&records.join(format!("{id}.json")), &serde_json::to_vec(&record).map_err(|e| e.to_string())?)
+}
+
+fn snapshot_input(snapshot: &Value) -> Option<String> {
+    snapshot["recordingInput"].as_str()
+        .filter(|value| matches!(*value, "microphone" | "pc" | "youtube" | "file"))
+        .map(str::to_owned)
+        .or_else(|| snapshot["videoUrl"].as_str().filter(|value| !value.trim().is_empty()).map(|_| "youtube".to_owned()))
+}
+
+fn snapshot_duration(snapshot: &Value) -> Option<f64> {
+    snapshot["durationSeconds"].as_f64().filter(|value| value.is_finite() && *value >= 0.0)
 }
 
 pub fn save(dir: &Path, content: &str) -> Result<(), String> {
@@ -122,7 +142,12 @@ pub fn list(dir: &Path) -> Result<RecordList, String> {
         if path.extension().and_then(|s| s.to_str()) != Some("json") { continue; }
         let record = read_text(&path).and_then(|text| serde_json::from_str::<Record>(&text).map_err(|e| e.to_string()));
         match record {
-            Ok(record) if valid_id(&record.summary.id) && path.file_stem().and_then(|s| s.to_str()) == Some(&record.summary.id) => result.records.push(record.summary),
+            Ok(mut record) if valid_id(&record.summary.id) && path.file_stem().and_then(|s| s.to_str()) == Some(&record.summary.id) => {
+                record.summary.input_kind = snapshot_input(&record.snapshot);
+                record.summary.duration_seconds = snapshot_duration(&record.snapshot);
+                record.summary.has_minutes = record.snapshot["minutes"].as_str().is_some_and(|value| !value.trim().is_empty());
+                result.records.push(record.summary);
+            },
             Ok(_) | Err(_) => result.warnings.push("읽지 못한 기록이 있습니다. 원본 파일은 보존되어 있습니다.".into()),
         }
     }

@@ -1,4 +1,11 @@
 .toolbar { padding:var(--sr-space-4); border:var(--sr-border-width) solid var(--sr-border-subtle); border-radius:var(--sr-radius-panel); background:var(--sr-surface); display:flex; flex-direction:column; gap:var(--sr-space-3); }
+.preparationHead { display:flex; align-items:center; justify-content:space-between; gap:var(--sr-space-2); font-size:var(--sr-type-helper); }
+.preparationHead button { font-size:var(--sr-type-helper); min-height:var(--sr-control-compact); }
+.compactToolbar { display:flex; align-items:center; flex-wrap:wrap; gap:var(--sr-space-3); padding:var(--sr-space-2) var(--sr-space-3); background:var(--sr-surface); border-radius:var(--sr-radius-control); }
+.compactToolbar > div:first-child { display:flex; align-items:center; gap:var(--sr-space-2); min-width:min(100%,12rem); flex:1 1 12rem; flex-wrap:wrap; font-size:var(--sr-type-helper); }
+.compactToolbar small { color:var(--sr-text-subtle); overflow-wrap:anywhere; }
+.compactToolbar button { min-height:var(--sr-control-compact); font-size:var(--sr-type-helper); }
+.compactToolbar .captureArea { margin-inline-start:auto; }
 .sources { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--sr-space-2); border:0; padding:0; margin:0; }
 .sources legend { padding:0 0 var(--sr-space-2); font-weight:600; }
 .sources.sources label { display:flex; flex-direction:row; text-align:left; align-items:center; gap:var(--sr-space-2); min-height:var(--sr-control-min); padding:var(--sr-space-3) var(--sr-space-2); border:var(--sr-border-width) solid var(--sr-border-subtle); border-radius:var(--sr-radius-control); cursor:pointer; }

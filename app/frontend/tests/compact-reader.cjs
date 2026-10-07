@@ -85,7 +85,7 @@ test('Original comparison shows the saved model name without internal IDs and ke
   const h=fixture();try{
    h.update({rows:[{sequence_id:1,text:'최초 원문',ai_correction:{version:1,source_text:'최초 원문',text:'AI 보정 문장',model_key:key,glossary:''}}],models:[{id:'other-model',provider:'chatgpt'}],model:'other-model'});
    h.run(()=>button(h,'AI 보정본').props.onClick());h.run(()=>checkbox(h,'원문 함께 보기').props.onChange({target:{checked:true}}));
-   assert.equal(text(h.renderer.root.findByType('small')),'최초 원문(보정 전)');
+   assert.equal(text(h.renderer.root.findByProps({role:'log'}).findByType('small')),'최초 원문(보정 전)');
    assert.ok(h.renderer.root.findAllByType('span').some(node=>text(node)==='AI 보정됨 · '+name));
    assert.equal(h.session.rows[0].ai_correction.model_key,key);assert.equal(h.session.rows[0].text,'최초 원문');
   }finally{h.close();}
@@ -93,7 +93,7 @@ test('Original comparison shows the saved model name without internal IDs and ke
 });
 for(const video of [false,true])test(`${video?'Video':'Microphone and PC sound'} transcript options sit on the view switcher line and default on`,()=>{
  const h=fixture(video);try{
-  assert.equal(h.renderer.root.findAllByType('button').some(node=>text(node).includes('받아쓰기 설정')),false);assert.equal(h.renderer.root.findAllByType('details').length,0);
+  assert.equal(h.renderer.root.findAllByType('button').some(node=>text(node).includes('받아쓰기 설정')),false);assert.ok(h.renderer.root.findAllByType('details').some(node=>text(node.findByType('summary'))==='처리 속도와 원문 보존 안내'));
   const line=h.renderer.root.findByProps({role:'group','aria-label':'대화 표시 방식'}).parent;
   assert.equal(line.findAllByProps({role:'group','aria-label':'받아쓰기 설정'}).length,1);assert.ok(line.findAllByType('label').some(node=>text(node).startsWith('대화 내용 검색')));
   assert.equal(checkbox(h,'AI 보정').props.checked,true);assert.equal(checkbox(h,'참여자 구분').props.checked,true);assert.equal(checkbox(h,'원문 함께 보기'),undefined);
@@ -103,10 +103,10 @@ for(const video of [false,true])test(`${video?'Video':'Microphone and PC sound'}
 test('Without a correction model a notice links to AI connections, and speaker guidance follows the toggle',()=>{
  const h=fixture();try{
   const all=()=>text(h.renderer.root);
-  assert.ok(all().includes('AI 후보정 모델이 지정되지 않아'));assert.ok(h.renderer.root.findAllByType('a').some(node=>node.props.href==='#ai'&&text(node).includes('보정 모델 선택')));
+  assert.ok(h.renderer.root.findAllByProps({role:'status'}).some(node=>text(node).includes('AI 연결 필요')));assert.ok(h.renderer.root.findAllByType('a').some(node=>node.props.href==='#ai'&&text(node)==='연결하기'));
   assert.ok(all().includes('AI 보정과 참여자 구분은 기본으로 켜져 있어 받아쓰기가 느려질 수 있습니다'));
   h.run(()=>checkbox(h,'참여자 구분').props.onChange({target:{checked:false}}));assert.equal(checkbox(h,'참여자 구분').props.checked,false);assert.ok(all().includes('실시간 참여자 구분이 꺼져 있습니다'));
-  h.run(()=>checkbox(h,'AI 보정').props.onChange({target:{checked:false}}));assert.equal(all().includes('AI 후보정 모델이 지정되지 않아'),false);assert.equal(all().includes('받아쓰기가 느려질 수 있습니다'),false);
+  h.run(()=>checkbox(h,'AI 보정').props.onChange({target:{checked:false}}));assert.ok(h.renderer.root.findAllByProps({role:'status'}).some(node=>text(node)==='보정 꺼짐'));assert.equal(all().includes('받아쓰기가 느려질 수 있습니다'),false);
  }finally{h.close();}
 });
 test('When compact summary has no connected model, generation cannot be enabled',()=>{

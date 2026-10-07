@@ -4,11 +4,12 @@ import {invoke} from '@tauri-apps/api/core';
 import {z} from 'zod';
 import {readRows} from '../meeting-ko/core';
 import type {Snapshot} from './useMeetingSession';
+import type {RecordInputKind} from './record-presentation';
 
-const recordSchema=z.object({id:z.string().regex(/^[A-Za-z0-9-]{1,80}$/),title:z.string(),updatedAt:z.string(),rowCount:z.number().int().nonnegative()});
+const recordSchema=z.object({id:z.string().regex(/^[A-Za-z0-9-]{1,80}$/),title:z.string(),updatedAt:z.string(),rowCount:z.number().int().nonnegative(),inputKind:z.enum(['microphone','pc','youtube','file']).optional(),durationSeconds:z.number().finite().nonnegative().optional(),hasMinutes:z.boolean().optional()});
 const listSchema=z.object({records:z.array(recordSchema),warnings:z.array(z.string())});
 const snapshotSchema=z.object({version:z.literal(1),recordId:z.string().regex(/^[A-Za-z0-9-]{1,80}$/).optional(),title:z.string(),rows:z.array(z.unknown()),minutes:z.string(),startedAt:z.string().nullable().default(null)}).passthrough();
-export type RecordSummary={readonly id:string;readonly title:string;readonly updatedAt:string;readonly rowCount:number};
+export type RecordSummary={readonly id:string;readonly title:string;readonly updatedAt:string;readonly rowCount:number;readonly inputKind?:RecordInputKind;readonly durationSeconds?:number;readonly hasMinutes?:boolean};
 type Input={readonly capture:()=>Snapshot;readonly apply:(value:Snapshot)=>void;readonly blockedReason:()=>string;readonly onTransition:(active:boolean)=>void};
 class RecordSwitchError extends Error {constructor(message:string){super(message);this.name='RecordSwitchError';}}
 

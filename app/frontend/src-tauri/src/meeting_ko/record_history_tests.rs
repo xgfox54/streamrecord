@@ -52,3 +52,34 @@ fn corrupt_record_does_not_hide_valid_records() {
     assert_eq!(listing.warnings.len(), 1);
     assert!(load(dir.path(), "broken").is_err());
 }
+
+#[test]
+fn metadata_uses_saved_capture_values_without_guessing_old_duration() {
+    let dir = tempfile::tempdir().expect("fixture");
+    let mut value = snapshot("metadata-record");
+    value["recordingInput"] = json!("pc");
+    value["durationSeconds"] = json!(3601.5);
+    save(dir.path(), &value.to_string()).expect("save");
+    let listing = list(dir.path()).expect("list");
+    assert_eq!(listing.records[0].input_kind.as_deref(), Some("pc"));
+    assert_eq!(listing.records[0].duration_seconds, Some(3601.5));
+    assert!(listing.records[0].has_minutes);
+    assert_eq!(load(dir.path(), "metadata-record").expect("load"), value);
+    assert!(snapshot_duration(&json!({"durationSeconds":-1})).is_none());
+    assert!(snapshot_duration(&json!({"startedAt":"2026-10-07","rows":[{"audio_start_time":9999}]})).is_none());
+}
+
+#[test]
+fn legacy_record_envelope_is_read_without_rewriting_original_bytes() {
+    let dir = tempfile::tempdir().expect("fixture");
+    fs::create_dir_all(dir.path().join("records")).expect("records");
+    let content = json!({"summary":{"id":"legacy-record","title":"회의","updatedAt":"2026-10-07T00:00:00Z","rowCount":1},"snapshot":snapshot("legacy-record")}).to_string();
+    let file = dir.path().join("records/legacy-record.json");
+    fs::write(&file, &content).expect("seed");
+    let listing = list(dir.path()).expect("list");
+    assert_eq!(listing.records.len(), 1);
+    assert!(listing.records[0].input_kind.is_none());
+    assert!(listing.records[0].duration_seconds.is_none());
+    assert!(listing.records[0].has_minutes);
+    assert_eq!(fs::read_to_string(file).expect("original"), content);
+}

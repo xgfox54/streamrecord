@@ -7,7 +7,16 @@ export type StructuredNote=z.infer<typeof noteSchema>;
 export type SummaryCheckpoint={key:string;notes:Record<string,StructuredNote>};
 export type SourcePart={id:string;time:string;text:string};
 const normal=(s:string)=>s.replace(/\s+/g,' ').trim();
-const clean=(s:string)=>s.replace(/\|/g,'\\|').replace(/[\r\n]+/g,' ');
+const clean=(s:string)=>s.replace(/\\/g,'\\\\').replace(/[\r\n]+/g,' ').replace(/([`*_{}\[\]<>#|])/g,'\\$1');
+function summaryMarkdown(text:string):string{
+  return text.trim().split(/\r?\n/).map(line=>{
+    const heading=line.match(/^\s*#{1,6}\s+(.+)$/);
+    if(heading)return `### ${clean(heading[1])}`;
+    const bullet=line.match(/^(\s*)(?:[-*+]|\d+[.)])\s+(.+)$/);
+    if(bullet)return `${bullet[1].length>=2?'  ':''}- ${clean(bullet[2])}`;
+    return clean(line);
+  }).join('\n');
+}
 export function reviewText(row:TranscriptRow):string{return typeof row.reviewed_text==='string'?row.reviewed_text:row.text;}
 const digits=(s:string)=>s.replace(/[^0-9]/g,'');
 /**
@@ -80,18 +89,29 @@ export function parseNote(raw:string|unknown,sources:readonly SourcePart[],mode:
   if(removed)note.unverified=removed;
   return note;
 }
-export function renderMinutes(notes:readonly StructuredNote[],parts:readonly SourcePart[],title:string):string{
+export function renderMinutes(notes:readonly StructuredNote[],parts:readonly SourcePart[],title:string,groups:readonly SourcePart[][]=[]):string{
   const lookup=new Map(parts.map(p=>[p.id,p]));
-  const out=[`# ${clean(title)||'회의록'}`,'','> AI 초안 · 모든 구간 처리 완료. 근거 인용 일치 검사는 사실관계 검증을 대신하지 않습니다. 담당자 확인이 필요합니다.','','## 구간별 핵심 요약',''];
+  const out=[`# ${clean(title)||'회의록'}`,'','> AI 초안 · 모든 구간 처리 완료. 근거 인용 일치 검사는 사실관계 검증을 대신하지 않습니다. 담당자 확인이 필요합니다.','','## 주요 논의 사항',''];
   const removed=notes.reduce((sum,note)=>sum+(note.unverified??0),0);
-  if(removed)out.splice(3,0,`> 받아쓰기 원문에서 근거를 찾지 못한 항목 ${removed}개는 회의록 표에서 제외했습니다. 필요하면 받아쓰기 원문을 확인하세요.`,'');
-  notes.forEach((note,i)=>out.push(`${i+1}. ${note.summary}`));
+  if(removed)out.splice(3,0,`> 받아쓰기 원문에서 근거를 찾지 못한 항목 ${removed}개는 회의록에서 제외했습니다. 필요하면 받아쓰기 원문을 확인하세요.`,'');
+  notes.forEach((note,i)=>{
+    const time=groups[i]?.[0]?.time;
+    if(time)out.push(`**[${time}~]**`,'');
+    const summary=summaryMarkdown(note.summary);
+    if(!summary.startsWith('### '))out.push(`### 논의 요약 ${i+1}`,'');
+    out.push(summary,'');
+  });
   for(const [key,label] of [['decisions','확정 결정사항'],['proposals','제안·검토 중인 사항'],['actions','후속 조치'],['numbers','금액·인원·비율과 맥락'],['open_questions','미결 사항']] as const){
-    out.push('',`## ${label}`,'');
     const facts=notes.flatMap(n=>n[key]);
-    if(!facts.length){out.push('추출된 항목 없음. 필요한 경우 원문을 확인하세요.');continue;}
-    out.push('| 내용 | 담당자 | 기한 | 근거 구간 | 원문 인용 |','|---|---|---|---|---|');
-    for(const fact of facts){const source=lookup.get(fact.source_id);out.push(`| ${clean(fact.text)} | ${clean(fact.owner||'[확인 필요]')} | ${clean(fact.due||'[확인 필요]')} | ${fact.source_id} · ${source?.time||'시간 미상'} | ${clean(fact.quote)} |`);}
+    if(!facts.length)continue;
+    out.push('',`## ${label}`,'');
+    for(const fact of facts){
+      const source=lookup.get(fact.source_id);
+      const metadata=[fact.owner&&fact.owner!=='[확인 필요]'?`담당자: ${clean(fact.owner)}`:'',fact.due&&fact.due!=='[확인 필요]'?`기한: ${clean(fact.due)}`:''].filter(Boolean);
+      out.push(`- ${clean(fact.text)}`,'');
+      if(metadata.length)out.push(`  ${metadata.join(' · ')}`,'');
+      out.push(`  근거: [${fact.source_id}](#source-${fact.source_id}) · ${source?.time||'시간 미상'}`,'',`  > 근거 원문 · [${fact.source_id}](#source-${fact.source_id})`,`  > ${clean(fact.quote)}`,'');
+    }
   }
   out.push('','---','받아쓰기 원문은 별도로 보존됩니다. 안건 통합·사실 확정·참여자 식별을 자동 완료한 결과가 아닙니다.');
   return out.join('\n');
@@ -100,7 +120,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   if(options.rows.some(row=>row.is_partial&&reviewText(row).trim()))throw new Error('미확정 받아쓰기 구간이 남아 있습니다. 마지막 음성을 처리해 확정한 뒤 회의록을 만드세요. 원문은 유지됩니다.');
   const parts=sourceParts(options.rows);if(!parts.length)throw new Error('확정된 받아쓰기 내용이 없습니다. 마지막 음성 처리가 끝났는지 확인하세요.');
 
-  const source=JSON.stringify({version:4,parts,model:options.modelKey});
+  const source=JSON.stringify({version:5,parts,model:options.modelKey});
   if(source.length>2_000_000)throw new Error('받아쓰기 내용이 너무 큽니다. 회의를 나누어 처리하세요.');
   const hash=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
   // Batch boundaries are measured on the unchanging Whisper text of hand-edited rows, so correcting a sentence
@@ -111,7 +131,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   const same=plain.length===stable.length&&plain.every((group,i)=>group.length===stable[i].length&&group[0].id===stable[i][0].id);
   // Each batch is saved under a hash of its own transcript text, prompt policy and model.
   // Correcting one sentence after a failure re-processes only the batch that contains it.
-  const batchKey=(group:SourcePart[])=>hash(JSON.stringify({version:4,batch:group,model:options.modelKey}));
+  const batchKey=(group:SourcePart[])=>hash(JSON.stringify({version:5,batch:group,model:options.modelKey}));
   const [key,...keys]=await Promise.all([hash(source),...(same?plain:[...plain,...stable]).map(batchKey)]);
   // Checkpoints saved before per-batch keys are indexed by position and valid only for the identical whole transcript.
   const legacy=options.checkpoint?.key===key;
@@ -145,5 +165,5 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   if(options.cancelled())throw new Error('요약을 취소했습니다. 구간별 결과는 보존됩니다.');
   const current=new Set(batchKeys);for(const id of Object.keys(cache.notes))if(!current.has(id))delete cache.notes[id];
   await options.save(cache);
-  return renderMinutes(notes,parts,options.title);
+  return renderMinutes(notes,parts,options.title,groups);
 }
