@@ -15,8 +15,11 @@
 .aiControls { padding: var(--jeju-space-2) 0; border-bottom: var(--sr-border-width) solid var(--jeju-border); }
 .aiToolbar { justify-content: space-between; }
 .readingTools { justify-content: space-between; padding-top: var(--jeju-space-4); }
-.switcher { display: flex; flex-wrap: wrap; gap: var(--jeju-space-2); }
-.switcher button[aria-pressed=true] { background: var(--jeju-primary-tint); border-color: var(--jeju-primary-active); color: var(--jeju-primary-active); font-weight: var(--sr-weight-selected); }
+/* Segmented view switch: one bordered track, the selected view is a raised white segment with the action colour. */
+.switcher { display: flex; flex-wrap: wrap; gap: var(--sr-space-half); justify-self: start; padding: var(--sr-space-half); border: var(--sr-border-width) solid var(--sr-border-control); border-radius: var(--sr-radius-card); background: var(--sr-surface-subtle); }
+.switcher.switcher button { min-height: var(--sr-control-compact); border-color: transparent; background: transparent; color: var(--sr-text-subtle); }
+.switcher button:hover:not(:disabled):not([aria-pressed=true]) { background: var(--sr-surface); color: var(--sr-text); }
+.switcher button[aria-pressed=true] { background: var(--sr-surface); border-color: var(--jeju-primary-active); color: var(--jeju-primary-active); font-weight: var(--sr-weight-selected); }
 .search { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jeju-space-2); }
 .search input { width: var(--sr-field-min); max-width: 100%; }
 .reader { --sr-row-focus-gutter: var(--jeju-space-2); height: var(--sr-conversation-height); min-height: var(--sr-conversation-min); overflow: auto; overscroll-behavior: contain; padding: 0 var(--jeju-space-4); scrollbar-gutter: stable; border-block: var(--sr-border-width) solid var(--jeju-border); }

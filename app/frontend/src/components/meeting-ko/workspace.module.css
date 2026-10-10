@@ -75,6 +75,9 @@
   --sr-nav-accent-width: 4px;
   --sr-mobile-nav-accent-width: 3px;
   --sr-focus-width: 3px;
+  --sr-radius-card: var(--jeju-radius);
+  --sr-duration-state: 180ms;
+  --sr-ease-state: cubic-bezier(.2, 0, 0, 1);
 
   --sr-control-min: var(--jeju-control-h);
   --sr-control-compact: var(--jeju-target-min);
@@ -158,6 +161,13 @@
   outline: var(--sr-focus-width) solid var(--sr-focus);
   outline-offset: var(--sr-focus-width);
 }
+/* StyleGallery 2026-10-10: every interactive surface changes state over a short, interruptible transition. */
+.workspace :is(button, a, input, select, textarea, summary, label) {
+  transition-duration: var(--sr-duration-state);
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-timing-function: var(--sr-ease-state);
+}
+.workspace :is(input, select, textarea):hover:not(:disabled) { border-color: var(--sr-text-subtle); }
 .workspace label { display: flex; flex-direction: column; gap: var(--sr-space-2); font-weight: 600; }
 .workspace input, .workspace select { min-height: var(--sr-control-min); padding: var(--sr-space-2-5) var(--sr-space-3); width: 100%; }
 .workspace textarea { width: 100%; padding: var(--sr-space-4); resize: vertical; min-height: var(--sr-textarea-min); line-height: var(--sr-line-editor); }

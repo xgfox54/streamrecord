@@ -1,5 +1,14 @@
 # Stream-Record Design System
 
+## 2026-10-10 StyleGallery 기반 상태·선택 표현 정리
+사용자 요청에 따라 [StyleGallery](https://github.com/changeroa/StyleGallery) `86804d3ea0dd500af14b0c5b07a96e13a43986b4`의 `design-engineering/interface-craft.md`, `expression/directions/korean-service.md`, 측정 기준(링크·버튼·카드·탭의 100-320ms 상태 변화, 그림자 대신 경계선과 둥근 면)을 참고한다. 배치, 문구, 기능, Jeju 색 정본은 바꾸지 않으며 새 색 리터럴을 추가하지 않는다.
+상태 전환 토큰 `--sr-duration-state:180ms`, `--sr-ease-state:cubic-bezier(.2,0,0,1)`을 추가하고 button·a·input·select·textarea·summary·label의 배경·테두리·글자색·box-shadow에만 적용한다. 기존 동작 줄이기 규칙이 전환을 끈다. 입력 상자는 hover 때 테두리를 text-subtle로 진하게 한다.
+카드 모서리 별칭 `--sr-radius-card`는 `--jeju-radius`(10px)이며 소리 선택 카드, 기록 목록 항목, 원문/보정본 전환 트랙에 쓴다. 선택된 소리 카드는 파란 테두리와 1px 안쪽 선으로 2px 선택 경계를 만들고 크기는 바뀌지 않는다. 선택되지 않은 카드는 hover 때 조작 테두리와 subtle 바탕을 보인다.
+현재 기록은 선택 바탕에 왼쪽 3px 파란 안쪽 선과 파란 제목을 더한다. 다른 기록의 hover는 선택 바탕과 구분되는 subtle 바탕이다.
+받아쓰기·AI 요약·회의록 탭은 채운 블록 대신 글자색과 2px 파란 밑줄로 현재 보기를 표시하며, 밑줄은 탭 줄의 아래 경계에 붙는다. 선택되지 않은 탭에는 밑줄이 없다.
+실시간 원문/AI 보정본은 하나의 조작 테두리 트랙 안의 segmented 전환이다. 선택 항목은 흰 면·action 테두리·굵은 글자, 나머지는 subtle 글자이며 각 버튼은 44px 최소 터치를 유지하고 트랙은 내용 폭만 차지한다.
+비활성 ‘회의록 정리하기’는 주황 테두리를 남기지 않고 다른 비활성 버튼과 같은 조작 테두리를 쓴다. forced-colors와 기존 초점 링 계약은 그대로다.
+
 ## 2026-10-07 녹음파일 처리 시간
 FileImportProgress는 기존 안내 표면·본문·hint·native progress를 재사용한다. 경과 시간, 예상 전체 처리 시간, 남은 시간을 별도 줄에 표시하고 작은 화면과 글자 확대에서 자연스럽게 줄바꿈한다. 준비/첫 구간은 계산 중, 처리 중은 실제 완료 음성 길이와 경과 시간으로 갱신, 저장 단계는 결과 저장 중으로 표시한다. 예상치를 넘기면 음수나 0초 확정 안내 대신 재계산 중으로 표시한다. AI 보정 시간은 별도임을 밝힌다. 파일 받아쓰기 내용은 완료 후에만 표시한다. TXT는 각 구간 사이 빈 줄 하나를 두며 AI 보정본은 보정 또는 직접 수정된 확정 구간만 저장한다. 원문·JSON은 보존한다. 새 색·크기·모션·의존성을 추가하지 않는다.
 

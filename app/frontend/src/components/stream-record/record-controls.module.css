@@ -8,8 +8,9 @@
 .compactToolbar .captureArea { margin-inline-start:auto; }
 .sources { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--sr-space-2); border:0; padding:0; margin:0; }
 .sources legend { padding:0 0 var(--sr-space-2); font-weight:600; }
-.sources.sources label { display:flex; flex-direction:row; text-align:left; align-items:center; gap:var(--sr-space-2); min-height:var(--sr-control-min); padding:var(--sr-space-3) var(--sr-space-2); border:var(--sr-border-width) solid var(--sr-border-subtle); border-radius:var(--sr-radius-control); cursor:pointer; }
-.sources label[data-selected=true] { background:var(--sr-surface-selected); color:var(--sr-primary-hover); }
+.sources.sources label { display:flex; flex-direction:row; text-align:left; align-items:center; gap:var(--sr-space-2); min-height:var(--sr-control-min); padding:var(--sr-space-3) var(--sr-space-2); border:var(--sr-border-width) solid var(--sr-border-subtle); border-radius:var(--sr-radius-card); background:var(--sr-surface); cursor:pointer; }
+.sources:not(:disabled) label:hover:not([data-selected=true]) { border-color:var(--sr-border-control); background:var(--sr-surface-subtle); }
+.sources label[data-selected=true] { background:var(--sr-surface-selected); border-color:var(--sr-brand-blue); box-shadow:inset 0 0 0 var(--sr-border-width) var(--sr-brand-blue); color:var(--sr-primary-hover); }
 .sources label > span { min-width:0; }
 .sources :is(svg,input) { flex-shrink:0; }
 .sources strong { font-size:var(--sr-type-body); }
