@@ -1,38 +1,38 @@
 {
-  "version": "0.7.7",
+  "version": "0.7.8",
   "variant": "vulkan",
   "installer": {
-    "name": "Stream-Record-0.7.7-korean-bundled-vulkan-windows-x64-setup.exe",
-    "bytes": 326241574,
-    "crc32": "9c80c777",
-    "sha256": "73ca060b87c92abdda08b888507240c4058889de5823f88f48e17ea74cd6d958",
+    "name": "Stream-Record-0.7.8-korean-bundled-vulkan-windows-x64-setup.exe",
+    "bytes": 326254893,
+    "crc32": "eb3f0716",
+    "sha256": "f1ec73877c0fcbf4707d3031752634d0078f015cdc316d76c3c96418128debe4",
     "unsigned": true
   },
   "parts": [
     {
-      "name": "Stream-Record-0.7.7-korean-bundled-vulkan-windows-x64-setup.exe.part-000",
+      "name": "Stream-Record-0.7.8-korean-bundled-vulkan-windows-x64-setup.exe.part-000",
       "bytes": 75497472,
-      "sha256": "264ae3cf741e0cf64797071f654fcdb685466200b1561adf3ba0dfb336c85443"
+      "sha256": "be5b8d8ff9dad288f043410ea162d7fb68c030ae331a491ed7a397be78979b49"
     },
     {
-      "name": "Stream-Record-0.7.7-korean-bundled-vulkan-windows-x64-setup.exe.part-001",
+      "name": "Stream-Record-0.7.8-korean-bundled-vulkan-windows-x64-setup.exe.part-001",
       "bytes": 75497472,
-      "sha256": "94e0537c8562ac4d2bdcc9fe1567a1aa5297b67075af49bed529bf2bae6a1d92"
+      "sha256": "75738b57ebcfa78a028060028e2c2973e40dd8f5d09fcd5f6a4962375e4c5543"
     },
     {
-      "name": "Stream-Record-0.7.7-korean-bundled-vulkan-windows-x64-setup.exe.part-002",
+      "name": "Stream-Record-0.7.8-korean-bundled-vulkan-windows-x64-setup.exe.part-002",
       "bytes": 75497472,
-      "sha256": "f25fb7b127221ea9a07dd9e6e6f615058c67fb5f79d3e7737dc61c3f171c8e10"
+      "sha256": "b8e559f17cc8213e4096406bc5b95e6c93a872b2eb3e9e40f803926547e139d5"
     },
     {
-      "name": "Stream-Record-0.7.7-korean-bundled-vulkan-windows-x64-setup.exe.part-003",
+      "name": "Stream-Record-0.7.8-korean-bundled-vulkan-windows-x64-setup.exe.part-003",
       "bytes": 75497472,
-      "sha256": "2154e46c38150686fb09c13411c851b2a3f76ca0b256b88b3c1438e83b9fd67e"
+      "sha256": "7aece9d8e230e6f51077e08907774178de60d357527d6d60b49a2c0d478e7107"
     },
     {
-      "name": "Stream-Record-0.7.7-korean-bundled-vulkan-windows-x64-setup.exe.part-004",
-      "bytes": 24251686,
-      "sha256": "d644c37947f2bea01119e01a10fda3fd272a749ff9396defe3a6e03d81b04701"
+      "name": "Stream-Record-0.7.8-korean-bundled-vulkan-windows-x64-setup.exe.part-004",
+      "bytes": 24265005,
+      "sha256": "1533f93bc2375e78054421d652d4da1d1ab84f0d06677b89adf0f7053d2dfba3"
     }
   ]
 }

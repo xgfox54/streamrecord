@@ -28,6 +28,7 @@ export function TranscriptOptionNotes({session:s,showStatus,onReveal}:{readonly 
   {slowdown&&<details className={layout.speedHelp}><summary>처리 속도와 원문 보존 안내</summary><p className={styles.hint} data-testid="option-speed-note">AI 보정과 참여자 구분은 기본으로 켜져 있어 받아쓰기가 느려질 수 있습니다. 더 빠르게 받아쓰려면 위의 ‘AI 보정’과 ‘참여자 구분’을 끄세요.<br/>기능을 꺼도 녹음과 원문은 그대로 보존되며, 선택은 다음 실행에도 유지됩니다.</p></details>}
   <CorrectionNotice correction={correction} onReveal={onReveal}/>
   {s.autoGlossary.message&&<p className={styles.hint} data-testid="auto-glossary-note">{s.autoGlossary.message}</p>}
+  {s.diarization.enabled&&<p className={styles.hint} data-testid="diarization-limit-note">참여자 구분은 최대 8명까지 가능합니다. 참여자가 8명보다 많으면 일부 발언은 번호가 표시되지 않거나 정확하지 않을 수 있습니다.</p>}
   {s.diarization.enabled?s.mode==='recording'&&<p className={styles.hint}>{s.diarization.status}</p>:<p className={styles.hint}>실시간 참여자 구분이 꺼져 있습니다. 녹음 후 {transcriptLink}에서 전체 참여자 구분을 할 수 있습니다.</p>}
  </div>;
 }
