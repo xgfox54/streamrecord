@@ -1,6 +1,6 @@
 ![Stream Record - 영상 스트리밍 회의록 생성기 표지](assets/branding/streamrecord-cover.png)
 
-# Stream-Record v0.7.6
+# Stream-Record v0.7.7
 
 GPU 가속, 녹음파일 처리 시간 표시와 TXT 가독성을 개선했습니다. 원음과 기존 기록을 보존합니다.
 
@@ -24,7 +24,7 @@ Windows x64용 한국어 녹음·전사·회의록 앱입니다. 마이크 또�
 
 ## 설치
 
-[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.7.6)에서 온라인 설치 EXE 또는 전체 설치파일 조각·복원 스크립트를 받습니다. 온라인 설치 EXE의 기존 `online-cpu` 파일명은 이전 앱의 업데이트 검증과 호환되도록 유지하지만 실제 설치 내용은 Vulkan GPU 가속판입니다. 이전 버전을 사용 중이면 녹음·받아쓰기·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
+[지정 GitLab 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.7.7)에서 온라인 설치 EXE 또는 전체 설치파일 조각·복원 스크립트를 받습니다. 온라인 설치 EXE의 기존 `online-cpu` 파일명은 이전 앱의 업데이트 검증과 호환되도록 유지하지만 실제 설치 내용은 Vulkan GPU 가속판입니다. 이전 버전을 사용 중이면 녹음·받아쓰기·요약을 끝내고 **설정 → Stream-Record 종료**로 완전히 종료한 뒤 설치합니다. 창의 X는 트레이로 숨기는 동작입니다.
 
 설치 프로그램은 미서명입니다. SHA-256은 파일 무결성 확인이며 게시자 코드 서명을 대신하지 않습니다. Windows WebView2 등 선행 런타임이 없는 PC에서는 최초 런타임 설치에 인터넷이 필요할 수 있습니다. 음성모델의 오프라인 사용과 선행 런타임 설치는 별개입니다.
 
@@ -56,7 +56,7 @@ PC 소리와 YouTube는 Windows WASAPI로 선택한 스피커·헤드폰의 재�
 
 동봉 모델은 `ggml-small-q5_1.bin` 190,085,487바이트이며, `manifest.json`과 `WHISPER-LICENSE.txt`를 함께 배포합니다. 출처는 고정 revision의 [ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp)입니다. 실제 기준 해시는 `app/frontend/src-tauri/src/whisper_engine/model_integrity.rs`와 동봉 manifest에 기록됩니다. 설치 리소스와 사용자 모델 폴더 각각에 저장하므로 추가 디스크 공간이 필요합니다. 요약용 대형 언어모델은 동봉하지 않습니다.
 
-v0.7.6 Windows x64 설치본은 Vulkan GPU 가속을 포함합니다. 사용 가능한 GPU가 없거나 초기화에 실패하면 CPU로 처리합니다. CUDA Toolkit 설치는 필요하지 않으며 Vulkan 지원 그래픽 드라이버가 필요합니다. 실제 검증은 RTX 4060과 GTX 1660 Ti의 짧은 한국어 샘플로 수행했으며 한 시간 파일 완료 시간은 아직 측정하지 않았습니다.
+v0.7.7 Windows x64 설치본은 Vulkan GPU 가속을 포함합니다. 사용 가능한 GPU가 없거나 초기화에 실패하면 CPU로 처리합니다. CUDA Toolkit 설치는 필요하지 않으며 Vulkan 지원 그래픽 드라이버가 필요합니다. 실제 검증은 RTX 4060과 GTX 1660 Ti의 짧은 한국어 샘플로 수행했으며 한 시간 파일 완료 시간은 아직 측정하지 않았습니다.
 
 녹음파일 받아쓰기는 모든 구간 처리와 저장이 끝난 뒤 텍스트를 표시합니다. 처리 중 경과 시간과 예상 전체·남은 시간을 표시하며, 첫 구간에서는 계산 중으로 표시합니다. 예상 시간에는 별도 AI 보정 시간이 포함되지 않습니다. AI 보정본 TXT에는 보정된 문장 또는 직접 수정한 문장만 저장하며 최초 원문을 섞지 않습니다. TXT 구간 사이에는 빈 줄을 넣습니다.
 
