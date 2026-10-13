@@ -517,8 +517,8 @@ pub async fn ko_export<R: Runtime>(
         "bundle" => "json",
         _ => return Err("잘못된 저장 형식".into()),
     };
-    if content.len() > 8_000_000 {
-        return Err("저장할 내용이 너무 큽니다.".into());
+    if content.len() > 20_000_000 {
+        return Err("저장할 내용이 20MB를 초과합니다.".into());
     }
     let dir = ko_data_dir(&app)?.join("Exports");
     crate::review_paths::fs::create_dir_all(&dir).map_err(|e| format!("저장 폴더 생성 실패: {e}"))?;

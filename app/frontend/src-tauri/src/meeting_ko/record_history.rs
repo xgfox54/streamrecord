@@ -3,7 +3,7 @@ use serde_json::Value;
 use crate::review_paths::fs;
 use std::{io::Write, path::Path, sync::Mutex};
 
-const LIMIT: u64 = 8_000_000;
+const LIMIT: u64 = 20_000_000;
 static STORE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Serialize, Deserialize)]
@@ -39,7 +39,7 @@ fn valid_id(id: &str) -> bool {
 
 fn parse_snapshot(content: &str) -> Result<Value, String> {
     if content.len() > LIMIT as usize {
-        return Err("기록 크기가 8MB를 초과합니다.".into());
+        return Err("기록 크기가 20MB를 초과합니다.".into());
     }
     let value: Value = serde_json::from_str(content).map_err(|e| format!("기록 형식 오류: {e}"))?;
     if value["version"] != 1 || !value["rows"].is_array() || !value["title"].is_string() {

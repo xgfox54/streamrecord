@@ -5,6 +5,47 @@ fn snapshot(id: &str) -> Value {
     json!({"version":1,"recordId":id,"title":"회의","rows":[{"text":"원문","reviewed_text":"검토","speaker_id":"speaker_0","ai_correction":{"text":"보정"}}],"minutes":"회의록","audioPath":"audio.wav","summaryDraft":{"key":"k"},"futureField":{"kept":true}})
 }
 
+fn snapshot_with_bytes(id: &str, bytes: usize) -> Value {
+    let mut value = snapshot(id);
+    let overhead = value.to_string().len();
+    let remaining = bytes.checked_sub(overhead).expect("fixture size");
+    let mut text = value["rows"][0]["text"].as_str().expect("original text").to_owned();
+    text.push_str(&"가".repeat(remaining / "가".len()));
+    text.push_str(&"x".repeat(remaining % "가".len()));
+    value["rows"][0]["text"] = json!(text);
+    assert_eq!(value.to_string().len(), bytes);
+    value
+}
+
+#[test]
+fn records_above_eight_mb_through_twenty_mb_round_trip_without_losing_originals() {
+    let dir = tempfile::tempdir().expect("fixture");
+    for bytes in [8_000_001, 20_000_000] {
+        let value = snapshot_with_bytes("large-record", bytes);
+        save(dir.path(), &value.to_string()).expect("large record save");
+        assert_eq!(current(dir.path()).expect("restore current"), Some(value.clone()));
+        assert_eq!(load(dir.path(), "large-record").expect("reopen record"), value);
+        let listing = list(dir.path()).expect("large record listing");
+        assert_eq!(listing.records.len(), 1);
+        assert!(listing.warnings.is_empty());
+    }
+}
+
+#[test]
+fn record_one_byte_above_twenty_mb_is_rejected_without_overwriting_saved_data() {
+    let dir = tempfile::tempdir().expect("fixture");
+    let original = snapshot("safe-record");
+    save(dir.path(), &original.to_string()).expect("initial save");
+    let current_before = fs::read(dir.path().join("last-session.json")).expect("current bytes");
+    let record_path = dir.path().join("records/safe-record.json");
+    let record_before = fs::read(&record_path).expect("record bytes");
+    let oversized = snapshot_with_bytes("safe-record", 20_000_001);
+    assert_eq!(save(dir.path(), &oversized.to_string()).expect_err("oversized record"), "기록 크기가 20MB를 초과합니다.");
+    assert_eq!(fs::read(dir.path().join("last-session.json")).expect("current unchanged"), current_before);
+    assert_eq!(fs::read(record_path).expect("record unchanged"), record_before);
+    assert_eq!(load(dir.path(), "safe-record").expect("original remains readable"), original);
+}
+
 #[test]
 fn complete_snapshot_survives_record_switch_and_overwrite() {
     let dir = tempfile::tempdir().expect("fixture");
