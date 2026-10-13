@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "stream-record",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "identifier": "local.meetily.korean.workspace",
   "build": {
     "frontendDist": "../out",
