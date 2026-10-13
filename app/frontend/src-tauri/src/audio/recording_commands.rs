@@ -772,6 +772,18 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     Ok(())
 }
 
+async fn finish_recording_cleanup<T>(
+    unload_model: impl std::future::Future<Output = ()> + Send + 'static,
+    save_recording: impl std::future::Future<Output = T>,
+) -> T {
+    let unload_task = tokio::spawn(unload_model);
+    let (unloaded, saved) = tokio::join!(unload_task, save_recording);
+    if let Err(error) = unloaded {
+        warn!("Transcription model cleanup task failed: {}", error);
+    }
+    saved
+}
+
 /// Stop recording with optimized graceful shutdown ensuring NO transcript chunks are lost
 pub async fn stop_recording<R: Runtime>(
     app: AppHandle<R>,
@@ -892,138 +904,149 @@ pub async fn stop_recording<R: Runtime>(
     }
     let manager_for_cleanup = RECORDING_MANAGER.lock().unwrap().take();
 
-    // Step 3: Now safely unload Whisper model after ALL chunks are processed
-    let _ = app.emit(
-        "recording-shutdown-progress",
-        serde_json::json!({
-            "stage": "unloading_model",
-            "message": "Unloading speech recognition model...",
-            "progress": 70
-        }),
-    );
+    // Both cleanup operations start only after all transcript commits have finished.
+    let unload_app = app.clone();
+    let unload_model = async move {
+        let app = unload_app;
+        // Step 3: Now safely unload Whisper model after ALL chunks are processed
+        let _ = app.emit(
+            "recording-shutdown-progress",
+            serde_json::json!({
+                "stage": "unloading_model",
+                "message": "Unloading speech recognition model...",
+                "progress": 70
+            }),
+        );
 
-    info!("🧠 All transcript chunks processed. Now safely unloading transcription model...");
+        info!("🧠 All transcript chunks processed. Now safely unloading transcription model...");
 
-    // Determine which provider was used and unload the appropriate model (with timeout)
-    let config = match tokio::time::timeout(
-        tokio::time::Duration::from_secs(30), // 30 seconds max for DB operation
-        crate::api::api::api_get_transcript_config(app.clone(), app.clone().state(), None),
-    )
-    .await
-    {
-        Ok(Ok(Some(config))) => Some(config.provider),
-        Ok(Ok(None)) => None,
-        Ok(Err(e)) => {
-            warn!("⚠️ Failed to get transcript config: {:?}", e);
-            None
-        }
-        Err(_) => {
-            warn!("⏱️ Transcript config timeout (30s), continuing shutdown");
-            None
-        }
-    };
-
-    match config.as_deref() {
-        Some("parakeet") => {
-            info!("🦜 Unloading Parakeet model...");
-            let engine_clone = {
-                let engine_guard = crate::parakeet_engine::commands::PARAKEET_ENGINE
-                    .lock()
-                    .unwrap();
-                engine_guard.as_ref().cloned()
-            };
-
-            if let Some(engine) = engine_clone {
-                let current_model = engine
-                    .get_current_model()
-                    .await
-                    .unwrap_or_else(|| "unknown".to_string());
-                info!("Current Parakeet model before unload: '{}'", current_model);
-
-                if engine.unload_model().await {
-                    info!(
-                        "✅ Parakeet model '{}' unloaded successfully",
-                        current_model
-                    );
-                } else {
-                    warn!("⚠️ Failed to unload Parakeet model '{}'", current_model);
-                }
-            } else {
-                warn!("⚠️ No Parakeet engine found to unload model");
-            }
-        }
-        _ => {
-            // Default to Whisper
-            info!("🎤 Unloading Whisper model...");
-            let engine_clone = {
-                let engine_guard = crate::whisper_engine::commands::WHISPER_ENGINE
-                    .lock()
-                    .unwrap();
-                engine_guard.as_ref().cloned()
-            };
-
-            if let Some(engine) = engine_clone {
-                let current_model = engine
-                    .get_current_model()
-                    .await
-                    .unwrap_or_else(|| "unknown".to_string());
-                info!("Current Whisper model before unload: '{}'", current_model);
-
-                if engine.unload_model().await {
-                    info!("✅ Whisper model '{}' unloaded successfully", current_model);
-                } else {
-                    warn!("⚠️ Failed to unload Whisper model '{}'", current_model);
-                }
-            } else {
-                warn!("⚠️ No Whisper engine found to unload model");
-            }
-        }
-    }
-
-    // Step 4: Finalize recording state and cleanup resources safely
-    let _ = app.emit(
-        "recording-shutdown-progress",
-        serde_json::json!({
-            "stage": "finalizing",
-            "message": "Finalizing recording and cleaning up resources...",
-            "progress": 90
-        }),
-    );
-
-    // Perform final cleanup with the manager if available
-    let (meeting_folder, meeting_name, save_result) = if let Some(mut manager) = manager_for_cleanup
-    {
-        info!("🧹 Performing final cleanup and saving recording data");
-
-        // Extract meeting info BEFORE async operations
-        let meeting_folder = manager.get_meeting_folder();
-        let meeting_name = manager.get_meeting_name();
-
-        let save_result = match tokio::time::timeout(
-            tokio::time::Duration::from_secs(300), // 5 minutes max for file I/O
-            manager.save_recording_only(&app),
+        // Determine which provider was used and unload the appropriate model (with timeout)
+        let config = match tokio::time::timeout(
+            tokio::time::Duration::from_secs(30), // 30 seconds max for DB operation
+            crate::api::api::api_get_transcript_config(app.clone(), app.clone().state(), None),
         )
         .await
         {
-            Ok(Ok(audio_durable)) => {
-                info!("✅ Recording data saved successfully during cleanup");
-                Ok(audio_durable)
-            }
+            Ok(Ok(Some(config))) => Some(config.provider),
+            Ok(Ok(None)) => None,
             Ok(Err(e)) => {
-                error!("Recording audio save failed: {}", e);
-                Err("녹음은 중지했지만 오디오 파일 저장에 실패했습니다. 화면의 받아쓰기 내용을 저장하고 저장 위치와 디스크 공간을 확인하세요.".to_owned())
+                warn!("⚠️ Failed to get transcript config: {:?}", e);
+                None
             }
             Err(_) => {
-                error!("Recording audio save exceeded the five-minute file I/O limit");
-                Err("녹음은 중지했지만 오디오 저장 시간이 초과되어 저장 완료를 확인하지 못했습니다. 화면의 받아쓰기 내용을 저장하고 오디오 파일을 확인하세요.".to_owned())
+                warn!("⏱️ Transcript config timeout (30s), continuing shutdown");
+                None
             }
         };
 
-        (meeting_folder, meeting_name, save_result)
-    } else {
-        info!("ℹ️ No recording manager available for cleanup");
-        (None, None, Ok(false))
+        match config.as_deref() {
+            Some("parakeet") => {
+                info!("🦜 Unloading Parakeet model...");
+                let engine_clone = {
+                    let engine_guard = crate::parakeet_engine::commands::PARAKEET_ENGINE
+                        .lock()
+                        .unwrap();
+                    engine_guard.as_ref().cloned()
+                };
+
+                if let Some(engine) = engine_clone {
+                    let current_model = engine
+                        .get_current_model()
+                        .await
+                        .unwrap_or_else(|| "unknown".to_string());
+                    info!("Current Parakeet model before unload: '{}'", current_model);
+
+                    if engine.unload_model().await {
+                        info!(
+                            "✅ Parakeet model '{}' unloaded successfully",
+                            current_model
+                        );
+                    } else {
+                        warn!("⚠️ Failed to unload Parakeet model '{}'", current_model);
+                    }
+                } else {
+                    warn!("⚠️ No Parakeet engine found to unload model");
+                }
+            }
+            _ => {
+                // Default to Whisper
+                info!("🎤 Unloading Whisper model...");
+                let engine_clone = {
+                    let engine_guard = crate::whisper_engine::commands::WHISPER_ENGINE
+                        .lock()
+                        .unwrap();
+                    engine_guard.as_ref().cloned()
+                };
+
+                if let Some(engine) = engine_clone {
+                    let current_model = engine
+                        .get_current_model()
+                        .await
+                        .unwrap_or_else(|| "unknown".to_string());
+                    info!("Current Whisper model before unload: '{}'", current_model);
+
+                    if engine.unload_model().await {
+                        info!("✅ Whisper model '{}' unloaded successfully", current_model);
+                    } else {
+                        warn!("⚠️ Failed to unload Whisper model '{}'", current_model);
+                    }
+                } else {
+                    warn!("⚠️ No Whisper engine found to unload model");
+                }
+            }
+        }
     };
+
+    let save_recording = async {
+        // Step 4: Finalize recording state and cleanup resources safely
+        let _ = app.emit(
+            "recording-shutdown-progress",
+            serde_json::json!({
+                "stage": "finalizing",
+                "message": "Finalizing recording and cleaning up resources...",
+                "progress": 90
+            }),
+        );
+
+        // Perform final cleanup with the manager if available
+        let (meeting_folder, meeting_name, save_result) = if let Some(mut manager) =
+            manager_for_cleanup
+        {
+            info!("🧹 Performing final cleanup and saving recording data");
+
+            // Extract meeting info BEFORE async operations
+            let meeting_folder = manager.get_meeting_folder();
+            let meeting_name = manager.get_meeting_name();
+
+            let save_result = match tokio::time::timeout(
+                tokio::time::Duration::from_secs(300), // 5 minutes max for file I/O
+                manager.save_recording_only(&app),
+            )
+            .await
+            {
+                Ok(Ok(audio_durable)) => {
+                    info!("✅ Recording data saved successfully during cleanup");
+                    Ok(audio_durable)
+                }
+                Ok(Err(e)) => {
+                    error!("Recording audio save failed: {}", e);
+                    Err("녹음은 중지했지만 오디오 파일 저장에 실패했습니다. 화면의 받아쓰기 내용을 저장하고 저장 위치와 디스크 공간을 확인하세요.".to_owned())
+                }
+                Err(_) => {
+                    error!("Recording audio save exceeded the five-minute file I/O limit");
+                    Err("녹음은 중지했지만 오디오 저장 시간이 초과되어 저장 완료를 확인하지 못했습니다. 화면의 받아쓰기 내용을 저장하고 오디오 파일을 확인하세요.".to_owned())
+                }
+            };
+
+            (meeting_folder, meeting_name, save_result)
+        } else {
+            info!("ℹ️ No recording manager available for cleanup");
+            (None, None, Ok(false))
+        };
+        (meeting_folder, meeting_name, save_result)
+    };
+    let (meeting_folder, meeting_name, save_result) =
+        finish_recording_cleanup(unload_model, save_recording).await;
 
     // Set recording flag to false
     info!("🔍 Setting IS_RECORDING to false");
@@ -1091,6 +1114,107 @@ pub async fn stop_recording<R: Runtime>(
 
     info!("Recording stopped with audio_durable={}", audio_durable);
     Ok(())
+}
+
+#[cfg(test)]
+mod cleanup_tests {
+    use super::finish_recording_cleanup;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    #[tokio::test]
+    async fn save_starts_before_unload_finishes_and_both_are_awaited() {
+        let (save_started, wait_for_save) = tokio::sync::oneshot::channel();
+        let unloaded = Arc::new(AtomicBool::new(false));
+        let unload_finished = unloaded.clone();
+        let saved = AtomicBool::new(false);
+        let cleanup = finish_recording_cleanup(
+            async move {
+                wait_for_save.await.unwrap();
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                unload_finished.store(true, Ordering::SeqCst);
+            },
+            async {
+                save_started.send(()).unwrap();
+                tokio::time::sleep(Duration::from_millis(40)).await;
+                saved.store(true, Ordering::SeqCst);
+                Ok::<_, String>(true)
+            },
+        );
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), cleanup)
+                .await
+                .unwrap(),
+            Ok(true)
+        );
+        assert!(unloaded.load(Ordering::SeqCst));
+        assert!(saved.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn save_error_is_preserved_after_unload_completes() {
+        let unloaded = Arc::new(AtomicBool::new(false));
+        let unload_finished = unloaded.clone();
+        let result = finish_recording_cleanup(
+            async move {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                unload_finished.store(true, Ordering::SeqCst);
+            },
+            async { Err::<bool, _>("audio save failed") },
+        )
+        .await;
+        assert_eq!(result, Err("audio save failed"));
+        assert!(unloaded.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn controlled_cleanup_latency() {
+        let start = Instant::now();
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        let sequential = start.elapsed();
+        let start = Instant::now();
+        finish_recording_cleanup(
+            tokio::time::sleep(Duration::from_millis(250)),
+            tokio::time::sleep(Duration::from_millis(350)),
+        )
+        .await;
+        println!(
+            "controlled cleanup: sequential_ms={}, concurrent_ms={}",
+            sequential.as_millis(),
+            start.elapsed().as_millis()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn blocking_unload_and_save_run_independently() {
+        let (save_started, wait_for_save) = std::sync::mpsc::channel();
+        let (unload_started, wait_for_unload) = std::sync::mpsc::channel();
+        let result = finish_recording_cleanup(
+            async move {
+                unload_started.send(()).unwrap();
+                wait_for_save.recv_timeout(Duration::from_secs(2)).unwrap();
+            },
+            async {
+                wait_for_unload.recv_timeout(Duration::from_secs(2)).unwrap();
+                save_started.send(()).unwrap();
+                Ok::<_, String>(true)
+            },
+        )
+        .await;
+        assert_eq!(result, Ok(true));
+    }
+
+    #[tokio::test]
+    async fn unload_task_failure_does_not_discard_saved_audio() {
+        let result = finish_recording_cleanup(
+            async { panic!("controlled unload failure") },
+            async { Ok::<_, String>(true) },
+        )
+        .await;
+        assert_eq!(result, Ok(true));
+    }
 }
 
 /// Check if recording is active
