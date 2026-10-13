@@ -67,6 +67,12 @@ export function useMeetingSession(){
  const recordingInput=useRef<RecordInputKind|undefined>(undefined);const durationSeconds=useRef<number|undefined>(undefined);
  const [audioSource,setAudioSource]=useState<ReviewAudio|null>(null);const audioElement=useRef<HTMLAudioElement>(null);
  const playbackEnd=useRef<number|null>(null);const cancelRecovery=useRef(false);
+ const pendingPlayback=useRef<TranscriptRow|null>(null);const playbackRequest=useRef(0);
+ const playbackContext=useRef({view,epoch});playbackContext.current={view,epoch};
+ const [playbackIndex,setPlaybackIndex]=useState<number|null>(null);const [audioPlaying,setAudioPlaying]=useState(false);
+ const stopPlayback=()=>{playbackRequest.current++;pendingPlayback.current=null;playbackEnd.current=null;audioElement.current?.pause();setPlaybackIndex(null);setAudioPlaying(false);};
+ useEffect(()=>{stopPlayback();return()=>{playbackRequest.current++;pendingPlayback.current=null;audioElement.current?.pause();};},[view,epoch]);
+ useEffect(()=>{if(mode!=='idle')stopPlayback();},[mode]);
  const setRows=(v:TranscriptRow[])=>{rowsRef.current=v;setRowsState(v);dirty.current++;};
  const setMinutes=(v:string)=>{minutesRef.current=v;setMinutesState(v);dirty.current++;};
  const setTitle=(v:string)=>{titleRef.current=v;setTitleState(v);dirty.current++;};
@@ -137,7 +143,7 @@ export function useMeetingSession(){
    setReady(true);void refreshModels().catch(e=>{if(!cancelled)setNotice(`받아쓰기는 사용 가능합니다. 요약 모델: ${messageOf(e)}`);});
   };
   void initialise().catch(e=>{if(!cancelled)setError(messageOf(e));});
-  let saved=0;const timer=window.setInterval(()=>{if(modeRef.current==='loading'||recordHistory.isTransitioning()||dirty.current===saved)return;const revision=dirty.current;void persist().then(()=>{saved=revision;}).catch(e=>{if(!cancelled)setError(`복구 저장 실패: ${messageOf(e)}`);});},10000);
+  let saved=0;const timer=window.setInterval(()=>{if(modeRef.current==='loading'||recordHistory.isTransitioning()||recordHistory.hasPendingSave()||dirty.current===saved)return;const revision=dirty.current;void persist().then(()=>{saved=revision;}).catch(e=>{if(!cancelled)setError(`복구 저장 실패: ${messageOf(e)}`);});},10000);
   return()=>{cancelled=true;window.clearInterval(timer);cleanups.forEach(f=>f());};
   // Subscriptions live for this component; their handlers use refs for current data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,7 +187,7 @@ export function useMeetingSession(){
   let step='회의록 생성 준비 중';const progress=(value:string)=>{step=value;setMinutesProgress(value);setNotice(value);};progress(step);
   try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,modelKey:`${modelKey(chosen)}@${chosen.revision??''}`,generate:text=>generateText({model:chosen.id,revision:chosen.revision,text,stage:'structured',provider:chosen.provider},undefined,state=>setMinutesProgress(`${step} · ${state==='waiting'?'앞서 시작한 AI 처리가 끝나기를 기다리고 있습니다.':'AI 응답을 기다리고 있습니다.'}`)),progress,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);progress('회의록을 저장하고 있습니다.');await persist();await exportFile('minutes');progress('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
   catch(e){const failure=messageOf(e);setError(failure);setMinutesError(failure);setMinutesProgress('');try{await persist();}catch(saveError){setMinutesError(`${failure} 오류 내역 저장도 실패했습니다: ${messageOf(saveError)}`);}}
-  finally{if(chosen.provider==='local'){try{await generateText({model:chosen.id,revision:chosen.revision,text:'',stage:'release',provider:'local'});}catch(e){setNotice(`자료는 보존되어 있습니다. 로컬 모델 메모리 해제 실패: ${messageOf(e)}`);}}setMode('idle');}
+  finally{setMode('idle');}
  };
  const prepareAudio=async(select:boolean)=>{
   if(modeRef.current!=='idle'||!ready)return;setMode('reviewing');setError('');audioElement.current?.pause();
@@ -190,10 +196,26 @@ export function useMeetingSession(){
    const source=await invoke<ReviewAudio>('ko_open_review_audio',{path});
    if(audioSha256.current&&source.sha256!==audioSha256.current)throw new Error('기존 받아쓰기와 연결한 원음의 SHA-256이 다릅니다. 다른 파일로 교체하지 않았습니다.');
    if(select&&!audioSha256.current&&rowsRef.current.length&&!window.confirm('선택한 파일이 현재 받아쓰기 내용의 원본 음성인지 확인했습니까? 시간정보는 선택한 파일의 시작을 기준으로 재생됩니다.'))return;
-   audioPath.current=source.path;audioSha256.current=source.sha256;setAudioSource(source);dirty.current++;await persist();setNotice('원음 준비 완료. 받아쓰기 구간의 듣기 버튼으로 원문을 대조하세요.');
-  }catch(e){setError(messageOf(e));}finally{setMode('idle');}
+   audioPath.current=source.path;audioSha256.current=source.sha256;setAudioSource(source);dirty.current++;await persist();setNotice('원음 준비 완료. 받아쓰기 구간의 듣기 버튼으로 원문을 대조하세요.');return source;
+  }catch(e){setError(messageOf(e));return null;}finally{setMode('idle');}
  };
- const playRow=(row:TranscriptRow)=>{const player=audioElement.current;const range=audioSource?playbackRange(row,audioSource.duration_seconds):null;if(modeRef.current!=='idle'||!player||!range)return;if(player.readyState<1){setNotice('원음 재생정보를 읽는 중입니다. 잠시 후 구간 듣기를 다시 누르세요.');return;}playbackEnd.current=range.end;player.currentTime=range.start;void player.play().catch(e=>setError(`원음 재생 실패: ${messageOf(e)}`));};
+ const resumePlayback=(source:ReviewAudio|null=audioSource)=>{
+  const row=pendingPlayback.current;const player=audioElement.current;if(!row||!player||player.readyState<1||modeRef.current!=='idle'||!source)return;
+  const index=rowsRef.current.findIndex(item=>item.id===row.id&&item.sequence_id===row.sequence_id&&item.text===row.text&&item.audio_start_time===row.audio_start_time&&item.chunk_start_time===row.chunk_start_time&&item.timestamp===row.timestamp&&!item.is_partial);
+  const range=index>=0?playbackRange(row,source.duration_seconds,rowsRef.current[index+1]):null;
+  if(!range){stopPlayback();setNotice('이 문장의 재생 시간정보가 없거나 연결한 원음 범위를 벗어났습니다.');return;}
+  pendingPlayback.current=null;playbackEnd.current=range.end;setPlaybackIndex(index);setNotice('');const request=playbackRequest.current;
+  try{player.currentTime=range.start;void player.play().catch(e=>{if(request===playbackRequest.current){stopPlayback();setError(`원음 재생 실패: ${messageOf(e)}`);}});}catch(e){stopPlayback();setError(`원음 재생 실패: ${messageOf(e)}`);}
+ };
+ const playRow=async(row:TranscriptRow)=>{
+  if(modeRef.current!=='idle'||!ready||row.is_partial||!playbackRange(row,audioSource?.duration_seconds??Number.MAX_VALUE))return;
+  setFollow(false);setError('');
+  const source=audioSource??await prepareAudio(false);if(!source||modeRef.current!=='idle'||playbackContext.current.view!==view||playbackContext.current.epoch!==epoch)return;
+  audioElement.current?.pause();playbackRequest.current++;pendingPlayback.current=row;
+  if(audioElement.current&&audioElement.current.readyState>=1)resumePlayback(source);else setNotice('원음 재생정보를 읽는 중입니다. 준비되면 선택한 문장을 재생합니다.');
+ };
+ useEffect(()=>{if(mode==='idle'&&audioSource)resumePlayback();},[mode,audioSource]);
+ const pausePlayback=()=>{playbackRequest.current++;pendingPlayback.current=null;audioElement.current?.pause();setAudioPlaying(false);};
  const recover=async()=>{
   if(modeRef.current!=='idle'||!audioSource||!consent)return;setMode('recovering');setError('');audioElement.current?.pause();cancelRecovery.current=false;
   try{const c=await whisperConfig();const recovered=await recoverAudio({audio:audioSource,model:c.model,checkpoint:recoveryDraft.current,decode:(start,duration)=>invoke('ko_transcribe_review_window',{path:audioSource.path,start,duration,model:c.model}),save:async value=>{recoveryDraft.current=value;dirty.current++;await persist();},progress:setNotice,cancelled:()=>cancelRecovery.current});
@@ -214,7 +236,7 @@ export function useMeetingSession(){
  return {records:recordHistory.records,activeRecordId:recordHistory.activeRecordId,recordsLoading:recordHistory.recordsLoading,historyError:recordHistory.historyError,recordSwitchBlocked:recordHistory.recordSwitchBlocked,recordSwitchBlockedReason:recordHistory.recordSwitchBlockedReason,readerSessionKey:recordHistory.activeRecordId,refreshRecords:recordHistory.refreshRecords,newRecord:async()=>{await recordHistory.newRecord();navigate('recording');setNotice('새 기록을 준비했습니다. 입력과 동의를 확인한 뒤 시작하세요.');},openRecord:async(id:string)=>{await recordHistory.openRecord(id);navigate('dictation');setNotice('저장된 기록을 열었습니다. 원음은 다시 연결해 확인할 수 있습니다.');},applyQueueRecovery,setRecoveryBusy:(busy:boolean)=>setMode(busy?'recovering':'idle'),diarization,correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:applyGlossary,autoGlossary,
   recordingKind,setRecordingKind,recordingInput:recordingInput.current,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
   liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
-  error,setError,notice,setNotice,minutesError,minutesProgress,savedPath,saving,progress,importProgress,importElapsed,importStarted:importStarted.current!==null,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,
+  error,setError,notice,setNotice,minutesError,minutesProgress,savedPath,saving,progress,importProgress,importElapsed,importStarted:importStarted.current!==null,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,playbackIndex,audioPlaying,setAudioPlaying,resumePlayback,pausePlayback,stopPlayback,
   saveReview,refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
   stopFailure,acknowledgeStopFailure,setAcknowledgeStopFailure,elapsed,hasRecordingStart:Boolean(startedAt.current),modelStatus,modelKey,modeLabel:labels[mode],messageOf,
  };

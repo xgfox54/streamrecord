@@ -54,7 +54,12 @@
 .aiOptions[open] { flex-basis: 100%; order: 3; }
 .aiOptions > div { padding: var(--jeju-space-3); background: var(--jeju-surface-inset); }
 .readingTools .search { flex-direction: row; }
-.editButton { margin-left: auto; min-height: var(--sr-control-compact); padding: var(--jeju-space-1) var(--jeju-space-3); font-size: var(--sr-type-helper); }
+.rowActions { display: inline-flex; flex-wrap: wrap; gap: var(--jeju-space-2); margin-left: auto; }
+.rowButton { min-height: var(--sr-control-compact); padding: var(--jeju-space-1) var(--jeju-space-3); font-size: var(--sr-type-helper); }
+.conversation .utterance .transcriptText { display: block; width: 100%; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; line-height: inherit; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; user-select: text; }
+.conversation .utterance .transcriptText:hover:not(:disabled) { background: var(--sr-surface-selected); }
+.conversation .utterance .transcriptText:disabled { opacity: 1; color: inherit; cursor: default; }
+.utterance[data-playing=true] { background: var(--sr-surface-selected); }
 .editor { display: grid; gap: var(--jeju-space-2); margin-top: var(--jeju-space-2); }
 .editor label { display: grid; gap: var(--jeju-space-1); font-size: var(--sr-type-helper); }
 .editor textarea { width: 100%; min-height: 6rem; font: inherit; font-size: var(--sr-type-body); line-height: 1.6; }

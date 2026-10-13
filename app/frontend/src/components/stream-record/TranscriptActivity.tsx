@@ -1,6 +1,7 @@
 'use client';
 import styles from './activity.module.css';
 export function Spinner(){return <span className={styles.spinner} aria-hidden="true"/>;}
+export function CorrectingIndicator(){return <span className={styles.correctionProgress} role="status" data-testid="correcting-indicator">보정중...</span>;}
 function Dots(){return <span className={styles.dots} aria-hidden="true"><span/><span/><span/></span>;}
 export function TranscribingIndicator({stopping=false}:{readonly stopping?:boolean}){
  return <p className={styles.typing} role="status" data-testid="transcribing-indicator"><Dots/><span>{stopping?'마지막 문장을 정리하는 중':'실시간 받아쓰기 중'}</span></p>;

@@ -25,15 +25,22 @@ export function useRecordHistory(input:Input){
  const [records,setRecords]=useState<readonly RecordSummary[]>([]);const [recordsLoading,setRecordsLoading]=useState(false);
  const [historyError,setHistoryError]=useState('');const [savingCount,setSavingCount]=useState(0);
  const transition=useRef(false);const pending=useRef(0);const queue=useRef<Promise<unknown>>(Promise.resolve());const refreshRevision=useRef(0);
+ const latestSave=useRef<{readonly content:string;readonly promise:Promise<unknown>}|null>(null);
  const refreshRecords=async()=>{
   const revision=++refreshRevision.current;
   try{const result=listSchema.parse(await invoke('ko_list_records'));if(revision!==refreshRevision.current)return;setRecords(result.records);setHistoryError(result.warnings.join(' '));}
   catch(error){if(revision===refreshRevision.current)setHistoryError(error instanceof Error?error.message:String(error));throw error;}
  };
  const saveSnapshot=(value:Snapshot)=>{
-  const content=JSON.stringify(value);pending.current++;setSavingCount(pending.current);
-  const next=queue.current.catch(()=>undefined).then(()=>invoke('ko_save_snapshot',{content}));queue.current=next;
-  return next.finally(()=>{pending.current--;setSavingCount(pending.current);});
+  const content=JSON.stringify(value);
+  // Only adjacent identical snapshots share a write: A → B → A must still save A last.
+  if(latestSave.current?.content===content)return latestSave.current.promise;
+  pending.current++;setSavingCount(pending.current);
+  const next=queue.current.catch(()=>undefined).then(()=>invoke('ko_save_snapshot',{content})).catch(error=>{
+   if(latestSave.current?.promise===next)latestSave.current=null;
+   throw error;
+  }).finally(()=>{pending.current--;setSavingCount(pending.current);});
+  latestSave.current={content,promise:next};queue.current=next;return next;
  };
  const persist=()=>saveSnapshot({...current.current.capture(),recordId:id.current});
  const initialize=async()=>{

@@ -3,7 +3,7 @@ import {SpeakerLabel} from './SpeakerLabel';
 import {DiarizationControls} from './DiarizationControls';
 import {QueueRecoveryPanel} from './QueueRecoveryPanel';
 import {useEffect,useRef,useState} from 'react';
-import {convertFileSrc} from '@tauri-apps/api/core';
+import {OriginalAudioPlayer} from './OriginalAudioPlayer';
 import {repeatedPassages} from '../meeting-ko/transcript-review';
 import guide from './guidance.module.css';
 import {rowTime,segmentLabel} from '../meeting-ko/core';
@@ -41,6 +41,6 @@ export function TranscriptView({session:s,evidence,onEvidenceShown}:{session:Mee
   </div>
   <div className={styles.actions}><button className={styles.primary} disabled={s.saving||!s.rows.length} onClick={()=>s.save('transcript')}>전체 최초 원문 TXT 저장</button><button disabled={s.saving||(!s.rows.length&&!s.minutes)} onClick={()=>s.save('bundle')}>원문·검토본 JSON 저장</button></div>
   <details className={styles.disclosure}><summary>원음 듣기와 저장 음성 받아쓰기·이어하기</summary><p>구간 듣기는 원음 연결과 시간정보가 있어야 사용할 수 있습니다. 연결할 때 SHA-256을 확인합니다. 받아쓰기·이어하기는 24초 구간마다 결과를 저장합니다.</p><div className={styles.actions}><button disabled={s.busy} onClick={()=>void s.prepareAudio(false)}>연결된 원음 준비</button><button disabled={s.busy} onClick={()=>void s.prepareAudio(true)}>원음 파일 다시 선택</button><button disabled={s.busy||!s.audioSource||!s.consent} onClick={()=>void s.recover()}>저장 음성 받아쓰기·이어하기</button>{s.mode==='recovering'&&<button onClick={()=>{s.cancelRecovery.current=true;s.setNotice('현재 음성 구간 저장 후 중단합니다.');}}>현재 구간 후 중단</button>}</div><p className={styles.hint}>{!s.consent?'녹음 화면에서 녹음·처리 권한을 확인한 뒤 받아쓰기·이어하기를 실행하세요.':'기존 원문이 있으면 JSON으로 보관한 뒤 새 결과를 적용합니다.'}</p></details>
-  {s.audioSource&&<div className={styles.audioPanel}><p className={styles.hint}>연결된 원음: {s.audioSource.filename}</p><audio ref={s.audioElement} controls preload="metadata" src={convertFileSrc(s.audioSource.path)} onPlay={()=>{if(s.modeRef.current!=='idle')s.audioElement.current?.pause();}} onTimeUpdate={()=>{const player=s.audioElement.current;if(player&&s.playbackEnd.current!==null&&player.currentTime>=s.playbackEnd.current){player.pause();s.playbackEnd.current=null;}}} onError={()=>s.setError('원음 재생 실패. 지원하는 음성 파일인지 확인하고 다시 선택하세요.')} aria-label="연결한 원본 음성 재생"/></div>}
+  <OriginalAudioPlayer session={s}/>
  </section>;
 }

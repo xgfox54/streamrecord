@@ -25,7 +25,7 @@ function fixture(video=false){
  let renderer;
  const scroll={scrollTop:0,scrollHeight:1000,clientHeight:300};const scrolled=[];
  const session={readerSessionKey:0,rows:[{sequence_id:1,text:'최초 원문',is_partial:false}],follow:true,models:[],model:'',saving:false,busy:false,audioSource:null,mode:'idle',
-  correction:{enabled:true,status:'AI 연결 필요',total:0,completed:0,blocked:0,blockedRows:[],error:'',canForceApply:true,setEnabled:value=>{session.correction={...session.correction,enabled:value};render();},retry:()=>{},forceApply:async()=>false},autoGlossary:{enabled:true,setEnabled:()=>{},message:'',labels:[]},diarization:{status:'원음 연결 필요',running:false,enabled:true,setEnabled:value=>{session.diarization={...session.diarization,enabled:value};render();},run:()=>{},cancel:()=>{}},
+  correction:{enabled:true,status:'AI 연결 필요',total:0,completed:0,blocked:0,blockedRows:[],runningRows:[],error:'',setEnabled:value=>{session.correction={...session.correction,enabled:value};render();},retry:()=>{}},autoGlossary:{enabled:true,setEnabled:()=>{},message:'',labels:[]},diarization:{status:'원음 연결 필요',running:false,enabled:true,setEnabled:value=>{session.diarization={...session.diarization,enabled:value};render();},run:()=>{},cancel:()=>{}},
   setFollow:value=>{session.follow=value;render();},saveReview:async(index,sequence,value)=>{session.reviews.push({index,sequence,value});session.rows=session.rows.map((row,i)=>i===index?{...row,reviewed_text:value}:row);render();},reviews:[],setNotice:()=>{},messageOf:error=>String(error),mode:'idle',navigate:()=>{},save:()=>{},prepareAudio:()=>{},modelKey:model=>model.id,setModel:()=>{},liveSummary:'',liveSummaryEnabled:false,setLiveSummaryEnabled:()=>{},liveSummaryStatus:'대기',liveSummaryRunning:false,liveSummaryHistory:[]};
  const render=()=>renderer.update(React.createElement(DictationConversation,{session:{...session},compact:true,video}));
  act(()=>{renderer=Renderer.create(React.createElement(DictationConversation,{session:{...session},compact:true,video}),{createNodeMock:element=>element.props.role==='log'?scroll:{id:element.props.id,scrollIntoView(){scrolled.push(element.props.id);},focus(){}}});});
@@ -129,7 +129,7 @@ test('With no sentence yet, starting shows a loading panel and recording shows a
   h.update({mode:'idle'});assert.ok(text(h.renderer.root.findByProps({role:'log'})).includes('녹음을 시작하면'));
  }finally{h.close();}
 });
-test('Kept-original correction notice names the sentence and jumps to it in the AI view',()=>{
+test('Correction review notice names the sentence and jumps to it in the AI view',()=>{
  const h=fixture();try{
   h.update({rows:[{sequence_id:1,text:'첫 문장',is_partial:false},{sequence_id:2,text:'예산 10만원입니다.',is_partial:false,ai_correction_issue:{version:1,source_text:'예산 10만원입니다.',model_key:'fixture',glossary:'',reason:'numbers'}}],correction:{...h.session.correction,blocked:1,blockedRows:[1]}});
   const links=h.renderer.root.findAllByType('a').filter(node=>String(node.props.href).startsWith('#dictation-row-'));
@@ -139,7 +139,7 @@ test('Kept-original correction notice names the sentence and jumps to it in the 
   assert.equal(button(h,'AI 보정본').props['aria-pressed'],true);const target=h.renderer.root.findByProps({id:'dictation-row-1'});assert.equal(target.props['data-target'],true);assert.equal(h.session.follow,false);assert.deepEqual(h.scrolled,['dictation-row-1']);
  }finally{h.close();}
 });
-test('Many kept-original sentences show short linked numbers and keep exact navigation targets',()=>{
+test('Many review warnings show short linked numbers and keep exact navigation targets',()=>{
  const h=fixture();try{
   const numbered=[11,18,22,39,49,71,72,87,116,118,121,125,130,140,150];
   const blockedRows=numbered.map(number=>number-1);

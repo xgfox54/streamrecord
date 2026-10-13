@@ -8,12 +8,12 @@ type Part={readonly id:string;readonly text:string;readonly index:number};
 const answerSchema=z.object({corrections:z.array(z.object({id:z.string(),text:z.string().trim().min(1)}).strict()).min(1)}).strict();
 export class CorrectionError extends Error {override name='CorrectionError';}
 type IssueReason=NonNullable<TranscriptRow['ai_correction_issue']>['reason'];
-export const correctionIssueMessages:Record<IssueReason,string>={numbers:'AI가 숫자를 바꾼 보정본은 적용하지 않았습니다. 원음을 확인하세요.',length:'AI 응답이 원문을 과도하게 줄이거나 늘렸습니다. 다시 시도하거나 원음을 확인하세요.'};
+export const correctionIssueMessages:Record<IssueReason,string>={numbers:'숫자가 변경되었을 수 있으니 원본 녹음을 확인하세요',length:'문장 길이가 크게 변경되었을 수 있으니 원본 녹음을 확인하세요'};
 export function correctionIssue(row:TranscriptRow,modelKey?:string,glossary?:string){
  const issue=row.ai_correction_issue;
  return !row.is_partial&&issue?.source_text===row.text&&(modelKey===undefined||issue.model_key===modelKey)&&(glossary===undefined||issue.glossary===glossary)?issue:null;
 }
-function rejectedReason(source:string,text:string):IssueReason|null{
+function reviewReason(source:string,text:string):IssueReason|null{
  const numbers=(value:string)=>JSON.stringify(value.match(/[0-9]+(?:[.,][0-9]+)*/g)||[]);
  if(numbers(text)!==numbers(source))return 'numbers';
  return text.length<source.trim().length*.5||text.length>source.length*2.5+40?'length':null;
@@ -26,7 +26,6 @@ export function pendingCorrections(rows:readonly TranscriptRow[],modelKey:string
  const batch:CorrectionSource[]=[];let size=0;
  for(const [index,row] of rows.entries()){
   if(row.is_partial||!row.text.trim())continue;
-  if(correctionIssue(row,modelKey,glossary))continue;
   if(correctedText(row)!==null&&row.ai_correction?.model_key===modelKey&&row.ai_correction.glossary===glossary)continue;
   if(batch.length&&(batch.length>=4||size+row.text.length>1800))break;
   batch.push({index,row});size+=row.text.length;
@@ -47,26 +46,25 @@ function readCorrectionParts(raw:string,parts:readonly Part[]):Map<string,string
  return found;
 }
 export function parseCorrections(raw:string,parts:readonly Part[]):Map<string,string>{
- const found=readCorrectionParts(raw,parts);
- for(const part of parts){const reason=rejectedReason(part.text,found.get(part.id)??'');if(reason)throw new CorrectionError(correctionIssueMessages[reason]);}
- return found;
+ return readCorrectionParts(raw,parts);
 }
-export async function correctTranscript(input:{readonly batch:readonly CorrectionSource[];readonly rows:readonly TranscriptRow[];readonly glossary:string;readonly modelKey:string;readonly generate:(text:string)=>Promise<string>;readonly ignoreContentChecks?:boolean}){
- const parts:Part[]=input.batch.flatMap(({index,row})=>splitText(row.text,900).map((text,part)=>({id:`S${String(index+1).padStart(6,'0')}${part?`p${part+1}`:''}`,text,index})));
+export async function correctTranscript(input:{readonly batch:readonly CorrectionSource[];readonly rows:readonly TranscriptRow[];readonly glossary:string;readonly modelKey:string;readonly generate:(text:string)=>Promise<string>}){
+ const retained=new Map(input.batch.flatMap(({index,row})=>{const candidate=correctedText(row)===null?correctionIssue(row,input.modelKey,input.glossary)?.candidate_text:undefined;return candidate?[[index,candidate] as const]:[];}));
+ const parts:Part[]=input.batch.flatMap(({index,row})=>retained.has(index)?[]:splitText(row.text,900).map((text,part)=>({id:`S${String(index+1).padStart(6,'0')}${part?`p${part+1}`:''}`,text,index})));
  const corrected=new Map<string,string>();
- const rejected=new Map<number,IssueReason>();
  const context=input.rows.slice(Math.max(0,(input.batch[0]?.index??0)-2),input.batch[0]?.index??0).filter(row=>!row.is_partial).map(row=>({text:row.text.slice(-300)}));
  for(let start=0;start<parts.length;){
   const group:Part[]=[];let length=0;
   while(start<parts.length&&group.length<4){const part=parts[start];if(group.length&&length+part.text.length>1800)break;group.push(part);length+=part.text.length;start++;}
   const response=await input.generate(JSON.stringify({glossary:correctionGlossary(input.glossary),context,segments:group.map(({id,text})=>({id,text}))}));
   const found=readCorrectionParts(response,group);
-  for(const part of group){const text=found.get(part.id)??'';const reason=input.ignoreContentChecks?null:rejectedReason(part.text,text);if(reason)rejected.set(part.index,reason);corrected.set(part.id,text);}
+  for(const part of group)corrected.set(part.id,found.get(part.id)??'');
  }
  return input.batch.map(({index,row})=>{
-  const metadata={version:1 as const,source_text:row.text,model_key:input.modelKey,glossary:input.glossary};const reason=rejected.get(index);
-  const text=parts.filter(part=>part.index===index).map(part=>corrected.get(part.id)).join(' ');
-  return reason?{index,source:row,correction:undefined,issue:{...metadata,reason,candidate_text:text}}:{index,source:row,issue:undefined,correction:{...metadata,text,...(input.ignoreContentChecks?{checks_ignored:true}:{})}};
+  const metadata={version:1 as const,source_text:row.text,model_key:input.modelKey,glossary:input.glossary};
+  const text=retained.get(index)??parts.filter(part=>part.index===index).map(part=>corrected.get(part.id)).join(' ');
+  const reason=reviewReason(row.text,text);
+  return {index,source:row,correction:{...metadata,text},issue:reason?{...metadata,reason,candidate_text:text}:undefined};
  });
 }
 export function correctedTranscriptText(rows:readonly TranscriptRow[]):string{

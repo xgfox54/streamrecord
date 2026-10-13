@@ -6,11 +6,12 @@ export type RecoveryCheckpoint = {version:1; key:string; windows:Record<string,R
 export const RECOVERY_WINDOW_SECONDS=24;
 const RECOVERY_VERSION='stream-record-recovery-v2-no-glossary';
 
-export function playbackRange(row:TranscriptRow,duration:number):{start:number;end:number}|null {
+export function playbackRange(row:TranscriptRow,duration:number,next?:TranscriptRow):{start:number;end:number}|null {
  const start=row.audio_start_time??row.chunk_start_time;
  if(typeof start!=='number'||!Number.isFinite(start)||start<0||!Number.isFinite(duration)||duration<=start)return null;
  const supplied=row.audio_end_time;
- const end=typeof supplied==='number'&&Number.isFinite(supplied)&&supplied>start?supplied:start+12;
+ const nextStart=next?.audio_start_time??next?.chunk_start_time;
+ const end=typeof supplied==='number'&&Number.isFinite(supplied)&&supplied>start?supplied:typeof nextStart==='number'&&Number.isFinite(nextStart)&&nextStart>start?nextStart:start+12;
  return {start,end:Math.min(end,duration)};
 }
 export function recoveryWindows(duration:number):{start:number;duration:number}[] {

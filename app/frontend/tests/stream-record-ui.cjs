@@ -25,6 +25,7 @@ function harness(options = {}) {
     return element ? createNodeMock(element) : null;
   }};
   const createNodeMock = element => {
+    if(element.type==='audio')return options.audioElement||{readyState:1,currentTime:0,play:async()=>{},pause:()=>{}};
     const node = {id:element.props.id || '',tagName:element.type.toUpperCase(),scrollTop:0,scrollHeight:0,clientHeight:0,
       focus:()=>{document.activeElement=node;},scrollIntoView:()=>{}};
     return node;
@@ -116,7 +117,8 @@ async function test(name,fn) {
   catch (error) {results.push({name,status:'failed',error:error.stack}); console.error('FAIL '+name+'\n'+error.stack);}
 }
 async function using(options,fn) {const h = harness(options); await h.mount(); try {await fn(h);} finally {await h.unmount();}}
-(async()=>{
+module.exports={harness};
+if(require.main===module)(async()=>{
   await test('File import estimates update while text stays hidden until completion',()=>using({overrides:{select_and_validate_audio_command:async()=>({path:'fixture.wav',filename:'fixture.wav'}),start_import_audio_command:async()=>{},api_get_meeting_transcripts:async()=>[{text:'완료된 문장',sequence_id:1,is_partial:false}]}},async h=>{
     await h.run(()=>h.session.setConsent(true));await h.run(()=>h.session.importAudio());
     await h.run(()=>h.emit('import-progress',{stage:'transcribing',progress_percentage:31,message:'working',timing:{elapsed_seconds:20,estimated_total_seconds:null,remaining_seconds:null}}));

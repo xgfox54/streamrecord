@@ -138,6 +138,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   const groups=legacy||same?plain:stable;const batchKeys=same||legacy?keys.slice(0,plain.length):keys.slice(plain.length);const notes:StructuredNote[]=[];
   const previous=options.checkpoint?.notes??{};
   const cache:SummaryCheckpoint={key,notes:Object.fromEntries(Object.entries(previous).filter(([id])=>/^[0-9a-f]{64}$/.test(id)))};
+  let savedContent=JSON.stringify(options.checkpoint);
   for(let i=0;i<groups.length;i++){
     if(options.cancelled())throw new Error('요약을 취소했습니다. 원문과 완료된 구간은 저장되어 있습니다.');
     options.progress(`근거 기반 회의록: ${i+1}/${groups.length}구간 처리 중`);
@@ -158,12 +159,12 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
         }
       }
       if(!note)throw new Error('구간 메모가 없습니다.');
-      cache.notes[batchKeys[i]]=note;await options.save(cache);
+      cache.notes[batchKeys[i]]=note;await options.save(cache);savedContent=JSON.stringify(cache);
     }
     notes.push(note);
   }
   if(options.cancelled())throw new Error('요약을 취소했습니다. 구간별 결과는 보존됩니다.');
   const current=new Set(batchKeys);for(const id of Object.keys(cache.notes))if(!current.has(id))delete cache.notes[id];
-  await options.save(cache);
+  if(JSON.stringify(cache)!==savedContent)await options.save(cache);
   return renderMinutes(notes,parts,options.title,groups);
 }
