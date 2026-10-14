@@ -20,6 +20,7 @@ import {useStoredFlag} from './useStoredFlag';
 import {useAutoGlossary} from './useAutoGlossary';
 import {suggestedRecordTitle,type RecordInputKind} from './record-presentation';
 import {importProgressSchema,type FileImportProgress} from './import-progress';
+import {startMinutesTiming,updateMinutesTiming,type MinutesTiming,type MinutesWorkEvent} from './minutes-timing';
 type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'importing'|'summarizing'|'reviewing'|'recovering'|'diarizing';
 type Config={provider:string;model:string};
 export type ModelOption={id:string;provider:string;connectionId?:string;connectionLabel?:string;destination?:string;revision?:string};
@@ -57,11 +58,12 @@ export function useMeetingSession(){
  const [saving,setSaving]=useState(false);const saveInFlight=useRef(false);
  const [error,setError]=useState('');const [notice,setNotice]=useState('');const [savedPath,setSavedPath]=useState('');
  const [minutesError,setMinutesErrorState]=useState('');const minutesFailure=useRef('');const [minutesProgress,setMinutesProgress]=useState('');
+ const [minutesTiming,setMinutesTiming]=useState<MinutesTiming|null>(null);
  const setMinutesError=(value:string)=>{minutesFailure.current=value;setMinutesErrorState(value);dirty.current++;};
  const [progress,setProgress]=useState(0);const [consent,setConsent]=useState(false);const [follow,setFollow]=useState(true);
  const [importProgress,setImportProgress]=useState<FileImportProgress|null>(null);const [importElapsed,setImportElapsed]=useState(0);const importStarted=useRef<number|null>(null);
  const cancelSummary=useRef(false);const dirty=useRef(0);
- useEffect(()=>{setMinutesErrorState(minutesFailure.current);setMinutesProgress('');},[epoch]);
+ useEffect(()=>{setMinutesErrorState(minutesFailure.current);setMinutesProgress('');setMinutesTiming(null);},[epoch]);
  const snapshotQueue=useRef<Promise<unknown>|null>(null);
  const audioPath=useRef('');const audioSha256=useRef('');const recoveryDraft=useRef<RecoveryCheckpoint|null>(null);
  const recordingInput=useRef<RecordInputKind|undefined>(undefined);const durationSeconds=useRef<number|undefined>(undefined);
@@ -184,10 +186,12 @@ export function useMeetingSession(){
   if(!rowsRef.current.length){setMinutesError('받아쓰기 내용이 없습니다. 녹음 또는 파일 받아쓰기를 먼저 완료하세요.');return;}
   if(!chosen){setMinutesError('요약 모델을 선택하세요. 모델 목록이 비어 있으면 AI 연결 관리에서 연결 상태를 확인한 뒤 모델 새로고침을 누르세요.');return;}
   setMode('summarizing');setError('');setMinutesError('');cancelSummary.current=false;
+  let timing=startMinutesTiming(Date.now());setMinutesTiming(timing);
+  const workProgress=(event:MinutesWorkEvent)=>{timing=updateMinutesTiming(timing,event,Date.now());setMinutesTiming(timing);};
   let step='회의록 생성 준비 중';const progress=(value:string)=>{step=value;setMinutesProgress(value);setNotice(value);};progress(step);
-  try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,modelKey:`${modelKey(chosen)}@${chosen.revision??''}`,generate:text=>generateText({model:chosen.id,revision:chosen.revision,text,stage:'structured',provider:chosen.provider},undefined,state=>setMinutesProgress(`${step} · ${state==='waiting'?'앞서 시작한 AI 처리가 끝나기를 기다리고 있습니다.':'AI 응답을 기다리고 있습니다.'}`)),progress,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);progress('회의록을 저장하고 있습니다.');await persist();await exportFile('minutes');progress('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
+  try{const result=await createStructuredMinutes({rows:rowsRef.current,title:titleRef.current,modelKey:`${modelKey(chosen)}@${chosen.revision??''}`,generate:text=>generateText({model:chosen.id,revision:chosen.revision,text,stage:'structured',provider:chosen.provider},undefined,state=>{workProgress({kind:state});setMinutesProgress(`${step} · ${state==='waiting'?'앞서 시작한 AI 처리가 끝나기를 기다리고 있습니다.':'AI 응답을 기다리고 있습니다.'}`);}),progress,workProgress,cancelled:()=>cancelSummary.current,checkpoint:summaryDraft.current,save:async value=>{summaryDraft.current={key:value.key,notes:{...value.notes}};dirty.current++;await persist();}});setMinutes(result);progress('회의록을 저장하고 있습니다.');workProgress({kind:'saving'});await persist();await exportFile('minutes');progress('전체 구간 회의록 초안 작성 완료. 결정·수치의 근거 인용을 원문과 대조하세요.');}
   catch(e){const failure=messageOf(e);setError(failure);setMinutesError(failure);setMinutesProgress('');try{await persist();}catch(saveError){setMinutesError(`${failure} 오류 내역 저장도 실패했습니다: ${messageOf(saveError)}`);}}
-  finally{setMode('idle');}
+  finally{setMinutesTiming(null);setMode('idle');}
  };
  const prepareAudio=async(select:boolean)=>{
   if(modeRef.current!=='idle'||!ready)return;setMode('reviewing');setError('');audioElement.current?.pause();
@@ -236,7 +240,7 @@ export function useMeetingSession(){
  return {records:recordHistory.records,activeRecordId:recordHistory.activeRecordId,recordsLoading:recordHistory.recordsLoading,historyError:recordHistory.historyError,recordSwitchBlocked:recordHistory.recordSwitchBlocked,recordSwitchBlockedReason:recordHistory.recordSwitchBlockedReason,readerSessionKey:recordHistory.activeRecordId,refreshRecords:recordHistory.refreshRecords,newRecord:async()=>{await recordHistory.newRecord();navigate('recording');setNotice('새 기록을 준비했습니다. 입력과 동의를 확인한 뒤 시작하세요.');},openRecord:async(id:string)=>{await recordHistory.openRecord(id);navigate('dictation');setNotice('저장된 기록을 열었습니다. 원음은 다시 연결해 확인할 수 있습니다.');},applyQueueRecovery,setRecoveryBusy:(busy:boolean)=>setMode(busy?'recovering':'idle'),diarization,correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:applyGlossary,autoGlossary,
   recordingKind,setRecordingKind,recordingInput:recordingInput.current,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
   liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
-  error,setError,notice,setNotice,minutesError,minutesProgress,savedPath,saving,progress,importProgress,importElapsed,importStarted:importStarted.current!==null,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,playbackIndex,audioPlaying,setAudioPlaying,resumePlayback,pausePlayback,stopPlayback,
+  error,setError,notice,setNotice,minutesError,minutesProgress,minutesTiming,savedPath,saving,progress,importProgress,importElapsed,importStarted:importStarted.current!==null,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,playbackIndex,audioPlaying,setAudioPlaying,resumePlayback,pausePlayback,stopPlayback,
   saveReview,refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
   stopFailure,acknowledgeStopFailure,setAcknowledgeStopFailure,elapsed,hasRecordingStart:Boolean(startedAt.current),modelStatus,modelKey,modeLabel:labels[mode],messageOf,
  };

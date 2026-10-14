@@ -9,6 +9,7 @@ import {modelDestination} from './connections/modelPresentation';
 import {sourceLabel} from '../meeting-ko/core';
 import {MinutesDocument} from './MinutesDocument';
 import documentStyles from './minutes.module.css';
+import {MinutesCountdown} from './MinutesCountdown';
 export function MinutesView({session:s,onEvidence}:{session:MeetingSession;onEvidence:(id:string)=>void}){
  const selected=s.models.find(model=>s.modelKey(model)===s.model);const evidence=Array.from(new Set(s.minutes.match(/\bS\d{6}(?:p\d+)?\b/g)||[]));
  const [editingRecord,setEditingRecord]=useState<{id:string|null;active:boolean}>({id:null,active:false});
@@ -20,11 +21,14 @@ export function MinutesView({session:s,onEvidence}:{session:MeetingSession;onEvi
   <div className={styles.actions}><button className={styles.primary} disabled={s.busy||!s.rows.length||!selected} onClick={()=>{setEditingRecord({id:s.activeRecordId,active:false});void s.summarize();}}>회의록 생성</button>{s.mode==='summarizing'&&<button onClick={()=>{s.cancelSummary.current=true;s.setNotice('현재 구간 응답과 저장이 끝나면 취소합니다. 완료된 구간은 보존됩니다.');}}>현재 구간 처리 후 취소</button>}<a href="#ai" onClick={()=>s.navigate('ai')}>AI 연결 관리</a></div>
   <p className={styles.hint}>{s.busy?'현재 처리가 끝난 뒤 생성할 수 있습니다.':!s.rows.length?'받아쓰기 원문이 필요합니다. 녹음 또는 파일 받아쓰기를 먼저 완료하세요.':!selected?'AI 연결에서 사용할 AI를 선택하면 회의록을 생성할 수 있습니다.':'받아쓰기를 바탕으로 정리합니다. 중요한 숫자·결정사항은 원음과 대조하세요.'}</p>
   </details>
-  {(s.minutesError||s.minutesProgress)&&<div className={styles.destination} data-testid="minutes-feedback" role={s.minutesError?'alert':'status'} aria-live={s.minutesError?'assertive':'polite'}>
+  {(s.minutesError||s.minutesProgress)&&<div className={styles.destination} data-testid="minutes-feedback">
+   <div role={s.minutesError?'alert':'status'} aria-live={s.minutesError?'assertive':'polite'}>
    <strong>{s.minutesError?'회의록 생성을 완료하지 못했습니다.':s.mode==='summarizing'?'회의록 생성 진행 상황':'회의록 생성 결과'}</strong>
    <p>{s.minutesError||s.minutesProgress}</p>
    {s.minutesError&&<p>받아쓰기와 완료된 구간은 보존됩니다. 사용할 AI와 연결 상태를 확인한 뒤 ‘회의록 생성’을 다시 누르세요. 같은 AI이면 이미 처리한 묶음은 건너뜁니다. 받아쓰기를 고친 묶음만 다시 처리합니다.</p>}
    {s.mode==='summarizing'&&!s.minutesError&&<p>긴 기록은 여러 묶음으로 처리하며 완료된 결과를 구간마다 저장합니다. AI 응답이 늦으면 몇 분 동안 같은 구간이 표시될 수 있습니다.</p>}
+   </div>
+   {s.mode==='summarizing'&&!s.minutesError&&s.minutesTiming&&<MinutesCountdown timing={s.minutesTiming}/>}
   </div>}
   <div className={documentStyles.toolbar} role="group" aria-label="회의록 표시 방식"><button type="button" aria-pressed={!editing} onClick={()=>setEditingRecord({id:s.activeRecordId,active:false})}>회의록 보기</button><button type="button" aria-pressed={editing} disabled={s.busy} onClick={()=>setEditingRecord({id:s.activeRecordId,active:true})}>직접 수정</button></div>
   {editing?<label className={styles.minutesLabel}>회의록 본문 (Markdown)<textarea className={styles.minutes} value={s.minutes} disabled={s.busy} onChange={event=>s.setMinutes(event.target.value)} placeholder="생성한 회의록을 직접 수정하거나 Markdown 회의록을 입력하세요."/></label>:s.minutes?<MinutesDocument text={s.minutes} onEvidence={onEvidence}/>:<p className={documentStyles.empty}>{s.mode==='summarizing'?'회의록을 정리하고 있습니다. 완료되면 여기에 문서로 표시합니다.':'받아쓰기를 마친 뒤 회의록을 생성하면 제목과 주제별 내용이 정리됩니다.'}</p>}

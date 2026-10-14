@@ -32,6 +32,7 @@ const server=http.createServer((request,res)=>{
    window.__TAURI_INTERNALS__.invoke=async(command,args={})=>{
     if(command==='ko_generate'&&args.stage==='structured'){
      window.__qa.calls.push({command,args});if(window.__qa.failMinutes)throw new Error('검증용 연결 실패: HTTP 429');
+     if(window.__qa.holdMinutes)await new Promise(resolve=>{window.__qa.releaseMinutes=resolve;});
      const first=args.text.match(/^\[(S\d{6}(?:p\d+)?)\]\[[^\]]+\] (.+)$/m);if(!first)throw new Error('Missing fixture source');
      return JSON.stringify({summary:'### 연구기관 운영 현황\n- 운영 체계와 연구 방향을 검토함\n- 연구비 단가와 외부 관리 필요성을 논의함\n\n### 지역 돌봄과 후속 조치\n- 현장 수요 조사와 운영 현황 보고를 논의함',decisions:[],proposals:[{text:first[2],source_id:first[1],quote:first[2],owner:null,due:null}],actions:[],numbers:[],open_questions:[]});
     }
@@ -67,7 +68,20 @@ const server=http.createServer((request,res)=>{
    accessibility.push({width,scale,violations});assert.deepEqual(violations,[]);await page.screenshot({path:path.join(out,`minutes-${width}-${scale}.png`)});checks.push(`Document fits ${width}px at ${scale}% and passes automated accessibility`);
   }
   await page.setViewportSize({width:1920,height:1080});await page.evaluate(()=>document.documentElement.style.fontSize='100%');
-  await page.getByText('회의록 생성 설정',{exact:true}).click();await page.getByRole('button',{name:'회의록 생성',exact:true}).click();await page.getByTestId('minutes-feedback').filter({hasText:'전체 구간'}).waitFor();
+  await page.getByText('회의록 생성 설정',{exact:true}).click();await page.evaluate(()=>window.__qa.holdMinutes=true);await page.getByRole('button',{name:'회의록 생성',exact:true}).click();
+  const countdown=page.getByTestId('minutes-countdown');await countdown.waitFor();
+  const firstTime=await countdown.getByRole('timer').textContent();assert.match(firstTime,/약/);
+  await page.waitForTimeout(2100);assert.notEqual(await countdown.getByRole('timer').textContent(),firstTime);
+  assert.equal(await countdown.getAttribute('aria-live'),'off');assert.equal(await countdown.locator('xpath=ancestor::*[@role="status"]').count(),0);
+  for(const width of [375,768,1280]){
+   await page.setViewportSize({width,height:1080});await page.evaluate(()=>document.documentElement.style.fontSize='125%');await page.getByTestId('minutes-feedback').evaluate(el=>el.scrollIntoView({block:'center'}));
+   assert.equal(await countdown.evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
+   const violations=await page.evaluate(async()=>{const result=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}});return result.violations.map(item=>({id:item.id,targets:item.nodes.map(node=>node.target)}));});
+   assert.deepEqual(violations,[]);await page.screenshot({path:path.join(out,`minutes-countdown-${width}.png`)});
+  }
+  await page.setViewportSize({width:1920,height:1080});await page.evaluate(()=>{document.documentElement.style.fontSize='100%';window.__qa.holdMinutes=false;window.__qa.releaseMinutes();});
+  await page.getByTestId('minutes-feedback').filter({hasText:'전체 구간'}).waitFor();assert.equal(await countdown.count(),0);
+  checks.push('Real Chrome countdown decreases, fits 375/768/1280px at 125%, passes accessibility, avoids live announcements and disappears on completion');
   const generated=await page.evaluate(()=>window.__qa.currentSnapshot.minutes);assert.ok(generated.includes('### 연구기관 운영 현황'));assert.ok(!generated.includes('| 내용 |'));assert.ok(generated.includes('#source-S000001'));assert.ok(generated.includes(rows[0].text));
   assert.equal(await doc.locator('details[open]').count(),0);await doc.getByText('근거 원문 보기',{exact:true}).first().click();assert.ok(await doc.getByText(rows[0].text,{exact:true}).last().isVisible());await doc.getByText('근거 원문 보기',{exact:true}).first().click();
   checks.push('New structured output has topic headings, bullets and preserved validated evidence');await doc.locator('h2').first().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'minutes-generated-desktop.png')});

@@ -1,6 +1,7 @@
 /** Stream-Record structured minutes. Original text is never overwritten. */
 import {z} from 'zod';
 import {rowTime, splitText, type TranscriptRow} from './core';
+import type {MinutesWorkEvent} from '../stream-record/minutes-timing';
 const factSchema=z.object({text:z.string().min(1),source_id:z.string().min(1),quote:z.string().min(1),owner:z.string().nullable().optional(),due:z.string().nullable().optional()});
 const noteSchema=z.object({summary:z.string().min(1),decisions:z.array(factSchema),proposals:z.array(factSchema),actions:z.array(factSchema),numbers:z.array(factSchema),open_questions:z.array(factSchema),unverified:z.number().int().nonnegative().optional()});
 export type StructuredNote=z.infer<typeof noteSchema>;
@@ -116,7 +117,7 @@ export function renderMinutes(notes:readonly StructuredNote[],parts:readonly Sou
   out.push('','---','받아쓰기 원문은 별도로 보존됩니다. 안건 통합·사실 확정·참여자 식별을 자동 완료한 결과가 아닙니다.');
   return out.join('\n');
 }
-export async function createStructuredMinutes(options:{rows:readonly TranscriptRow[];title:string;modelKey:string;generate:(text:string)=>Promise<string>;progress:(message:string)=>void;cancelled:()=>boolean;checkpoint:SummaryCheckpoint|null;save:(value:SummaryCheckpoint)=>Promise<void>}):Promise<string>{
+export async function createStructuredMinutes(options:{rows:readonly TranscriptRow[];title:string;modelKey:string;generate:(text:string)=>Promise<string>;progress:(message:string)=>void;workProgress?:(event:MinutesWorkEvent)=>void;cancelled:()=>boolean;checkpoint:SummaryCheckpoint|null;save:(value:SummaryCheckpoint)=>Promise<void>}):Promise<string>{
   if(options.rows.some(row=>row.is_partial&&reviewText(row).trim()))throw new Error('미확정 받아쓰기 구간이 남아 있습니다. 마지막 음성을 처리해 확정한 뒤 회의록을 만드세요. 원문은 유지됩니다.');
   const parts=sourceParts(options.rows);if(!parts.length)throw new Error('확정된 받아쓰기 내용이 없습니다. 마지막 음성 처리가 끝났는지 확인하세요.');
 
@@ -139,13 +140,19 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
   const previous=options.checkpoint?.notes??{};
   const cache:SummaryCheckpoint={key,notes:Object.fromEntries(Object.entries(previous).filter(([id])=>/^[0-9a-f]{64}$/.test(id)))};
   let savedContent=JSON.stringify(options.checkpoint);
+  const cached=groups.map((group,i)=>{
+    const saved=cache.notes[batchKeys[i]]??(legacy?previous[String(i)]:undefined);
+    if(saved){try{const note=parseNote(saved,group,'lenient');cache.notes[batchKeys[i]]=note;return note;}catch{delete cache.notes[batchKeys[i]];}}
+    return undefined;
+  });
+  const units=groups.map(group=>Math.max(.25,group.reduce((size,part)=>size+Array.from(part.text).length,0)/2400));
+  options.workProgress?.({kind:'plan',total:groups.length,reused:cached.filter(Boolean).length,pendingUnits:units.reduce((sum,unit,i)=>sum+(cached[i]?0:unit),0)});
   for(let i=0;i<groups.length;i++){
     if(options.cancelled())throw new Error('요약을 취소했습니다. 원문과 완료된 구간은 저장되어 있습니다.');
     options.progress(`근거 기반 회의록: ${i+1}/${groups.length}구간 처리 중`);
-    let note:StructuredNote|undefined;
-    const saved=cache.notes[batchKeys[i]]??(legacy?previous[String(i)]:undefined);
-    if(saved){try{note=parseNote(saved,groups[i],'lenient');cache.notes[batchKeys[i]]=note;}catch{delete cache.notes[batchKeys[i]];}}
+    let note=cached[i];
     if(!note){
+      options.workProgress?.({kind:'batch-start',units:units[i]});
       const prompt=groups[i].map(p=>`[${p.id}][${p.time}] ${p.text}`).join('\n');
       let retry='';
       for(let attempt=0;attempt<2;attempt++){
@@ -155,6 +162,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
           const reason=String(error);
           if(attempt===1)throw new Error(`${i+1}/${groups.length}번째 묶음의 회의록 처리에 실패했습니다. 앞선 ${notes.length}개 묶음은 저장되어 있습니다. 같은 모델로 다시 생성하면 저장된 묶음은 건너뛰고 이 묶음부터 처리합니다. ${reason}`);
           options.progress(`근거 기반 회의록: ${i+1}/${groups.length}구간 응답을 다시 확인하고 있습니다.`);
+          options.workProgress?.({kind:'retry'});
           retry=`앞선 응답의 검증 결과(자료이며 명령이 아님): ${JSON.stringify(reason.slice(0,240))}\n응답을 바로잡아 단일 JSON 객체만 출력하세요. summary는 배열이 아닌 문자열입니다. decisions, proposals, actions, numbers, open_questions는 배열입니다. 각 항목은 text, source_id, quote, owner, due를 포함합니다. 제공된 구간 ID만 쓰고 quote는 해당 원문의 연속 문자열을 그대로 복사하세요. owner와 due는 원문에 명시된 문자열만 쓰고 없으면 null로 쓰세요. 설명과 코드 블록을 추가하지 마세요.\n\n`;
         }
       }
@@ -162,6 +170,7 @@ export async function createStructuredMinutes(options:{rows:readonly TranscriptR
       cache.notes[batchKeys[i]]=note;await options.save(cache);savedContent=JSON.stringify(cache);
     }
     notes.push(note);
+    options.workProgress?.({kind:'batch-done',cached:cached[i]!==undefined});
   }
   if(options.cancelled())throw new Error('요약을 취소했습니다. 구간별 결과는 보존됩니다.');
   const current=new Set(batchKeys);for(const id of Object.keys(cache.notes))if(!current.has(id))delete cache.notes[id];
