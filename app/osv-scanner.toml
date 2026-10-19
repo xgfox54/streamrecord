@@ -33,3 +33,15 @@ reason = "unic-ucd-version is an unmaintained-crate notice with no known vulnera
 [[IgnoredVulns]]
 id = "RUSTSEC-2025-0100"
 reason = "unic-ucd-ident is an unmaintained-crate notice with no known vulnerability and no fixed version. Same urlpattern path inside tauri-utils."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+reason = "Unmaintained-crate notice with no patched standalone release. zbus_names is only reachable through the Linux D-Bus stack; cargo tree --target x86_64-pc-windows-msvc -i zbus_names prints no dependency path. The shipped Windows executable does not compile this crate."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+reason = "Unmaintained-crate notice with no patched standalone release. zvariant is only reachable through the Linux D-Bus stack and is not compiled for the Windows x64 product. Migration to zbus 6 belongs to the upstream desktop dependency stack."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+reason = "Unmaintained-crate notice with no patched standalone release. zvariant_derive is the build-time companion of the Linux-only zvariant stack and is not compiled into the Windows x64 product."

@@ -228,8 +228,6 @@ fn extract_zip(
     archive_path: &std::path::Path,
     extract_dir: &std::path::Path,
 ) -> Result<(), String> {
-    use std::io::Read;
-
     let file =
         std::fs::File::open(archive_path).map_err(|e| format!("Failed to open ZIP: {}", e))?;
 
@@ -247,7 +245,7 @@ fn extract_zip(
             None => {
                 // Skip entries with path traversal sequences (e.g., "../")
                 println!(
-                    "cargo:warning=⚠️  Skipping suspicious ZIP entry: {}",
+                    "cargo:warning=⚠️  Skipping suspicious ZIP entry: {:?}",
                     file.name()
                 );
                 continue;
