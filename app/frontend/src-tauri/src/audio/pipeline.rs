@@ -1216,7 +1216,7 @@ impl AudioPipelineManager {
         self.audio_sender = None;
 
         // Wait for pipeline to finish
-        if let Some(handle) = self.pipeline_handle.take() {
+        let result = if let Some(handle) = self.pipeline_handle.as_mut() {
             match handle.await {
                 Ok(result) => result,
                 Err(e) => {
@@ -1226,7 +1226,9 @@ impl AudioPipelineManager {
             }
         } else {
             Ok(())
-        }
+        };
+        self.pipeline_handle = None;
+        result
     }
 
     /// Force immediate flush of accumulated audio and stop pipeline
@@ -1282,9 +1284,24 @@ impl Default for AudioPipelineManager {
         Self::new()
     }
 }
+
+impl Drop for AudioPipelineManager {
+    fn drop(&mut self) {
+        if let Some(handle) = &self.pipeline_handle { handle.abort(); }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn repeated_stop_after_pipeline_completion_is_safe() {
+        let mut manager = AudioPipelineManager::new();
+        manager.pipeline_handle = Some(tokio::spawn(async { Ok(()) }));
+        manager.stop().await.unwrap();
+        manager.stop().await.unwrap();
+        assert!(manager.pipeline_handle.is_none());
+    }
 
     #[test]
     fn test_live_vad_redemption_covers_the_bounded_window() {

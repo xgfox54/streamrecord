@@ -104,6 +104,7 @@ impl Drop for StoppingGuard {
 /// start path can't silently ship with a per-session flag left unreset (e.g.
 /// the mic-recovery budget already exhausted).
 fn finalize_recording_start() {
+    super::recording_cancellation::begin();
     info!("🔍 Setting IS_RECORDING to true and resetting SPEECH_DETECTED_EMITTED");
     IS_RECORDING.store(true, Ordering::SeqCst);
     MIC_FALLBACK_FAILED_ATTEMPTS.store(0, Ordering::SeqCst); // fresh mic-recovery budget per session
@@ -776,8 +777,8 @@ async fn finish_recording_cleanup<T>(
     unload_model: impl std::future::Future<Output = ()> + Send + 'static,
     save_recording: impl std::future::Future<Output = T>,
 ) -> T {
-    let unload_task = tokio::spawn(unload_model);
-    let (unloaded, saved) = tokio::join!(unload_task, save_recording);
+    let mut unload_task = super::recording_cancellation::OwnedTask(tokio::spawn(unload_model));
+    let (unloaded, saved) = tokio::join!(&mut unload_task.0, save_recording);
     if let Err(error) = unloaded {
         warn!("Transcription model cleanup task failed: {}", error);
     }
@@ -789,6 +790,37 @@ pub async fn stop_recording<R: Runtime>(
     app: AppHandle<R>,
     _args: RecordingArgs,
 ) -> Result<(), String> {
+    let cancellation = super::recording_cancellation::current();
+    super::recording_cancellation::run(&cancellation, finish_recording(app))
+        .await.unwrap_or_else(|| Err("녹음을 취소했습니다.".to_owned()))
+}
+
+pub(crate) async fn cancel_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let _stopping_guard = StoppingGuard::new();
+    let workers = super::recording_cancellation::workers();
+    super::recording_cancellation::current().cancel();
+    let task = TRANSCRIPTION_TASK.lock().map_err(|error| error.to_string())?.take();
+    if let Some(task) = task {
+        task.abort();
+        if let Err(error) = task.await {
+            if !error.is_cancelled() { warn!("Cancelled transcription task failed: {error}"); }
+        }
+    }
+    let manager = RECORDING_MANAGER.lock().map_err(|error| error.to_string())?.take();
+    drop(manager);
+    use tauri::Listener;
+    if let Some(listener) = TRANSCRIPT_LISTENER_ID.lock().map_err(|error| error.to_string())?.take() {
+        app.unlisten(listener);
+    }
+    workers.close();
+    workers.wait().await;
+    IS_RECORDING.store(false, Ordering::SeqCst);
+    crate::RECORDING_FLAG.store(false, Ordering::SeqCst);
+    crate::tray::update_tray_menu(app);
+    Ok(())
+}
+
+async fn finish_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     info!(
         "🛑 Starting optimized recording shutdown - ensuring ALL transcript chunks are preserved"
     );
@@ -859,11 +891,12 @@ pub async fn stop_recording<R: Runtime>(
     };
 
     if let Some(task_handle) = transcription_task {
+        let mut task_handle = super::recording_cancellation::OwnedTask(task_handle);
         info!("⏳ Waiting for ALL transcription chunks to be processed (no timeout - preserving every chunk)");
 
         // Enhanced progress monitoring during shutdown
         let progress_app = app.clone();
-        let progress_task = tokio::spawn(async move {
+        let progress_task = super::recording_cancellation::OwnedTask(tokio::spawn(async move {
             let last_update = std::time::Instant::now();
 
             loop {
@@ -882,15 +915,15 @@ pub async fn stop_recording<R: Runtime>(
                     }),
                 );
             }
-        });
+        }));
 
-        task_handle
+        (&mut task_handle.0)
             .await
             .map_err(|e| format!("Transcription task failed before all chunks were saved: {e}"))?;
         info!("✅ ALL transcription chunks processed successfully - no data lost");
 
         // Stop progress monitoring
-        progress_task.abort();
+        progress_task.0.abort();
     } else {
         info!("ℹ️ No transcription task found to wait for");
     }

@@ -29,6 +29,7 @@ pub mod pipeline;
 pub mod playback_monitor;
 pub mod post_processor;
 pub mod recording_commands;
+pub(crate) mod recording_cancellation;
 pub mod recording_manager;
 pub mod recording_preferences;
 pub mod recording_saver;

@@ -24,3 +24,7 @@
   .icon { background: Canvas; color: CanvasText; border: var(--sr-border-width) solid CanvasText; }
   .icon[data-feature-icon=summary] { background: none; color: CanvasText; border: 0; }
 }
+
+.icon { background:none; color:var(--jeju-blue); border-radius:0; }
+.icon[data-feature-icon=minutes] { color:var(--jeju-green-dark); }
+.icon > svg { inline-size:85%; block-size:85%; }

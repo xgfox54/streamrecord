@@ -36,6 +36,7 @@ module.exports=async function correctionTests({test,using,deferred}){
  await test('A full 3000-character dictionary reaches every correction batch without additional requests or raw-STT hints',()=>using({overrides:{ko_generate:async args=>answer(args)}},async h=>{
   const {glossaryPacks}=h.load(require('node:path').resolve(__dirname,'../src/components/stream-record/glossary-packs.ts'));
   const glossary=glossaryPacks.find(pack=>pack.id==='audit').terms.join(', ');assert.equal(glossary.length,3000);
+  await h.run(()=>h.session.navigate('recording'));
   await h.run(()=>h.session.setGlossary(glossary));
   const field=h.renderer.root.findAllByType('input').find(node=>node.props.value===glossary);assert.ok(field);assert.equal(field.props.maxLength,3000);
   await h.start();assert.equal(Object.hasOwn(h.calls.find(call=>call.command==='ko_start_recording').args,'glossary'),false);

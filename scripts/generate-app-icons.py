@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw, __version__
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 SOURCE: Final = ROOT / "assets/branding/streamrecord-icon-source.png"
-SOURCE_SHA256: Final = "ad509a00e923e6a69fbbc7c26e1a08be77e72ae6fb45ab138f05a6193ba75f84"
+SOURCE_SHA256: Final = "87915df7a7776cc5504509cd213bb2078dc9657abe19026c15d91c00dc74e7d6"
 ICO_SIZES: Final = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 PNG_SIZES: Final = {
     "32x32.png": 32,

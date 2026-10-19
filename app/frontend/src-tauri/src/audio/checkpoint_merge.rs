@@ -2,20 +2,12 @@ use super::incremental_saver::{checkpoint_timing_path, CheckpointTiming};
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 
 pub(super) struct MergedAudio {
     pub samples: u64,
     pub sample_rate: u32,
     pub estimated_timing: bool,
-}
-
-struct Encoder(Child);
-impl Drop for Encoder {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
 }
 
 fn command(ffmpeg: &Path) -> Command {
@@ -29,7 +21,7 @@ fn command(ffmpeg: &Path) -> Command {
     command
 }
 
-pub(super) fn merge(
+pub(super) async fn merge(
     ffmpeg: &Path,
     checkpoints: &[PathBuf],
     output: &Path,
@@ -78,16 +70,18 @@ pub(super) fn merge(
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::from(diagnostics.try_clone()?));
-    let mut encoder = Encoder(encoder_command.spawn().context("Start merged audio encoder")?);
-    let mut input = encoder.0.stdin.take().context("Missing encoder input")?;
+    let mut encoder_command = tokio::process::Command::from(encoder_command);
+    let mut encoder = encoder_command.kill_on_drop(true).spawn().context("Start merged audio encoder")?;
+    let mut input = encoder.stdin.take().context("Missing encoder input")?;
     let mut total_samples = 0u64;
     for (checkpoint, timing) in checkpoints.iter().zip(timings.iter()) {
         let decoded = tempfile::Builder::new().prefix("checkpoint-pcm-").suffix(".f32")
             .tempfile_in(parent)?.into_temp_path();
         crate::review_paths::guard_write(&decoded)?;
-        let result = command(ffmpeg).arg("-i").arg(checkpoint)
+        let mut decoder_command = tokio::process::Command::from(command(ffmpeg));
+        let result = decoder_command.kill_on_drop(true).arg("-i").arg(checkpoint)
             .args(["-map", "0:a:0", "-vn", "-ac", "1", "-ar", &rate.to_string(), "-f", "f32le", "-y"])
-            .arg(&decoded).output().context("Decode audio checkpoint")?;
+            .arg(&decoded).output().await.context("Decode audio checkpoint")?;
         if !result.status.success() {
             bail!("Checkpoint decode failed: {}", String::from_utf8_lossy(&result.stderr));
         }
@@ -101,14 +95,16 @@ pub(super) fn merge(
         if decoded_bytes < bytes {
             bail!("Decoded checkpoint is shorter than its saved sample count");
         }
-        let copied = std::io::copy(&mut pcm.take(bytes), &mut input)?;
+        let pcm = tokio::fs::File::from_std(pcm);
+        let mut pcm = tokio::io::AsyncReadExt::take(pcm, bytes);
+        let copied = tokio::io::copy(&mut pcm, &mut input).await?;
         if copied != bytes {
             bail!("Incomplete checkpoint read");
         }
         total_samples = total_samples.checked_add(samples).context("Merged sample count overflow")?;
     }
     drop(input);
-    let status = encoder.0.wait().context("Wait for merged audio encoder")?;
+    let status = encoder.wait().await.context("Wait for merged audio encoder")?;
     if !status.success() {
         diagnostics.seek(SeekFrom::Start(0))?;
         let mut message = String::new();
@@ -136,26 +132,55 @@ mod tests {
             .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect()
     }
 
-    #[test]
-    fn rejects_invalid_timing_and_preserves_existing_audio() {
+    #[tokio::test]
+    async fn rejects_invalid_timing_and_preserves_existing_audio() {
         let temp = tempfile::tempdir().unwrap();
         let checkpoint = temp.path().join("audio_chunk_000.mp4");
         let output = temp.path().join("audio.mp4");
         std::fs::write(&checkpoint, b"checkpoint").unwrap();
         std::fs::write(checkpoint_timing_path(&checkpoint), b"invalid").unwrap();
         let ffmpeg = Path::new("unused-ffmpeg");
-        let error = merge(ffmpeg, &[checkpoint.clone()], &output, 48000).err().unwrap();
+        let error = merge(ffmpeg, &[checkpoint.clone()], &output, 48000).await.err().unwrap();
         assert!(error.to_string().contains("Invalid checkpoint timing"));
         assert!(!output.exists());
         std::fs::write(&output, b"completed recording").unwrap();
-        assert!(merge(ffmpeg, &[checkpoint.clone()], &output, 48000).is_err());
+        assert!(merge(ffmpeg, &[checkpoint.clone()], &output, 48000).await.is_err());
         assert_eq!(std::fs::read(&output).unwrap(), b"completed recording");
         assert_eq!(std::fs::read(&checkpoint).unwrap(), b"checkpoint");
     }
 
-    #[test]
+    #[tokio::test]
+    async fn cancellation_interrupts_real_merge_without_publishing_or_deleting_sources() {
+        let temp = tempfile::tempdir().unwrap();
+        let checkpoint = temp.path().join("checkpoint.mp4");
+        let ffmpeg = super::super::ffmpeg::find_ffmpeg_path().unwrap();
+        let samples = vec![0.0_f32; 48000 * 5];
+        super::super::encode::encode_single_audio_async(
+            bytemuck::cast_slice(&samples), 48000, 1, &checkpoint,
+        ).await.unwrap();
+        let original = std::fs::read(&checkpoint).unwrap();
+        let paths = vec![checkpoint.clone(); 200];
+        let output = temp.path().join("audio.mp4");
+        let cancellation = tokio_util::sync::CancellationToken::new();
+        let cancel = cancellation.clone();
+        let canceller = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            cancel.cancel();
+        });
+        let started = std::time::Instant::now();
+        let outcome = super::super::recording_cancellation::run(
+            &cancellation, merge(&ffmpeg, &paths, &output, 48000),
+        ).await;
+        canceller.await.unwrap();
+        assert!(outcome.is_none());
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+        assert!(!output.exists());
+        assert_eq!(std::fs::read(&checkpoint).unwrap(), original);
+    }
+
+    #[tokio::test]
     #[ignore = "requires STREAM_RECORD_CHECKPOINT_FIXTURE with two actual meeting checkpoints"]
-    fn actual_checkpoint_merge_preserves_alignment_and_failed_sources() {
+    async fn actual_checkpoint_merge_preserves_alignment_and_failed_sources() {
         let fixture = PathBuf::from(std::env::var("STREAM_RECORD_CHECKPOINT_FIXTURE").unwrap());
         let temp = tempfile::tempdir().unwrap();
         let ffmpeg = super::super::ffmpeg::find_ffmpeg_path().unwrap();
@@ -175,7 +200,7 @@ mod tests {
             paths.push(path);
         }
         let output = temp.path().join("audio.mp4");
-        let merged = merge(&ffmpeg, &paths, &output, 48000).unwrap();
+        let merged = merge(&ffmpeg, &paths, &output, 48000).await.unwrap();
         assert_eq!(merged.samples as usize, reference.len());
         assert!(!merged.estimated_timing);
         let decoded = decode(&ffmpeg, &output);
@@ -193,7 +218,7 @@ mod tests {
         }
         std::fs::write(&paths[1], b"corrupt checkpoint").unwrap();
         let failed_output = temp.path().join("failed.mp4");
-        assert!(merge(&ffmpeg, &paths, &failed_output, 48000).is_err());
+        assert!(merge(&ffmpeg, &paths, &failed_output, 48000).await.is_err());
         assert!(!failed_output.exists());
         assert!(paths.iter().all(|path| path.exists()));
         assert_eq!(std::fs::read(&paths[1]).unwrap(), b"corrupt checkpoint");

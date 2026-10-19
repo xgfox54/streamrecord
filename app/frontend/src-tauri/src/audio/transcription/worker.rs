@@ -62,6 +62,8 @@ pub fn start_transcription_task<R: Runtime>(
     app: AppHandle<R>,
     transcription_receiver: super::queue::DiskQueueReceiver,
 ) -> tokio::task::JoinHandle<()> {
+    let cancellation = crate::audio::recording_cancellation::current();
+    let workers = crate::audio::recording_cancellation::workers();
     tokio::spawn(async move {
         info!("🚀 Starting disk-backed transcription task");
 
@@ -81,6 +83,8 @@ pub fn start_transcription_task<R: Runtime>(
             }
         };
 
+        if cancellation.is_cancelled() { return; }
+
         // Create parallel workers for faster processing while preserving ALL chunks
         const NUM_WORKERS: usize = 1; // Serial processing ensures transcripts emit in chronological order
         let (work_sender, work_receiver) =
@@ -96,7 +100,7 @@ pub fn start_transcription_task<R: Runtime>(
         );
 
         // Spawn worker tasks
-        let mut worker_handles = Vec::new();
+        let mut worker_handles = tokio::task::JoinSet::new();
         for worker_id in 0..NUM_WORKERS {
             let engine_clone = match &transcription_engine {
                 TranscriptionEngine::Whisper(e) => TranscriptionEngine::Whisper(e.clone()),
@@ -106,8 +110,9 @@ pub fn start_transcription_task<R: Runtime>(
             let app_clone = app.clone();
             let work_receiver_clone = work_receiver.clone();
             let accounting_clone = accounting.clone();
+            let worker_cancellation = cancellation.clone();
 
-            let worker_handle = tokio::spawn(async move {
+            worker_handles.spawn(workers.track_future(async move {
                 info!("👷 Worker {} started", worker_id);
 
                 // PRE-VALIDATE model state to avoid repeated async calls per chunk
@@ -132,6 +137,7 @@ pub fn start_transcription_task<R: Runtime>(
                 }
 
                 loop {
+                    if worker_cancellation.is_cancelled() { break; }
                     // Try to get a chunk to process
                     let chunk = {
                         let mut receiver = work_receiver_clone.lock().await;
@@ -168,13 +174,21 @@ pub fn start_transcription_task<R: Runtime>(
                             }
                             let chunk_timestamp = chunk.timestamp;
                             let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
-                            let (mut status, committed) = match transcribe_chunk_with_provider(
+                            let result = transcribe_chunk_with_cancellation(
                                 &engine_clone,
                                 chunk,
                                 &app_clone,
+                                Some(worker_cancellation.clone()),
                             )
-                            .await
-                            {
+                            .await;
+                            if worker_cancellation.is_cancelled() {
+                                if let Err(error) = queue_item.retain("cancelled").await {
+                                    warn!("Could not retain cancelled chunk: {error}");
+                                }
+                                accounting_clone.finish(ChunkStatus::Cancelled, false);
+                                break;
+                            }
+                            let (mut status, committed) = match result {
                                 Ok(result) if !should_emit_transcript(&result.text) => {
                                     (ChunkStatus::NoSpeech, false)
                                 }
@@ -318,9 +332,8 @@ pub fn start_transcription_task<R: Runtime>(
                 }
 
                 info!("👷 Worker {} completed", worker_id);
-            });
+            }));
 
-            worker_handles.push(worker_handle);
         }
 
         let mut receiver = transcription_receiver;
@@ -377,12 +390,8 @@ pub fn start_transcription_task<R: Runtime>(
             "message": format!("{} chunks queued for processing - waiting for completion", total_chunks_queued)
         }));
 
-        for (worker_id, handle) in worker_handles.into_iter().enumerate() {
-            if let Err(e) = handle.await {
-                error!("Worker {} panicked: {:?}", worker_id, e);
-            } else {
-                info!("Worker {} exited", worker_id);
-            }
+        while let Some(result) = worker_handles.join_next().await {
+            if let Err(error) = result { error!("Transcription worker failed: {error}"); }
         }
 
         let counts = accounting.snapshot();
@@ -417,6 +426,15 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
     engine: &TranscriptionEngine,
     chunk: AudioChunk,
     app: &AppHandle<R>,
+) -> std::result::Result<TranscriptResult, TranscriptionError> {
+    transcribe_chunk_with_cancellation(engine, chunk, app, None).await
+}
+
+async fn transcribe_chunk_with_cancellation<R: Runtime>(
+    engine: &TranscriptionEngine,
+    chunk: AudioChunk,
+    app: &AppHandle<R>,
+    cancellation: Option<tokio_util::sync::CancellationToken>,
 ) -> std::result::Result<TranscriptResult, TranscriptionError> {
     let chunk_id = chunk.chunk_id;
     // Convert to 16kHz mono for transcription
@@ -455,7 +473,7 @@ pub(super) async fn transcribe_chunk_with_provider<R: Runtime>(
         TranscriptionEngine::Whisper(whisper_engine) => {
             let language = crate::get_language_preference_internal();
             match whisper_engine
-                .transcribe_audio_with_result(speech_samples, language)
+                .transcribe_audio_with_prompt_cancellable(speech_samples, language, None, cancellation)
                 .await
             {
                 Ok(result) => {

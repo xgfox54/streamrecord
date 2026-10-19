@@ -483,6 +483,16 @@ impl WhisperEngine {
         language: Option<String>,
         prompt: Option<String>,
     ) -> Result<TranscriptResult> {
+        self.transcribe_audio_with_prompt_cancellable(audio_data, language, prompt, None).await
+    }
+
+    pub(crate) async fn transcribe_audio_with_prompt_cancellable(
+        &self,
+        audio_data: Vec<f32>,
+        language: Option<String>,
+        prompt: Option<String>,
+        cancellation: Option<CancellationToken>,
+    ) -> Result<TranscriptResult> {
         let ctx_lock = self.current_context.read().await;
         let ctx = ctx_lock
             .as_ref()
@@ -497,6 +507,9 @@ impl WhisperEngine {
             beam_size: adaptive_config.beam_size as i32,
             patience: 1.0,
         });
+        if let Some(cancellation) = cancellation {
+            params.set_abort_callback_safe(move || cancellation.is_cancelled());
+        }
 
         // Configure with adaptive settings
         // If language is "auto" or None, use automatic language detection (pass None)

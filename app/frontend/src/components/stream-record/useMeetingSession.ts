@@ -21,7 +21,7 @@ import {useAutoGlossary} from './useAutoGlossary';
 import {suggestedRecordTitle,type RecordInputKind} from './record-presentation';
 import {importProgressSchema,type FileImportProgress} from './import-progress';
 import {startMinutesTiming,updateMinutesTiming,type MinutesTiming,type MinutesWorkEvent} from './minutes-timing';
-type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'importing'|'summarizing'|'reviewing'|'recovering'|'diarizing';
+type Mode='loading'|'idle'|'starting'|'recording'|'stopping'|'cancelling'|'importing'|'summarizing'|'reviewing'|'recovering'|'diarizing';
 type Config={provider:string;model:string};
 export type ModelOption={id:string;provider:string;connectionId?:string;connectionLabel?:string;destination?:string;revision?:string};
 const modelKey=(m:ModelOption)=>`${m.provider}:${m.id}`;
@@ -29,21 +29,28 @@ const modelKeyOrEmpty=(model:ModelOption|undefined)=>model?modelKey(model):'';
 type AudioFile={path:string;filename:string};
 type ImportResult={meeting_id:string;title:string};
 export type Snapshot={version:number;recordId?:string;title:string;rows:TranscriptRow[];minutes:string;startedAt:string|null;videoUrl?:string;glossary?:string;liveSummary?:string;liveSummaryDraft?:LiveSummaryCheckpoint|null;summaryDraft?:SummaryCheckpoint|null;minutesFailure?:string;audioPath?:string;audioSha256?:string;recoveryDraft?:RecoveryCheckpoint|null;recordingInput?:RecordInputKind;durationSeconds?:number};
-const labels:Record<Mode,string>={loading:'초기화 중',idle:'준비',starting:'녹음 시작 중',recording:'녹음 · 실시간 받아쓰기 중',stopping:'마지막 음성 처리 중',importing:'녹음파일 받아쓰기 중',summarizing:'회의록 작성 중',reviewing:'원음 확인 중',recovering:'저장 음성 받아쓰기 복구 중',diarizing:'저장 음성 화자분리 중'};
+const labels:Record<Mode,string>={loading:'초기화 중',idle:'준비',starting:'녹음 시작 중',recording:'녹음 · 실시간 받아쓰기 중',stopping:'마지막 음성 처리 중',cancelling:'녹음 취소 중',importing:'녹음파일 받아쓰기 중',summarizing:'회의록 작성 중',reviewing:'원음 확인 중',recovering:'저장 음성 받아쓰기 복구 중',diarizing:'저장 음성 화자분리 중'};
 const messageOf=(e:unknown)=>e instanceof Error?e.message:String(e);
 export function youtubeEmbedUrl(watchUrl:string){const id=watchUrl.match(/[?&]v=([A-Za-z0-9_-]{6,32})(?:[&#]|$)/)?.[1];if(!id)throw new Error('검증된 YouTube 영상 ID를 읽지 못했습니다.');return `https://www.youtube-nocookie.com/embed/${id}`;}
 export function useMeetingSession(){
  const [epoch,setEpoch]=useState(0);
- const [view,setView]=useState<WorkspaceView>('recording');
+ const recordingAction=useRef(0);const [recordingCancelled,setRecordingCancelled]=useState(false);
+ const [view,setView]=useState<WorkspaceView>('library');
+ const [libraryFilter,setLibraryFilter]=useState<'all'|'star'|'review'|'minutes'>('all');
+ const [requestedInput,setRequestedInput]=useState<'microphone'|'pc'|'youtube'|'file'>('microphone');
+ const [starredRecords,setStarredRecords]=useState<readonly string[]>([]);
+ const [paused,setPaused]=useState(false);const [pausePending,setPausePending]=useState(false);const pauseStarted=useRef<number|null>(null);const pausedMilliseconds=useRef(0);const pauseAction=useRef(false);
+ useEffect(()=>{try{const saved:unknown=JSON.parse(window.localStorage.getItem('stream-record.starred-records')||'[]');if(Array.isArray(saved)&&saved.every((id:unknown)=>typeof id==='string'))setStarredRecords(saved);}catch(error){setNotice(`중요 표시를 읽지 못했습니다. ${messageOf(error)}`);}},[]);
+ const toggleRecordStar=(id:string)=>{const next=starredRecords.includes(id)?starredRecords.filter(value=>value!==id):[...starredRecords,id];try{window.localStorage.setItem('stream-record.starred-records',JSON.stringify(next));setStarredRecords(next);}catch(error){setError(`중요 표시 저장 실패: ${messageOf(error)}`);}};
  const [recordingKind,setRecordingKind]=useState<'microphone'|'pc'>('microphone');
  const [stopFailure,setStopFailure]=useState('');const [acknowledgeStopFailure,setAcknowledgeStopFailure]=useState(false);
  const [exitOpen,setExitOpen]=useState(false);const [exiting,setExiting]=useState(false);
  const [elapsed,setElapsed]=useState(0);const [modelStatus,setModelStatus]=useState('녹음 시작 시 동봉 모델의 무결성과 적재 상태를 확인합니다.');
  const trayStop=useRef<()=>void>(()=>{});
  const navigate=(next:WorkspaceView)=>{window.location.hash=next;setView(next);};
- useEffect(()=>{const sync=()=>{const hash=window.location.hash.slice(1);if(hash==='recording'||hash==='dictation'||hash==='youtube'||hash==='transcript'||hash==='minutes'||hash==='ai'||hash==='settings')setView(hash);};sync();window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync);},[]);
+ useEffect(()=>{const sync=()=>{const hash=window.location.hash.slice(1);if(hash==='library'||hash==='recording'||hash==='dictation'||hash==='youtube'||hash==='transcript'||hash==='minutes'||hash==='ai'||hash==='settings')setView(hash);};sync();window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync);},[]);
  const [mode,setModeState]=useState<Mode>('loading');const modeRef=useRef<Mode>('loading');
- const setMode=(v:Mode)=>{modeRef.current=v;setModeState(v);};
+ const setMode=(v:Mode)=>{if(['starting','importing','reviewing','recovering'].includes(v))setRecordingCancelled(false);modeRef.current=v;setModeState(v);};
  const [ready,setReady]=useState(false);const [title,setTitleState]=useState('새 회의');const titleRef=useRef('새 회의');
  const [videoUrl,setVideoUrlState]=useState('');const videoUrlRef=useRef('');const [videoEmbedUrl,setVideoEmbedUrl]=useState('');
  const [glossary,setGlossaryState]=useState('');const glossaryRef=useRef('');const summaryDraft=useRef<SummaryCheckpoint|null>(null);
@@ -96,9 +103,9 @@ export function useMeetingSession(){
   const next=text===row.text.trim()?(({reviewed_text:_removed,...rest})=>rest)(row):{...row,reviewed_text:text};
   setRows(rowsRef.current.map((item,i)=>i===index?next:item));await persist();
  };
- const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),epoch,mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
+ const cumulative=useLiveSummary({rows,model:models.find(item=>modelKey(item)===model),epoch,mode:recordingCancelled?'cancelling':mode,enabled:liveSummaryEnabled,checkpoint:liveSummaryDraft,onSummary:setLiveSummary,persist,notice:setNotice});
  const diarization=useDiarization({audio:audioSource,rows,rowsRef,mode,epoch,busy:mode!=='idle',setBusy:value=>setMode(value?'diarizing':'idle'),setRows,persist,report:setError});
- const correction=useTranscriptCorrection({rows,rowsRef,setRows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode,persist});
+ const correction=useTranscriptCorrection({rows,rowsRef,setRows,model:models.find(item=>modelKey(item)===model),glossary,epoch,mode:recordingCancelled?'cancelling':mode,persist});
  const applyGlossary=(value:string)=>{glossaryRef.current=value;setGlossaryState(value);dirty.current++;};
  const autoGlossary=useAutoGlossary({rows,mode,epoch,title,videoTitle:videoCapture?videoTitle:'',glossary,setGlossary:applyGlossary,notice:setNotice});
  const applySnapshot=(old:Snapshot)=>{if(old.recordingInput==='microphone'||old.recordingInput==='pc')setRecordingKind(old.recordingInput);recordingInput.current=['microphone','pc','youtube','file'].includes(old.recordingInput??'')?old.recordingInput:old.videoUrl?'youtube':undefined;durationSeconds.current=typeof old.durationSeconds==='number'&&Number.isFinite(old.durationSeconds)&&old.durationSeconds>=0?old.durationSeconds:undefined;setMinutesError(typeof old.minutesFailure==='string'?old.minutesFailure:'');setMinutesProgress('');audioElement.current?.pause();diarization.resetStatus();setError('');setEpoch(value=>value+1);setRows(readRows(old.rows));setTitle(old.title||'새 기록');setMinutes(old.minutes||'');setVideoUrl(typeof old.videoUrl==='string'?old.videoUrl:'');setLiveSummary(typeof old.liveSummary==='string'?old.liveSummary:'');liveSummaryDraft.current=readLiveSummaryCheckpoint(old.liveSummaryDraft);glossaryRef.current=typeof old.glossary==='string'?old.glossary:'';setGlossaryState(glossaryRef.current);summaryDraft.current=old.summaryDraft??null;audioPath.current=old.audioPath??'';audioSha256.current=old.audioSha256??'';recoveryDraft.current=old.recoveryDraft?.version===1?old.recoveryDraft:null;startedAt.current=old.startedAt;setAudioSource(null);setElapsed(0);setQuery('');setPage(0);setEditing(null);setFollow(true);setConsent(false);setSavedPath('');};
@@ -136,7 +143,7 @@ export function useMeetingSession(){
    await register<{warning:string}>('import-warning',v=>setNotice(v.warning));
    const appWindow=getCurrentWindow();
    const close=await appWindow.onCloseRequested(async e=>{e.preventDefault();try{await appWindow.hide();}catch(error){if(!cancelled)setNotice(`트레이로 숨기지 못했습니다: ${messageOf(error)}`);}});if(cancelled)close();else cleanups.push(close);
-   try{await recordHistory.initialize();setNotice('기록을 불러왔습니다. 왼쪽 목록에서 저장한 기록을 다시 열 수 있습니다.');}
+   try{await recordHistory.initialize();setNotice('기록을 불러왔습니다. 저장된 기록을 선택해 다시 열 수 있습니다.');}
    catch(e){setNotice(`복구 파일을 열지 못했지만 새 녹음·파일 받아쓰기는 사용할 수 있습니다: ${messageOf(e)}`);}
    await refreshDevices().catch(e=>setNotice(`입력 장치를 읽지 못했습니다. 파일 받아쓰기는 사용할 수 있습니다: ${messageOf(e)}`));
    const active=await invoke<boolean>('is_recording').catch(e=>{setNotice(`녹음 상태 확인 실패: ${messageOf(e)}`);return false;});
@@ -150,11 +157,14 @@ export function useMeetingSession(){
   // Subscriptions live for this component; their handlers use refs for current data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
- useEffect(()=>{if(mode!=='recording'||!startedAt.current)return;const tick=()=>setElapsed(Math.max(0,Math.floor((Date.now()-Date.parse(startedAt.current||''))/1000)));tick();const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[mode]);
+ const captureDuration=()=>startedAt.current?Math.max(0,Math.floor(((pauseStarted.current??Date.now())-Date.parse(startedAt.current)-pausedMilliseconds.current)/1000)):0;
+ useEffect(()=>{if(mode!=='recording'||!startedAt.current)return;const tick=()=>setElapsed(captureDuration());tick();const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[mode,paused]);
+ const togglePause=async()=>{if(modeRef.current!=='recording'||pauseAction.current)return;pauseAction.current=true;setPausePending(true);const action=recordingAction.current;try{await invoke(paused?'resume_recording':'pause_recording');if(action!==recordingAction.current||modeRef.current!=='recording')return;if(paused){pausedMilliseconds.current+=Date.now()-(pauseStarted.current??Date.now());pauseStarted.current=null;}else pauseStarted.current=Date.now();setPaused(!paused);}catch(error){if(action===recordingAction.current)setError(`일시 정지 변경 실패: ${messageOf(error)}`);}finally{pauseAction.current=false;setPausePending(false);}};
+ useEffect(()=>{if(mode==='starting'){setPaused(false);pauseStarted.current=null;pausedMilliseconds.current=0;}},[mode]);
  useEffect(()=>{if(mode!=='importing')return;const tick=()=>{if(importStarted.current!==null)setImportElapsed(Math.max(0,(Date.now()-importStarted.current)/1000));};const timer=window.setInterval(tick,1000);return()=>window.clearInterval(timer);},[mode]);
  const start=async(inputName:string,successNotice:string,deviceType:AudioInput['device_type']='Input')=>{
   if(modeRef.current!=='idle'||!ready||!consent||!inputName)return;
-  setMode('starting');setVideoCapture(false);setError('');setNotice('입력 장치와 한국어 모델 확인 중');
+  recordingAction.current++;setRecordingCancelled(false);setMode('starting');setVideoCapture(false);setError('');setNotice('입력 장치와 한국어 모델 확인 중');
   try{await whisperConfig();await archive();recordingInput.current=recordingKind;setTitle(suggestedRecordTitle(titleRef.current,recordingKind,new Date()));await persist();await invoke('ko_start_recording',{micName:deviceType==='Input'?inputName:null,systemName:deviceType==='Output'?inputName:null,title:titleRef.current});startedAt.current=new Date().toISOString();setElapsed(0);setMode('recording');setNotice(successNotice);await persist();}
   catch(e){setError(messageOf(e));setMode(await recordingMode('idle'));}
  };
@@ -163,16 +173,28 @@ export function useMeetingSession(){
  const startVideo=async()=>{
   const source=selectedSystemDevice(devices,systemDevice);
   if(modeRef.current!=='idle'||!ready||!consent||!source||!videoUrlRef.current.trim())return;
-  setMode('starting');setVideoCapture(true);setError('');setNotice('영상 링크와 한국어 모델 확인 중');
+  recordingAction.current++;setRecordingCancelled(false);setMode('starting');setVideoCapture(true);setError('');setNotice('영상 링크와 한국어 모델 확인 중');
   let recordingStarted=false;
   try{await whisperConfig();await validateVideo();const resolvedVideoTitle=await loadVideoTitle(videoUrlRef.current);await archive();recordingInput.current='youtube';setTitle(suggestedRecordTitle(titleRef.current,'youtube',new Date(),resolvedVideoTitle));await persist();await invoke('ko_start_recording',{micName:source.device_type==='Input'?source.name:null,systemName:source.device_type==='Output'?source.name:null,title:titleRef.current});startedAt.current=new Date().toISOString();setElapsed(0);recordingStarted=true;setMode('recording');setNotice('녹음 중입니다. 영상에서 재생을 누르세요. 선택한 스피커·헤드폰으로 재생되는 소리를 받아씁니다.');await persist();}
   catch(e){const rollback=recordingStarted?await invoke('ko_stop_recording').then(()=>'',x=>` 녹음 정리 실패: ${messageOf(x)}`):'';setError(messageOf(e)+rollback);setMode(await recordingMode('idle'));}
  };
  const stop=async()=>{
   if(modeRef.current!=='recording')return false;setMode('stopping');setError('');setStopFailure('');setAcknowledgeStopFailure(false);let videoNote='';
-  const capturedSeconds=startedAt.current?Math.max(0,Math.floor((Date.now()-Date.parse(startedAt.current))/1000)):undefined;
-  try{await invoke('ko_stop_recording');durationSeconds.current=capturedSeconds;await persist();if(rowsRef.current.length)await exportFile('transcript');setNotice('녹음 종료. 원문을 확인한 뒤 회의록·요약본을 생성하세요.'+videoNote);setMode('idle');return true;}
-  catch(e){const failure=`녹음 중지 또는 저장을 완료하지 못했습니다. ${messageOf(e)}`;setStopFailure(failure);setError(failure);setMode(await recordingMode('recording'));try{await persist();}catch(snapshotError){setError(`${failure} 복구 저장도 실패했습니다: ${messageOf(snapshotError)}`);}return false;}
+  const action=++recordingAction.current;
+  const capturedSeconds=startedAt.current?captureDuration():undefined;
+  try{await invoke('ko_stop_recording');if(action!==recordingAction.current)return false;durationSeconds.current=capturedSeconds;await persist();if(action!==recordingAction.current)return false;if(rowsRef.current.length)await exportFile('transcript');if(action!==recordingAction.current)return false;setNotice('녹음 종료. 원문을 확인한 뒤 회의록·요약본을 생성하세요.'+videoNote);setMode('idle');return true;}
+  catch(e){if(action!==recordingAction.current)return false;const failure=`녹음 중지 또는 저장을 완료하지 못했습니다. ${messageOf(e)}`;setStopFailure(failure);setError(failure);const next=await recordingMode('recording');if(action!==recordingAction.current)return false;setMode(next);try{await persist();}catch(snapshotError){if(action===recordingAction.current)setError(`${failure} 복구 저장도 실패했습니다: ${messageOf(snapshotError)}`);}return false;}
+ };
+ const cancelRecording=async(exitAfter=false)=>{
+  if(modeRef.current!=='recording'&&modeRef.current!=='stopping')return;
+  let captureCancelled=false;
+  recordingAction.current++;setRecordingCancelled(true);setEpoch(value=>value+1);setMode('cancelling');setError('');setNotice('녹음과 남은 처리를 취소하고 있습니다.');
+  try{
+   await invoke('ko_cancel_recording');captureCancelled=true;durationSeconds.current=captureDuration();setPaused(false);setStopFailure('');setAcknowledgeStopFailure(false);
+   await persist();setMode('idle');
+   setNotice('녹음과 남은 처리를 취소했습니다. 이미 저장한 음성과 받아쓰기는 유지합니다.');
+   if(exitAfter)await invoke('ko_exit_app');
+  }catch(reason){setError(`녹음 취소 또는 종료를 완료하지 못했습니다. ${messageOf(reason)}`);setMode(captureCancelled?'idle':'stopping');}
  };
  useEffect(()=>{trayStop.current=()=>{void stop();};});
  const importAudio=async()=>{
@@ -238,10 +260,10 @@ export function useMeetingSession(){
   }catch(e){setError(`종료하지 않았습니다. ${messageOf(e)}`);}finally{setExiting(false);}
  };
  return {records:recordHistory.records,activeRecordId:recordHistory.activeRecordId,recordsLoading:recordHistory.recordsLoading,historyError:recordHistory.historyError,recordSwitchBlocked:recordHistory.recordSwitchBlocked,recordSwitchBlockedReason:recordHistory.recordSwitchBlockedReason,readerSessionKey:recordHistory.activeRecordId,refreshRecords:recordHistory.refreshRecords,newRecord:async()=>{await recordHistory.newRecord();navigate('recording');setNotice('새 기록을 준비했습니다. 입력과 동의를 확인한 뒤 시작하세요.');},openRecord:async(id:string)=>{await recordHistory.openRecord(id);navigate('dictation');setNotice('저장된 기록을 열었습니다. 원음은 다시 연결해 확인할 수 있습니다.');},applyQueueRecovery,setRecoveryBusy:(busy:boolean)=>setMode(busy?'recovering':'idle'),diarization,correction,mode,busy:mode!=='idle',ready,title,setTitle,videoUrl,setVideoUrl,videoEmbedUrl,glossary,setGlossary:applyGlossary,autoGlossary,
-  recordingKind,setRecordingKind,recordingInput:recordingInput.current,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
+  libraryFilter,setLibraryFilter,requestedInput,setRequestedInput,starredRecords,toggleRecordStar,paused,pausePending,togglePause,recordingKind,setRecordingKind,recordingInput:recordingInput.current,devices,microphone,setMicrophone,systemDevice,setSystemDevice,rows,setRows,minutes,setMinutes,models,model,setModel:(value:string)=>{setModel(value);try{window.localStorage.setItem('stream-record.summary-model',value);}catch{}},
   liveSummary,liveSummaryEnabled,setLiveSummaryEnabled,liveSummaryStatus:cumulative.status,liveSummaryRunning:cumulative.running,liveSummaryHistory:liveSummaryDraft.current?.history??[],
   error,setError,notice,setNotice,minutesError,minutesProgress,minutesTiming,savedPath,saving,progress,importProgress,importElapsed,importStarted:importStarted.current!==null,consent,setConsent,follow,setFollow,query,setQuery,page,setPage,editing,setEditing,audioSource,audioElement,playbackEnd,modeRef,playbackIndex,audioPlaying,setAudioPlaying,resumePlayback,pausePlayback,stopPlayback,
-  saveReview,refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
+  saveReview,refreshDevices,refreshStereoMix,enableStereoMix,stereoMix,stereoMixBusy,refreshModels,start,prepareVideo,startVideo,stop,cancelRecording,importAudio,summarize,prepareAudio,playRow,recover,persist,save,cancelSummary,cancelRecovery,view,navigate,exitOpen,setExitOpen,exiting,confirmExit,
   stopFailure,acknowledgeStopFailure,setAcknowledgeStopFailure,elapsed,hasRecordingStart:Boolean(startedAt.current),modelStatus,modelKey,modeLabel:labels[mode],messageOf,
  };
 }

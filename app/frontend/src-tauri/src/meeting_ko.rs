@@ -17,6 +17,17 @@ use std::{io::Write, sync::atomic::{AtomicBool, Ordering}, time::{Duration, Syst
 use tauri::{AppHandle, Manager, Runtime};
 
 static GENERATING: AtomicBool = AtomicBool::new(false);
+static RECORDING_GENERATING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static RECORDING_GENERATION_FINISHED: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+struct RecordingGenerationGuard;
+impl Drop for RecordingGenerationGuard {
+    fn drop(&mut self) {
+        if RECORDING_GENERATING.fetch_sub(1, Ordering::SeqCst) == 1 {
+            RECORDING_GENERATION_FINISHED.notify_waiters();
+        }
+    }
+}
 static RECORDING_TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static EXITING: AtomicBool = AtomicBool::new(false);
 const DEFAULT_PROXY_BASE: &str = "http://127.0.0.1:10100/v1";
@@ -197,6 +208,19 @@ pub async fn ko_stop_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), Stri
     };
     let result = crate::stop_recording(app, args).await;
     result
+}
+
+#[tauri::command]
+pub async fn ko_cancel_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let generation_finished = RECORDING_GENERATION_FINISHED.notified();
+    tokio::pin!(generation_finished);
+    generation_finished.as_mut().enable();
+    // Signal before taking the transition lock: stop owns it while draining/saving.
+    crate::audio::recording_cancellation::current().cancel();
+    let _transition = RECORDING_TRANSITION.lock().await;
+    crate::audio::recording_commands::cancel_recording(&app).await?;
+    if RECORDING_GENERATING.load(Ordering::SeqCst) != 0 { generation_finished.await; }
+    Ok(())
 }
 
 #[tauri::command]
@@ -502,7 +526,24 @@ pub async fn ko_generate(
     stage: String,
     provider: String,
 ) -> Result<String, String> {
-    generation::generate(&app, model, text, stage, provider, revision).await
+    let live = matches!(stage.as_str(), "notes" | "correction")
+        && crate::audio::recording_commands::is_recording().await;
+    let builtin = provider == "builtin";
+    let work = generation::generate(&app, model, text, stage, provider, revision);
+    if live {
+        let cancellation = crate::audio::recording_cancellation::current();
+        RECORDING_GENERATING.fetch_add(1, Ordering::SeqCst);
+        let _guard = RecordingGenerationGuard;
+        match crate::audio::recording_cancellation::run(&cancellation, work).await {
+            Some(result) => result,
+            None => {
+                if builtin { self::builtin::cancel().await?; }
+                Err("녹음 취소로 AI 처리를 중단했습니다.".to_owned())
+            }
+        }
+    } else {
+        work.await
+    }
 }
 #[tauri::command]
 pub async fn ko_export<R: Runtime>(

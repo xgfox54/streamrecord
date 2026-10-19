@@ -15,12 +15,12 @@ pub struct AudioInput {
     pub device: Arc<AudioDevice>,
 }
 
-pub fn encode_single_audio(
+fn single_audio_command(
     data: &[u8],
     sample_rate: u32,
     channels: u16,
     output_path: &PathBuf,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Command> {
     debug!(
         "Starting FFmpeg process for {} bytes of audio data",
         data.len()
@@ -71,6 +71,39 @@ pub fn encode_single_audio(
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
+    Ok(command)
+}
+
+pub async fn encode_single_audio_async(
+    data: &[u8],
+    sample_rate: u32,
+    channels: u16,
+    output_path: &PathBuf,
+) -> anyhow::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    let command = single_audio_command(data, sample_rate, channels, output_path)?;
+    let mut command = tokio::process::Command::from(command);
+    let mut child = command.kill_on_drop(true).spawn()?;
+    let mut input = child.stdin.take().ok_or_else(|| anyhow::anyhow!("Missing audio encoder input"))?;
+    let write = async move {
+        input.write_all(data).await?;
+        drop(input);
+        Ok::<_, std::io::Error>(())
+    };
+    let (_, output) = tokio::try_join!(write, child.wait_with_output())?;
+    if !output.status.success() {
+        return Err(anyhow::anyhow!("Audio encode failed: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+    Ok(())
+}
+
+pub fn encode_single_audio(
+    data: &[u8],
+    sample_rate: u32,
+    channels: u16,
+    output_path: &PathBuf,
+) -> anyhow::Result<()> {
+    let mut command = single_audio_command(data, sample_rate, channels, output_path)?;
     debug!("FFmpeg command: {:?}", command);
 
     #[allow(clippy::zombie_processes)]

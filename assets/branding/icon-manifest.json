@@ -1,5 +1,5 @@
 {
-  "source_sha256": "ad509a00e923e6a69fbbc7c26e1a08be77e72ae6fb45ab138f05a6193ba75f84",
+  "source_sha256": "87915df7a7776cc5504509cd213bb2078dc9657abe19026c15d91c00dc74e7d6",
   "source_size": [
     192,
     192
@@ -29,163 +29,163 @@
   "files": [
     {
       "path": "assets/branding/streamrecord-icon-source.png",
-      "bytes": 204800,
-      "sha256": "ad509a00e923e6a69fbbc7c26e1a08be77e72ae6fb45ab138f05a6193ba75f84"
+      "bytes": 2055,
+      "sha256": "87915df7a7776cc5504509cd213bb2078dc9657abe19026c15d91c00dc74e7d6"
     },
     {
       "path": "app/frontend/src-tauri/icons/32x32.png",
-      "bytes": 2629,
-      "sha256": "8d597291fe12b98d869481477b7614c843b9b4f40d0d36b03138880b9c4fdc48"
+      "bytes": 812,
+      "sha256": "ed30a47e35633cf71d6fdc366e4cbbae314d9fcf99f5a6e1f5782696a240ae2a"
     },
     {
       "path": "app/frontend/src-tauri/icons/128x128.png",
-      "bytes": 24378,
-      "sha256": "75fb6e295a07140ba2852672dce3ff5b804dc0a88c5d3da724b01670f3e95385"
+      "bytes": 3063,
+      "sha256": "7a435a488c25e25798bd75a545a0caa67877da2bdbaa8661c823f3a45cb826a1"
     },
     {
       "path": "app/frontend/src-tauri/icons/128x128@2x.png",
-      "bytes": 71412,
-      "sha256": "769e76ed3f85df18efd902ba6e91043d992bd2b32dd115de6b198fac223e29ac"
+      "bytes": 7271,
+      "sha256": "b0a4e744fb4fbcc5c367c17615ae2acf93e7e0d0926821c8576fe42c73b78903"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon.png",
-      "bytes": 473064,
-      "sha256": "79b3cb8e8ab3798e402d77b2265c1016ba4cf1e962cd2edd9542c67b7010deda"
+      "bytes": 66864,
+      "sha256": "657961cac8249390f33de9c1d0db3646a870c18cf7b34e36c51bdac3abdfe8dc"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_16x16.png",
-      "bytes": 878,
-      "sha256": "f8a78c3ea4a132c8ddb9fc97ebf1fe976411967f833647d1b751ac3a3358f430"
+      "bytes": 453,
+      "sha256": "eb587041582a068d8bd92feaa711f6da34b2df5cd77693d8e30f97ffb6bc7a3e"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_16x16@2x.png",
-      "bytes": 2629,
-      "sha256": "8d597291fe12b98d869481477b7614c843b9b4f40d0d36b03138880b9c4fdc48"
+      "bytes": 812,
+      "sha256": "ed30a47e35633cf71d6fdc366e4cbbae314d9fcf99f5a6e1f5782696a240ae2a"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_32x32.png",
-      "bytes": 2629,
-      "sha256": "8d597291fe12b98d869481477b7614c843b9b4f40d0d36b03138880b9c4fdc48"
+      "bytes": 812,
+      "sha256": "ed30a47e35633cf71d6fdc366e4cbbae314d9fcf99f5a6e1f5782696a240ae2a"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_32x32@2x.png",
-      "bytes": 8044,
-      "sha256": "4401126c426168696ae16ed7dd1a467ad8667aee0ad429be5592d7756c831860"
+      "bytes": 1520,
+      "sha256": "592175d58a6b5f38ec85de47e4a660569df758d101d6c6655bc43f72e70a5ffa"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_128x128.png",
-      "bytes": 24378,
-      "sha256": "75fb6e295a07140ba2852672dce3ff5b804dc0a88c5d3da724b01670f3e95385"
+      "bytes": 3063,
+      "sha256": "7a435a488c25e25798bd75a545a0caa67877da2bdbaa8661c823f3a45cb826a1"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_128x128@2x.png",
-      "bytes": 71412,
-      "sha256": "769e76ed3f85df18efd902ba6e91043d992bd2b32dd115de6b198fac223e29ac"
+      "bytes": 7271,
+      "sha256": "b0a4e744fb4fbcc5c367c17615ae2acf93e7e0d0926821c8576fe42c73b78903"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_256x256.png",
-      "bytes": 71412,
-      "sha256": "769e76ed3f85df18efd902ba6e91043d992bd2b32dd115de6b198fac223e29ac"
+      "bytes": 7271,
+      "sha256": "b0a4e744fb4fbcc5c367c17615ae2acf93e7e0d0926821c8576fe42c73b78903"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_256x256@2x.png",
-      "bytes": 184280,
-      "sha256": "3d29921bfb87b65514de585d29ca805acb8d7132070a3c47ef5058b61e4c68e3"
+      "bytes": 21905,
+      "sha256": "8e27f96ad5ff8067955dd2cca06c75addd89be0af5dbb68f3fe1ccaa6f4da91a"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_512x512.png",
-      "bytes": 184280,
-      "sha256": "3d29921bfb87b65514de585d29ca805acb8d7132070a3c47ef5058b61e4c68e3"
+      "bytes": 21905,
+      "sha256": "8e27f96ad5ff8067955dd2cca06c75addd89be0af5dbb68f3fe1ccaa6f4da91a"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon_512x512@2x.png",
-      "bytes": 473064,
-      "sha256": "79b3cb8e8ab3798e402d77b2265c1016ba4cf1e962cd2edd9542c67b7010deda"
+      "bytes": 66864,
+      "sha256": "657961cac8249390f33de9c1d0db3646a870c18cf7b34e36c51bdac3abdfe8dc"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square30x30Logo.png",
-      "bytes": 2411,
-      "sha256": "d303d7baeee65e185f17d091aa8d6c48871343fc376d6a357ca6835fc79a00fb"
+      "bytes": 702,
+      "sha256": "414480cd465305a1fa46f2201eb5112275f3666893b11e8a2352c57dd7da0ec7"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square44x44Logo.png",
-      "bytes": 4461,
-      "sha256": "9c4bd4a59e2e87f208b3bb0bdf320687324e64d8d681bfa509ecdb0a31b2f5f7"
+      "bytes": 1035,
+      "sha256": "66ef22777c3a65c5e4dd7b835efeca67ba33ef97da849631d1f23df91bfdde31"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square71x71Logo.png",
-      "bytes": 9494,
-      "sha256": "4ebae6a745a8972abd95716a9c3b6238c3837c1595756c8a5677c4431a3957a1"
+      "bytes": 1624,
+      "sha256": "895591627924840a88c1c14bffe3e1ff1d0d163bef48857afd70925639713068"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square89x89Logo.png",
-      "bytes": 13526,
-      "sha256": "998320ebe2051214a5f66fe8358c00b3ceff95c9dd933aea603ae88f2c901017"
+      "bytes": 2051,
+      "sha256": "b65d808b26ae8a27f6fb4bd022a021e8813849fa69ffe96f3ec2004afa8aa460"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square107x107Logo.png",
-      "bytes": 18317,
-      "sha256": "0203d3defbe6891536e7f79b7011830173cecfeabfe275339b6efdc75f80d074"
+      "bytes": 2518,
+      "sha256": "d2af5f030c65f11fb0a0fc10aca496b40af41012b85361246c0c09675208d683"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square142x142Logo.png",
-      "bytes": 29045,
-      "sha256": "4fcaef22bfa6e5d1283fda168ce471ef3fafba0f1b9f1ca1b784985e397adf68"
+      "bytes": 3408,
+      "sha256": "45f9b30b416b81b76baa8d840b03886d440592aaa4b674bb3ad88a2a2fffd92d"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square150x150Logo.png",
-      "bytes": 31705,
-      "sha256": "9954e7a182d80a4328f934d0efe4d6b8b70e433c81ec953c42f9269cbbc54992"
+      "bytes": 3453,
+      "sha256": "1e28981a816f84807b6e8db733d31cef711fb2c7908a85d270dfe87e8366aa28"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square284x284Logo.png",
-      "bytes": 82729,
-      "sha256": "8577eaab3659ad38f0aad0f80b9bdb8f7fe0a463d13307b29a1fa31ef859d034"
+      "bytes": 8416,
+      "sha256": "17ae269b90ab546378e4df5da0a460f353e409d0f0e085ea9bc0163503981763"
     },
     {
       "path": "app/frontend/src-tauri/icons/Square310x310Logo.png",
-      "bytes": 93296,
-      "sha256": "a70bc28a98c1be4d1d8e499566ea6f55b4df4e5d3ff3e8e7463cdf7e90a5f797"
+      "bytes": 9781,
+      "sha256": "f4f8d4aaa570edd9e9d13fd0812e31b61c25f88e006076b4e2c3d457af7ccb30"
     },
     {
       "path": "app/frontend/src-tauri/icons/StoreLogo.png",
-      "bytes": 5431,
-      "sha256": "ec564cbb18b25e0f88bebdf7a13b4aacb235afe80c7aecad5864bc0ccddefb43"
+      "bytes": 1165,
+      "sha256": "8126a82039e73c8e11692f75b7261dc6a1e4f0cc74b7f610b0c430cbb4b1a0a1"
     },
     {
       "path": "app/frontend/public/streamrecord-icon.png",
-      "bytes": 43578,
-      "sha256": "0aba482d547a1f9e9a74e7d7352b9d7d1f9831b4d4845cbf694d20c7389791d3"
+      "bytes": 2144,
+      "sha256": "e5e17adc87d710d6d1e9eb090ec7ba7a5389ae66a395382c5c3cacfa9dc266da"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon.ico",
-      "bytes": 124936,
-      "sha256": "53224a283a129534091414a2ba7f3acd69f5db8f266383736e46734e4cee9c71"
+      "bytes": 17115,
+      "sha256": "9d215ff3920011ad49f6a604b64a8677a562c14bf48858ad4e88a863b2ddb641"
     },
     {
       "path": "app/frontend/src-tauri/icons/app_icon.ico",
-      "bytes": 124936,
-      "sha256": "53224a283a129534091414a2ba7f3acd69f5db8f266383736e46734e4cee9c71"
+      "bytes": 17115,
+      "sha256": "9d215ff3920011ad49f6a604b64a8677a562c14bf48858ad4e88a863b2ddb641"
     },
     {
       "path": "app/frontend/src/app/favicon.ico",
-      "bytes": 124936,
-      "sha256": "53224a283a129534091414a2ba7f3acd69f5db8f266383736e46734e4cee9c71"
+      "bytes": 17115,
+      "sha256": "9d215ff3920011ad49f6a604b64a8677a562c14bf48858ad4e88a863b2ddb641"
     },
     {
       "path": "app/frontend/src-tauri/icons/icon.icns",
-      "bytes": 1104213,
-      "sha256": "5cc5f6fa9a36a18651174c087a6a929a63c929c57aa9ba536008414cd3dbe86d"
+      "bytes": 140641,
+      "sha256": "4372daf940a56f77211f20a4f1baae351a1938d06605ac78d57559b27b50e825"
     },
     {
       "path": "app/frontend/src-tauri/icons/app_icon.icns",
-      "bytes": 1104213,
-      "sha256": "5cc5f6fa9a36a18651174c087a6a929a63c929c57aa9ba536008414cd3dbe86d"
+      "bytes": 140641,
+      "sha256": "4372daf940a56f77211f20a4f1baae351a1938d06605ac78d57559b27b50e825"
     },
     {
       "path": "assets/branding/icon-contact-sheet.png",
-      "bytes": 62073,
-      "sha256": "eeeff24f7737236acb0e7bdc06c4d5bb426c78405a279d15de22fdc7c6232a1d"
+      "bytes": 12330,
+      "sha256": "1bfdafd5db6b5be64686c906adae6cf7ce353873281f13a8b3c0cfa75c94379c"
     }
   ]
 }

@@ -8,6 +8,7 @@ import type {MeetingSession} from './useMeetingSession';
 import {GlossaryPicker} from './GlossaryPicker';
 import {StereoMixPanel} from './StereoMixPanel';
 import {Spinner} from './TranscriptActivity';
+import {CancelRecordingButton} from './CancelRecordingButton';
 import styles from '../meeting-ko/workspace.module.css';
 import layout from './record-controls.module.css';
 export type RecordInput='microphone'|'pc'|'youtube'|'file';
@@ -32,6 +33,7 @@ export function CaptureActions({session:s,input,compact=false,onPrepare}:{readon
   {!compact&&<p id={input+'-record-start-help'} className={styles.hint}>{s.mode==='recording'?'녹음 중 · 끝내려면 중지 및 저장을 누르세요.':reason||(input==='file'?'파일을 선택하면 이 PC에서 받아쓰기를 시작합니다.':input==='youtube'?'녹음 시작 → 영상 재생 → 중지 및 저장':'녹음 시작을 누르면 아래에 받아쓰기가 표시됩니다.')}</p>}
   <div className={layout.capture}>{s.hasRecordingStart&&<span className={layout.timer} aria-label="녹음 시간">{Math.floor(s.elapsed/60).toString().padStart(2,'0')}:{Math.floor(s.elapsed%60).toString().padStart(2,'0')}</span>}
    {s.mode==='recording'?<button className={styles.primary} onClick={()=>void s.stop()}><Square size={18} aria-hidden="true"/>중지 및 저장</button>:<button className={styles.primary} disabled={!s.ready||s.busy} aria-describedby={compact?undefined:input+'-record-start-help'} onClick={start}>{s.mode==='starting'||s.mode==='stopping'?<Spinner/>:input==='file'?<Upload size={18} aria-hidden="true"/>:<Mic size={18} aria-hidden="true"/>}{s.mode==='starting'?'모델 준비 중…':s.mode==='stopping'?'마지막 문장 저장 중…':input==='file'?'음성 파일 선택':input==='pc'?'PC 소리 녹음 시작':input==='youtube'?'영상 소리 녹음 시작':'마이크 녹음 시작'}</button>}
+   <CancelRecordingButton session={s}/>
   </div>
  </div>;
 }

@@ -67,3 +67,7 @@ pub(super) async fn release() -> Result<(), String> {
         .await
         .map_err(|error| error.to_string())
 }
+
+pub(super) async fn cancel() -> Result<(), String> {
+    summary_engine::client::abort_generation().await.map_err(|error| error.to_string())
+}

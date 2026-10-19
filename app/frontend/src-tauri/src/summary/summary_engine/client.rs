@@ -326,6 +326,12 @@ pub async fn force_shutdown_sidecar() -> Result<()> {
     Ok(())
 }
 
+pub(crate) async fn abort_generation() -> Result<()> {
+    let manager = SIDECAR_MANAGER.lock().await.take();
+    if let Some(manager) = manager { manager.abort().await?; }
+    Ok(())
+}
+
 /// Check if sidecar is healthy
 pub async fn is_sidecar_healthy() -> bool {
     if let Ok(manager) = get_sidecar_manager().await {

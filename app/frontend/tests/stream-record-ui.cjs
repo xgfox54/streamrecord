@@ -167,6 +167,7 @@ if(require.main===module)(async()=>{
     await h.run(()=>h.emit('ko-exit-requested',null));assert.equal(h.session.exitOpen,true);assert.equal(h.count('window-hide'),0);assert.equal(h.count('ko_exit_app'),0);
   }));
   await test('Real RecordingView preserves idle PC choice through every task view',()=>using({},async h=>{
+    await h.run(()=>h.session.navigate('recording'));
     await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value==='pc').props.onChange());
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix');
     for (const view of ['dictation','youtube','transcript','minutes','ai','settings','recording']) await h.run(()=>h.session.navigate(view));
@@ -174,6 +175,7 @@ if(require.main===module)(async()=>{
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix'); assert.equal(h.session.mode,'idle'); assert.equal(h.count('ko_start_recording'),0);
   }));
   await test('Real RecordingView preserves active PC source after remount without restarting native capture',()=>using({},async h=>{
+    await h.run(()=>h.session.navigate('recording'));
     await h.run(()=>h.renderer.root.findAllByType('input').find(node=>node.props.type==='radio' && node.props.value==='pc').props.onChange());
     await h.run(()=>h.session.setConsent(true));
     await h.run(()=>h.renderer.root.findAllByType('button').find(node=>node.props['aria-describedby']==='start-help').props.onClick());
@@ -183,6 +185,7 @@ if(require.main===module)(async()=>{
     assert.equal(h.renderer.root.findAllByType('select').find(node=>node.props['aria-describedby']==='input-help').props.value,'Stereo Mix'); assert.equal(h.session.mode,'recording'); assert.equal(h.count('ko_start_recording'),1); assert.equal(h.count('ko_stop_recording'),0);
   }));
   await test('Recording screen types partial transcript then replaces it with the final segment',()=>using({},async h=>{
+    await h.run(()=>h.session.navigate('recording'));
     await h.start();
     await h.run(()=>h.emit('transcript-update',{sequence_id:7,text:'회의를 시작하',is_partial:true,audio_start_time:0}));
     let live = h.renderer.root.findAll(node=>node.props['data-testid']==='live-transcript')[0];

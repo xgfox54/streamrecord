@@ -57,6 +57,7 @@ pub struct DeviceInfo {
 
 /// New recording saver using incremental saving strategy
 pub struct RecordingSaver {
+    accumulation_task: Option<tokio::task::JoinHandle<()>>,
     incremental_saver: Option<Arc<AsyncMutex<IncrementalAudioSaver>>>,
     meeting_folder: Option<PathBuf>,
     meeting_name: Option<String>,
@@ -68,6 +69,7 @@ pub struct RecordingSaver {
 impl RecordingSaver {
     pub fn new() -> Self {
         Self {
+            accumulation_task: None,
             incremental_saver: None,
             meeting_folder: None,
             meeting_name: None,
@@ -197,7 +199,7 @@ impl RecordingSaver {
         let incremental_saver_arc = self.incremental_saver.clone();
         let save_audio = auto_save;
 
-        tokio::spawn(async move {
+        self.accumulation_task = Some(tokio::spawn(async move {
             info!(
                 "Recording saver accumulation task started (save_audio: {})",
                 save_audio
@@ -220,7 +222,7 @@ impl RecordingSaver {
                     // Add chunk to incremental saver
                     if let Some(saver_arc) = &incremental_saver_arc {
                         let mut saver_guard = saver_arc.lock().await;
-                        if let Err(e) = saver_guard.add_chunk(chunk) {
+                        if let Err(e) = saver_guard.add_chunk(chunk).await {
                             error!("Failed to add chunk to incremental saver: {}", e);
                         }
                     } else {
@@ -233,7 +235,7 @@ impl RecordingSaver {
             }
 
             info!("Recording saver accumulation task ended");
-        });
+        }));
 
         // Set saving flag
         if let Ok(mut is_saving) = self.is_saving.lock() {
@@ -536,6 +538,12 @@ impl RecordingSaver {
     }
 }
 
+impl Drop for RecordingSaver {
+    fn drop(&mut self) {
+        if let Some(task) = &self.accumulation_task { task.abort(); }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -571,7 +579,7 @@ mod tests {
                 timestamp: 0.0,
                 chunk_id: 0,
                 device_type: super::super::recording_state::DeviceType::Microphone,
-            }).unwrap();
+            }).await.unwrap();
             let mut saver = RecordingSaver::new();
             saver.meeting_folder = Some(folder.clone());
             saver.incremental_saver = Some(Arc::new(AsyncMutex::new(audio)));

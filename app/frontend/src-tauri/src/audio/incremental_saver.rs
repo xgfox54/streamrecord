@@ -1,4 +1,3 @@
-use super::encode::encode_single_audio;
 use super::recording_state::AudioChunk;
 use anyhow::{anyhow, Result};
 use log::{error, info, warn};
@@ -70,7 +69,7 @@ impl IncrementalAudioSaver {
 
     /// Add an audio chunk to the buffer
     /// Automatically saves a checkpoint when buffer reaches 30 seconds
-    pub fn add_chunk(&mut self, chunk: AudioChunk) -> Result<()> {
+    pub async fn add_chunk(&mut self, chunk: AudioChunk) -> Result<()> {
         let audio_data = AudioData {
             data: chunk.data,
             // sample_rate: chunk.sample_rate,
@@ -83,7 +82,7 @@ impl IncrementalAudioSaver {
 
         // Save checkpoint when buffer reaches threshold (30 seconds)
         if total_samples >= self.checkpoint_interval_samples {
-            self.save_checkpoint()?;
+            self.save_checkpoint().await?;
             self.checkpoint_buffer.clear();
         }
 
@@ -91,7 +90,7 @@ impl IncrementalAudioSaver {
     }
 
     /// Save current buffer as a checkpoint file
-    fn save_checkpoint(&mut self) -> Result<()> {
+    async fn save_checkpoint(&mut self) -> Result<()> {
         // Concatenate all chunks in buffer
         let audio_data: Vec<f32> = self
             .checkpoint_buffer
@@ -119,12 +118,12 @@ impl IncrementalAudioSaver {
         if checkpoint_path.exists() {
             return Err(anyhow!("Checkpoint path is already in use: {}", checkpoint_path.display()));
         }
-        encode_single_audio(
+        super::encode::encode_single_audio_async(
             bytemuck::cast_slice(&audio_data),
             self.sample_rate,
             1, // mono
             &pending_path,
-        )?;
+        ).await?;
 
         crate::review_paths::fs::rename(&pending_path, &checkpoint_path)?;
 
@@ -161,7 +160,7 @@ impl IncrementalAudioSaver {
                 "Saving final checkpoint with remaining {} chunks",
                 self.checkpoint_buffer.len()
             );
-            self.save_checkpoint()?;
+            self.save_checkpoint().await?;
             self.checkpoint_buffer.clear();
         }
 
@@ -194,7 +193,7 @@ impl IncrementalAudioSaver {
             .map(|i| self.checkpoints_dir.join(format!("audio_chunk_{:03}.mp4", i)))
             .collect();
         let ffmpeg = find_ffmpeg_path().ok_or_else(|| anyhow!("FFmpeg not found"))?;
-        let merged = super::checkpoint_merge::merge(&ffmpeg, &checkpoints, output, self.sample_rate)?;
+        let merged = super::checkpoint_merge::merge(&ffmpeg, &checkpoints, output, self.sample_rate).await?;
         info!("Merged {} checkpoints: {} samples at {} Hz (estimated timing: {})",
             checkpoints.len(), merged.samples, merged.sample_rate, merged.estimated_timing);
         Ok(merged)
@@ -284,7 +283,7 @@ pub async fn recover_audio_from_checkpoints(
     let ffmpeg = find_ffmpeg_path()
         .ok_or_else(|| "FFmpeg not found. Please install FFmpeg to recover audio.".to_string())?;
     let paths: Vec<_> = checkpoint_files.iter().map(|entry| entry.path()).collect();
-    match super::checkpoint_merge::merge(&ffmpeg, &paths, &output_path, _sample_rate) {
+    match super::checkpoint_merge::merge(&ffmpeg, &paths, &output_path, _sample_rate).await {
         Ok(merged) => Ok(AudioRecoveryStatus {
             status: "success".to_string(),
             chunk_count,
@@ -376,7 +375,7 @@ mod tests {
                 chunk_id: i as u64,
                 device_type: DeviceType::Microphone,
             };
-            saver.add_chunk(chunk).unwrap();
+            saver.add_chunk(chunk).await.unwrap();
         }
 
         // Verify 2 checkpoints created

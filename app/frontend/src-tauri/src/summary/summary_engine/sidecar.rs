@@ -608,6 +608,15 @@ impl SidecarManager {
         Ok(())
     }
 
+    pub(crate) async fn abort(&self) -> Result<()> {
+        self.should_shutdown.store(true, Ordering::SeqCst);
+        {
+            let child = self.child_process.lock().await.take();
+            if let Some(mut child) = child { child.kill().await?; }
+        }
+        self.shutdown().await
+    }
+
     /// Check if sidecar is healthy
     pub fn is_healthy(&self) -> bool {
         self.is_healthy.load(Ordering::SeqCst)
@@ -738,5 +747,47 @@ impl Drop for SidecarManager {
         // Note: Actual cleanup happens in shutdown() method
         // We can't do async work in Drop, so this is best-effort
         log::debug!("SidecarManager dropped");
+    }
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn abort_terminates_busy_process_and_clears_model_without_grace_period() {
+        #[cfg(windows)]
+        let mut command = {
+            let mut command = tokio::process::Command::new("powershell.exe");
+            command.args(["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 30"]);
+            command.creation_flags(0x08000000);
+            command
+        };
+        #[cfg(not(windows))]
+        let mut command = {
+            let mut command = tokio::process::Command::new("sleep");
+            command.arg("30");
+            command
+        };
+        let child = command.kill_on_drop(true).spawn().unwrap();
+        let manager = SidecarManager {
+            child_process: Arc::new(Mutex::new(Some(child))),
+            stdin_writer: Arc::new(Mutex::new(None)),
+            stdout_reader: Arc::new(Mutex::new(None)),
+            last_activity: Arc::new(RwLock::new(Instant::now())),
+            is_healthy: Arc::new(AtomicBool::new(true)),
+            should_shutdown: Arc::new(AtomicBool::new(false)),
+            active_request_count: Arc::new(AtomicUsize::new(1)),
+            helper_binary_path: PathBuf::new(),
+            current_model_path: Arc::new(RwLock::new(Some(PathBuf::from("test-model")))),
+            idle_timeout_secs: 600,
+        };
+        let started = Instant::now();
+        manager.abort().await.unwrap();
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(manager.child_process.lock().await.is_none());
+        assert!(manager.current_model_path.read().await.is_none());
+        assert!(!manager.is_healthy());
+        assert!(manager.should_shutdown.load(Ordering::SeqCst));
     }
 }

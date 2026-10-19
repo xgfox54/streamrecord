@@ -7,3 +7,5 @@
 *.mjs text eol=lf
 *.cjs text eol=lf
 *.md text eol=lf
+app/frontend/src-tauri/migrations/*.sql text eol=crlf
+app/frontend/src-tauri/migrations/20260928000000_add_versioned_transcription_runs.sql text eol=lf

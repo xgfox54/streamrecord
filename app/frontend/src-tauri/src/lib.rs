@@ -627,6 +627,7 @@ pub fn run() {
             bundled_whisper::ko_prepare_bundled_whisper,
             meeting_ko::ko_start_recording,
             meeting_ko::ko_stop_recording,
+            meeting_ko::ko_cancel_recording,
             meeting_ko::ko_exit_app,
             meeting_ko::app_update::ko_update_check,
             meeting_ko::app_update::ko_update_install,
