@@ -1,4 +1,4 @@
-<img src="assets/branding/streamrecord-mark.svg" width="64" height="64" alt="Stream Record 3색 막대 아이콘">
+![Stream Record - 영상 스트리밍 회의록 생성기 표지](assets/branding/streamrecord-cover.png)
 
 # Stream-Record v0.8.0
 
