@@ -1,8 +1,14 @@
 ![Stream Record - 영상 스트리밍 회의록 생성기 표지](assets/branding/streamrecord-cover.png)
 
-# Stream-Record v0.8.0
+# Stream-Record v0.8.1
 
 Windows x64용 한국어 녹음·받아쓰기·회의록 앱입니다. 마이크, PC에서 재생되는 소리, YouTube 영상의 소리와 저장된 음성 파일을 처리합니다. 한국어 Whisper 모델을 동봉하며, 요약과 AI 보정에 사용할 모델은 **AI 연결**에서 설정합니다.
+
+## v0.8.1 보안 업데이트
+
+- eMudhra 중간 인증기관 8곳의 개인키 노출에 대응해 HTTPS 인증서 검증 구성요소를 갱신했습니다. rustls-webpki 0.103.16, webpki-roots와 webpki-root-certs 1.0.10을 앱과 온라인 설치 프로그램의 다운로드 도우미에 적용했습니다.
+- 화면 구성요소 Next.js를 16.3.8로 갱신했습니다.
+- 화면과 기능, 기록·설정 저장 방식은 v0.8.0과 같습니다.
 
 ## v0.8.0 변경 사항
 
@@ -17,7 +23,7 @@ Windows x64용 한국어 녹음·받아쓰기·회의록 앱입니다. 마이크
 
 ## 설치와 업데이트
 
-[v0.8.0 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.8.0)에서 `Stream-Record-0.8.0-online-cpu-win10-win11-setup.exe`를 받습니다. 온라인 설치 프로그램이 GitLab에서 동봉 설치 파일을 내려받고 SHA-256을 확인한 뒤 설치합니다.
+[v0.8.1 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.8.1)에서 `Stream-Record-0.8.1-online-cpu-win10-win11-setup.exe`를 받습니다. 온라인 설치 프로그램이 GitLab에서 동봉 설치 파일을 내려받고 SHA-256을 확인한 뒤 설치합니다.
 
 파일 이름의 `online-cpu`는 기존 업데이트 경로와의 호환을 위해 유지한 이름입니다. 실제 동봉 앱은 **Vulkan GPU 지원 빌드**이며, 사용 가능한 GPU가 없거나 초기화에 실패하면 CPU로 처리합니다. CUDA Toolkit은 필요하지 않습니다. Vulkan 가속에는 지원 그래픽 드라이버가 필요합니다.
 
@@ -79,16 +85,14 @@ AI 결과는 초안입니다. 원음·최초 원문·직접 수정본·AI 보정
 
 녹음이 끝난 뒤 **화자 분석**을 실행하면 동봉 Nemotron 런타임으로 저장 음성을 분석합니다. 원문을 바꾸지 않고 시간 겹침에 따라 화자 번호를 표시합니다. 녹음 중 실시간 화자 스트리밍은 지원하지 않습니다.
 
-## v0.8.0 확인 결과
+## v0.8.1 확인 결과
 
-- 실제 Windows 실행 파일에서 마이크 녹음, 일시 정지·재개, 녹음 취소, 저장 직후 취소와 취소 후 재시작을 확인했습니다.
-- 실제 데스크탑 설치본을 0.8.0으로 교체하고 새 UI와 버전 표시를 확인했습니다. 기존 기록·설정 보존 여부도 대조했습니다.
-- UI 회귀 검사 85개와 브라우저 시나리오 6개를 통과했습니다.
-- 온라인 설치 프로그램 검사 14개, 다운로드 도우미 검사 2개와 실제 GitLab 다운로드·결합 검사를 통과했습니다.
+- 네이티브 단위 시험 377개, 기본 회귀 시험 69개, UI 회귀 시험 85개, 릴리스 도구 시험 27개와 TypeScript 검사를 통과했습니다.
+- 다운로드 도우미 시험 2개와 온라인 설치 프로그램 오프라인 검사 12개를 통과했습니다. NSIS 설치 파일의 CRC32와 SHA-256을 확인했습니다.
+- 빌드한 앱과 다운로드 도우미에 rustls-webpki 0.103.16이 포함되고 emSign ECC Root CA - G3가 신뢰 목록에서 빠진 것을 확인했습니다.
 - GitLab의 Gitleaks, Semgrep, OSV-Scanner, Trivy, Syft 검사를 모두 통과했습니다.
-- 공개 자동 업데이트 파일의 서명과 설치 파일 해시를 확인했습니다.
 
-상세 근거는 [v0.8.0 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.8.0)의 `RELEASE_VALIDATION.md`, `VERIFICATION.json`, `ONLINE_INSTALLER_VERIFICATION.json`, `SECURITY_VERIFICATION.json`, `SOURCE_MANIFEST.json`, `SHA256SUMS.txt`에서 확인합니다. Windows 10 실기기와 장시간 연속 녹음은 이번 배포에서 확인하지 않았습니다.
+상세 근거는 [v0.8.1 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.8.1)의 `RELEASE_VALIDATION.md`, `VERIFICATION.json`, `SECURITY_VERIFICATION.json`, `SOURCE_MANIFEST.json`, `SHA256SUMS.txt`에서 확인합니다. 화면과 녹음 기능은 v0.8.0과 같아 실제 마이크 녹음, 설치본 교체, Windows 10 실기기와 장시간 연속 녹음은 이번 배포에서 다시 확인하지 않았습니다. v0.8.0의 화면·녹음 확인 결과는 [v0.8.0 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.8.0)에 있습니다.
 
 ## 개발과 빌드
 
@@ -101,7 +105,7 @@ cd app/frontend
 npm run test:stream-record
 node tests/stream-record-ui.cjs
 npm run typecheck
-# v0.8.0과 같은 Vulkan 지원 Windows 빌드
+# v0.8.1과 같은 Vulkan 지원 Windows 빌드
 npm run tauri -- build --config ../../tools/tauri.gpu-release.conf.json -- --features vulkan
 ```
 
