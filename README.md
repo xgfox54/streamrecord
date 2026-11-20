@@ -1,10 +1,10 @@
 ![Stream Record - 영상 스트리밍 회의록 생성기 표지](assets/branding/streamrecord-cover.png)
 
-# Stream-Record v0.8.1
+# Stream-Record v0.8.2
 
 Windows x64용 한국어 녹음·받아쓰기·회의록 앱입니다. 마이크, PC에서 재생되는 소리, YouTube 영상의 소리와 저장된 음성 파일을 처리합니다. 한국어 Whisper 모델을 동봉하며, 요약과 AI 보정에 사용할 모델은 **AI 연결**에서 설정합니다.
 
-## GitHub 소스 업데이트
+## v0.8.2 변경 사항
 
 - **나의 기록** 목록을 열면 저장 파일에서 제목, 녹음 길이, 회의록 유무를 읽습니다. 목록 정보가 없는 이전 기록은 본문에서 해당 값을 확인합니다.
 - **받아쓰기**의 **검색 · AI 보정 · 참여자 설정**에서 **발언 전환 표현만 보기**를 선택하면 개의·산회, 발언 요청, 자기소개 표현이 있는 확정 구간을 표시합니다. 문장의 재생 버튼으로 실제 발언자를 확인합니다.
@@ -31,11 +31,9 @@ Windows x64용 한국어 녹음·받아쓰기·회의록 앱입니다. 마이크
 
 ## 설치와 업데이트
 
-[v0.8.1 릴리스](https://gitlab.aigov.go.kr/memory365/streamrecord/-/releases/v0.8.1)에서 `Stream-Record-0.8.1-online-cpu-win10-win11-setup.exe`를 받습니다. 온라인 설치 프로그램이 GitLab에서 동봉 설치 파일을 내려받고 SHA-256을 확인한 뒤 설치합니다.
+[GitHub v0.8.2 릴리스](https://github.com/xgfox54/streamrecord/releases/tag/v0.8.2)에서 `Stream-Record-0.8.2-windows-x64-setup.exe`를 내려받아 실행합니다. 한국어 받아쓰기 모델과 Vulkan 실행 파일을 설치 프로그램에 동봉했습니다. GPU를 사용할 수 없으면 CPU로 처리합니다.
 
-파일 이름의 `online-cpu`는 기존 업데이트 경로와의 호환을 위해 유지한 이름입니다. 실제 동봉 앱은 **Vulkan GPU 지원 빌드**이며, 사용 가능한 GPU가 없거나 초기화에 실패하면 CPU로 처리합니다. CUDA Toolkit은 필요하지 않습니다. Vulkan 가속에는 지원 그래픽 드라이버가 필요합니다.
-
-기존 앱에서는 업데이트 안내 버튼으로 설치합니다. 직접 설치할 때는 진행 중인 작업을 저장하거나 취소하고, **설정**의 **Stream-Record 종료**로 앱을 완전히 종료한 뒤 실행합니다. 창의 X 버튼은 앱을 트레이로 숨기는 동작입니다.
+기존 앱이 열려 있으면 녹음과 저장을 마치고 **설정**의 **Stream-Record 종료**를 누른 뒤 설치합니다. 창의 X 버튼을 누르면 앱이 트레이에 남습니다.
 
 기존 사용자 설정·녹음·모델과 앱 식별자 `local.meetily.korean.workspace`를 유지합니다. 설치 프로그램에는 Windows 코드 서명이 없습니다. WebView2 등 선행 런타임이 없는 PC는 최초 런타임 설치에 인터넷이 필요할 수 있습니다.
 

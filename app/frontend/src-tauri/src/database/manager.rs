@@ -8,6 +8,27 @@ pub struct DatabaseManager {
     pool: SqlitePool,
 }
 
+async fn migrate_database(pool: &SqlitePool) -> std::result::Result<(), sqlx::migrate::MigrateError> {
+    use sqlx::migrate::{MigrateError, Migration};
+    const TRANSCRIPTION_RUNS: i64 = 20260928000000;
+    let mut migrator = sqlx::migrate!("./migrations");
+    match migrator.run(pool).await {
+        Err(MigrateError::VersionMismatch(TRANSCRIPTION_RUNS)) => {
+            // Some Windows builds shipped the same SQL with CRLF line endings.
+            let migration = migrator.migrations.to_mut().iter_mut()
+                .find(|migration| migration.version == TRANSCRIPTION_RUNS)
+                .ok_or(MigrateError::VersionMismatch(TRANSCRIPTION_RUNS))?;
+            let windows_sql = migration.sql.replace("\r\n", "\n").replace('\n', "\r\n");
+            *migration = Migration::new(
+                migration.version, migration.description.clone(), migration.migration_type,
+                windows_sql.into(), migration.no_tx,
+            );
+            migrator.run(pool).await
+        }
+        result => result,
+    }
+}
+
 impl DatabaseManager {
     pub async fn new(tauri_db_path: &str, backend_db_path: &str) -> Result<Self> {
         crate::review_paths::guard_write(tauri_db_path).map_err(sqlx::Error::Io)?;
@@ -34,7 +55,7 @@ impl DatabaseManager {
 
         let pool = SqlitePool::connect(tauri_db_path).await?;
 
-        sqlx::migrate!("./migrations").run(&pool).await?;
+        migrate_database(&pool).await?;
 
         Ok(DatabaseManager { pool })
     }
@@ -217,6 +238,24 @@ mod tests {
     use crate::database::models::Transcript;
     use sha2::{Digest, Sha256};
     use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn accepts_released_windows_checksum_and_rejects_other_changes() {
+        let pool = SqlitePoolOptions::new().max_connections(1)
+            .connect("sqlite::memory:").await.unwrap();
+        super::migrate_database(&pool).await.unwrap();
+        let windows_hash = "3286B97E0E1BD109EF8458791B8F35F33024B943E4968D0B9A1E3D02DD5F68633594934AB0627FDC7E1B9CF1C6AC7147";
+        sqlx::query(&format!("UPDATE _sqlx_migrations SET checksum = X'{windows_hash}' WHERE version = 20260928000000"))
+            .execute(&pool).await.unwrap();
+        super::migrate_database(&pool).await.unwrap();
+        let stored: String = sqlx::query_scalar("SELECT hex(checksum) FROM _sqlx_migrations WHERE version = 20260928000000")
+            .fetch_one(&pool).await.unwrap();
+        assert_eq!(stored, windows_hash);
+        sqlx::query("UPDATE _sqlx_migrations SET checksum = zeroblob(48) WHERE version = 20260928000000")
+            .execute(&pool).await.unwrap();
+        assert!(matches!(super::migrate_database(&pool).await,
+            Err(sqlx::migrate::MigrateError::VersionMismatch(20260928000000))));
+    }
 
     #[test]
     fn stream_record_historical_migration_bytes_remain_compatible_with_v0_4_1() {
