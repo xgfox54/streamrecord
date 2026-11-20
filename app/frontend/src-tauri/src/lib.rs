@@ -663,6 +663,8 @@ pub fn run() {
             meeting_ko::ko_export,
             meeting_ko::ko_save_snapshot,
             meeting_ko::ko_load_snapshot,
+            meeting_ko::input_meter::ko_recording_peak,
+            meeting_ko::input_meter::ko_check_input_level,
             meeting_ko::ko_list_records,
             meeting_ko::ko_load_record,
             review_audio::ko_open_review_audio,

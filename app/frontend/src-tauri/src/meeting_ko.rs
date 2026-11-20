@@ -10,6 +10,7 @@ mod builtin;
 mod model_catalog;
 mod record_history;
 mod recording_source;
+pub(crate) mod input_meter;
 
 use serde_json::{json, Value};
 use crate::review_paths::fs::OpenOptions;
@@ -161,6 +162,7 @@ pub async fn ko_start_recording<R: Runtime>(
         return Err("영어 전용 .en 모델은 한국어 받아쓰기에 사용할 수 없습니다.".into());
     }
     let devices = crate::get_audio_devices().await?;
+    input_meter::ko_recording_peak();
     let (mic, system) = recording_source::capture_devices(&devices, mic_name.as_deref(), system_name.as_deref())?;
     crate::set_language_preference("ko".to_string()).await?;
     let clean_title: String = title

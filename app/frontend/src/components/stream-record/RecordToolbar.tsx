@@ -8,6 +8,7 @@ import type {MeetingSession} from './useMeetingSession';
 import {GlossaryPicker} from './GlossaryPicker';
 import {StereoMixPanel} from './StereoMixPanel';
 import {Spinner} from './TranscriptActivity';
+import {InputCheck} from './InputLevel';
 import {CancelRecordingButton} from './CancelRecordingButton';
 import styles from '../meeting-ko/workspace.module.css';
 import layout from './record-controls.module.css';
@@ -30,9 +31,9 @@ export function CaptureActions({session:s,input,compact=false,onPrepare}:{readon
   else if(device)void s.start(device.name,input==='pc'?'PC 소리 녹음 중입니다. 선택한 스피커·헤드폰의 소리를 받아씁니다.':'마이크 녹음 중입니다. 아래 받아쓰기에서 내용을 확인하세요.',device.device_type);
  };
  return <div className={layout.captureArea}>
-  {!compact&&<p id={input+'-record-start-help'} className={styles.hint}>{s.mode==='recording'?'녹음 중 · 끝내려면 중지 및 저장을 누르세요.':reason||(input==='file'?'파일을 선택하면 이 PC에서 받아쓰기를 시작합니다.':input==='youtube'?'녹음 시작 → 영상 재생 → 중지 및 저장':'녹음 시작을 누르면 아래에 받아쓰기가 표시됩니다.')}</p>}
+  {!compact&&<p id={input+'-record-start-help'} className={styles.hint}>{s.mode==='recording'?'녹음 중 · 끝내려면 녹음 끝내고 저장을 누르세요.':reason||(input==='file'?'파일을 선택하면 이 PC에서 받아쓰기를 시작합니다.':input==='youtube'?'녹음 시작 → 영상 재생 → 녹음 끝내고 저장':'녹음 시작을 누르면 아래에 받아쓰기가 표시됩니다.')}</p>}
   <div className={layout.capture}>{s.hasRecordingStart&&<span className={layout.timer} aria-label="녹음 시간">{Math.floor(s.elapsed/60).toString().padStart(2,'0')}:{Math.floor(s.elapsed%60).toString().padStart(2,'0')}</span>}
-   {s.mode==='recording'?<button className={styles.primary} onClick={()=>void s.stop()}><Square size={18} aria-hidden="true"/>중지 및 저장</button>:<button className={styles.primary} disabled={!s.ready||s.busy} aria-describedby={compact?undefined:input+'-record-start-help'} onClick={start}>{s.mode==='starting'||s.mode==='stopping'?<Spinner/>:input==='file'?<Upload size={18} aria-hidden="true"/>:<Mic size={18} aria-hidden="true"/>}{s.mode==='starting'?'모델 준비 중…':s.mode==='stopping'?'마지막 문장 저장 중…':input==='file'?'음성 파일 선택':input==='pc'?'PC 소리 녹음 시작':input==='youtube'?'영상 소리 녹음 시작':'마이크 녹음 시작'}</button>}
+   {s.mode==='recording'?<button className={styles.primary} onClick={()=>void s.stop()}><Square size={18} aria-hidden="true"/>녹음 끝내고 저장</button>:<button className={styles.primary} disabled={!s.ready||s.busy} aria-describedby={compact?undefined:input+'-record-start-help'} onClick={start}>{s.mode==='starting'||s.mode==='stopping'?<Spinner/>:input==='file'?<Upload size={18} aria-hidden="true"/>:<Mic size={18} aria-hidden="true"/>}{s.mode==='starting'?'모델 준비 중…':s.mode==='stopping'?'마지막 문장 저장 중…':input==='file'?'음성 파일 선택':input==='pc'?'PC 소리 녹음 시작':input==='youtube'?'영상 소리 녹음 시작':'마이크 녹음 시작'}</button>}
    <CancelRecordingButton session={s}/>
   </div>
  </div>;
@@ -51,6 +52,7 @@ export function RecordToolbar({session:s,input,onInputChange,compact=false,onPre
    {input!=='file'&&<label className={layout.device}>녹음할 {input==='microphone'?'마이크':'스피커·헤드폰'}<select id="record-device" value={selected} disabled={s.busy} onChange={event=>input==='microphone'?s.setMicrophone(event.target.value):s.setSystemDevice(event.target.value)}><option value="">소리 장치를 선택하세요</option>{(input==='microphone'?microphones:systems).map(device=><option key={deviceKey(device)} value={input==='microphone'?device.name:deviceKey(device)}>{device.name}</option>)}</select></label>}
    <label className={styles.check+' '+layout.permission}><input id="record-consent" type="checkbox" checked={s.consent} disabled={s.busy} onChange={event=>s.setConsent(event.target.checked)}/><span>녹음·처리 권한을 확인했습니다.<small>회의는 참여자에게 알리고, 영상·파일은 이용 권한을 확인해 주세요.</small></span></label>
   </div>
+  {!compact&&input!=='file'&&s.mode==='idle'&&device&&<InputCheck key={deviceKey(device)} source={device}/>}
   {(input==='pc'||input==='youtube')&&<p className={styles.hint}>선택한 장치에서 재생되는 다른 영상·알림 소리도 함께 녹음됩니다.</p>}
   {(input==='pc'||input==='youtube')&&<StereoMixPanel session={s}/>}
   <div className={layout.optionsRow}><button className={layout.optionsButton} aria-expanded={optionsOpen} aria-controls="record-options" onClick={()=>setOptionsOpen(value=>!value)}><Settings2 size={18} aria-hidden="true"/>참고 용어·장치 도움말</button><button disabled={s.busy} onClick={()=>void s.refreshDevices().catch(error=>s.setError(s.messageOf(error)))}>소리 장치 새로고침</button></div>

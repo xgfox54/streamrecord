@@ -74,3 +74,17 @@
 @media(forced-colors:active) { .paper,.recordingStage { box-shadow:none; }.recordStatus,.recordGlyph,.theme .primary,.theme .navLink { color:CanvasText; }.wave i { background:CanvasText; }.theme button[aria-pressed=true],.theme .navLink[aria-current=page] { outline:2px solid Highlight; } }
 
 @media(max-width:759px) { .theme .sidebar>button,.sidebarNav,.theme .navLink { flex-shrink:0; }.theme .sidebarNav { gap:8px; }.theme .tabs nav { flex-wrap:wrap; gap:4px; }.theme .tabs a,.theme .tabs nav button { white-space:nowrap; padding:8px 10px; gap:6px; font-size:.875rem; }.theme .tabs svg { flex-shrink:0; } }
+
+.searchHits { margin:0 1rem 1rem; }
+.searchHits summary { cursor:pointer; }
+.searchHits ul { list-style:none; padding:0; }
+.searchHits button { text-align:start; overflow-wrap:anywhere; }
+
+.theme label.levelReading { display:inline-flex; align-items:center; flex-direction:row; gap:0.5rem; }
+.levelReading meter { width:clamp(5rem,16vw,12rem); }
+.recordingStage .levelReading { margin-block:0.75rem 1.25rem; }
+.theme .searchTools { padding:0.75rem clamp(1rem,2vw,2rem); display:flex; align-items:center; flex-wrap:wrap; gap:0.75rem 1rem; }
+@media (min-width:760px) and (max-width:1000px) {
+  .theme .header { flex-wrap:wrap; gap:0.5rem 1rem; }
+  .theme .header > :first-child { flex-basis:100%; }
+}

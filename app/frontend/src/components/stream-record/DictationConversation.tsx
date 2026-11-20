@@ -38,10 +38,19 @@ export function DictationConversation({session:s,compact=false,video=false,compa
  });
  useEffect(()=>{if(s.follow&&!query&&!speakerCuesOnly&&scroll.current)scroll.current.scrollTop=scroll.current.scrollHeight;},[s.rows,s.follow,query,speakerCuesOnly,corrected,s.mode]);
  const preparing=s.mode==='starting';const live=s.mode==='recording'||s.mode==='stopping';
- const searchField=<label className={layout.search}>대화 내용 검색<input type="search" placeholder="전체 대화에서 찾기" value={query} onChange={event=>{setQuery(event.target.value);s.setFollow(false);if(scroll.current)scroll.current.scrollTop=0;}}/></label>;
+ const searchField=<label className={layout.search}>문장 검색<input type="search" placeholder="전체 대화에서 찾기" value={query} onChange={event=>{setQuery(event.target.value);s.setFollow(false);if(scroll.current)scroll.current.scrollTop=0;}}/></label>;
  const [target,setTarget]=useState<number|null>(null);const rowNodes=useRef(new Map<number,HTMLElement>());
  const reveal=(index:number)=>{setQuery('');setSpeakerCuesOnly(false);setCorrected(true);s.setFollow(false);setTarget(index);};
  useEffect(()=>{if(target===null)return;const node=rowNodes.current.get(target);if(!node)return;node.scrollIntoView({block:'center'});node.focus({preventScroll:true});},[target,query,corrected,speakerCuesOnly]);
+ useEffect(()=>{
+  const clip=s.requestedClip;
+  if(!clip||clip.record!==s.activeRecordId||s.view!=='dictation'||s.mode!=='idle')return;
+  s.setRequestedClip(null);
+  const row=s.rows[clip.index];
+  if(!row||row.text!==clip.text||rowTime(row)!==clip.time){s.setNotice('구간이 변경됐습니다. 이 기록에서 문장을 다시 검색하세요.');return;}
+  reveal(clip.index);
+  if(clip.play)void s.playRow(row);
+ },[s.requestedClip,s.activeRecordId,s.view,s.mode]);
  // Per-sentence editing. Allowed while idle or recording; other jobs rewrite rows from their own snapshot.
  const [edit,setEdit]=useState<{index:number;sequence:unknown;draft:string}|null>(null);const [editError,setEditError]=useState('');
  const canEdit=s.mode==='idle'||s.mode==='recording'||s.mode==='reviewing';
@@ -50,10 +59,11 @@ export function DictationConversation({session:s,compact=false,video=false,compa
  return <section className={`${styles.panel} ${layout.conversation} ${compact?compactStyles.conversation:''} ${designed?studio.editor:''}`} aria-label="전체 받아쓰기 대화" data-testid="dictation-conversation" data-video={video} data-compact-text={video||compactText}>
   {!video&&!compact&&<div className={layout.conversationHeading}><div><h2>{compact?'받아쓰기':'전체 받아쓰기'} <span className={styles.badge}>{s.rows.length}구간</span></h2>{!compact&&<p>1차 Whisper 받아쓰기 → 2차 AI 보정</p>}</div><button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개 · 최신으로`:'최신 문장'}</button></div>}
   {designed&&<div className={studio.editorTools}><div><button aria-pressed={corrected} onClick={()=>setCorrected(true)}>검토본</button><button aria-pressed={!corrected} onClick={()=>setCorrected(false)}>최초 원문</button></div><label><input type="checkbox" checked={compare} onChange={event=>setCompare(event.target.checked)}/>원문 함께 보기</label></div>}
-  <details className={designed?studio.editorSettings:undefined} open={designed?undefined:true}><summary hidden={!designed}>검색 · AI 보정 · 참여자 설정</summary><div className={layout.readingTools}><div className={layout.switcher} role="group" aria-label="대화 표시 방식"><button aria-pressed={!corrected} onClick={()=>setCorrected(false)}>실시간 원문</button><button aria-pressed={corrected} onClick={()=>setCorrected(true)}>AI 보정본</button></div>{(video||compact)&&<button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개`:'최신 문장'}</button>}<AiModelControl session={s} showDestination={false}/>{searchField}
-   <label className={styles.check}><input type="checkbox" checked={speakerCuesOnly} onChange={event=>{
-    setSpeakerCuesOnly(event.target.checked);s.setFollow(false);if(scroll.current)scroll.current.scrollTop=0;
-   }}/>발언 전환 표현만 보기</label>
+  <div className={layout.readingTools+' '+studio.searchTools}>{searchField}
+   <label className={styles.check}><input type="checkbox" checked={speakerCuesOnly} onChange={event=>{setSpeakerCuesOnly(event.target.checked);s.setFollow(false);if(scroll.current)scroll.current.scrollTop=0;}}/>발언 전환만 보기</label>
+   {(query||speakerCuesOnly)&&<><span role="status">일치한 구간 {filtered.length}개</span><button onClick={()=>{setQuery('');setSpeakerCuesOnly(false);}}>필터 해제</button></>}
+  </div>
+  <details className={designed?studio.editorSettings:undefined} open={designed?undefined:true}><summary hidden={!designed}>AI 보정 · 참여자 설정</summary><div className={layout.readingTools}><div className={layout.switcher} role="group" aria-label="대화 표시 방식"><button aria-pressed={!corrected} onClick={()=>setCorrected(false)}>실시간 원문</button><button aria-pressed={corrected} onClick={()=>setCorrected(true)}>AI 보정본</button></div>{(video||compact)&&<button disabled={!s.rows.length} onClick={latest}><ArrowDown size={18} aria-hidden="true"/>{unread?`새 문장 ${unread}개`:'최신 문장'}</button>}<AiModelControl session={s} showDestination={false}/>
    <TranscriptOptions session={s} corrected={corrected} compare={compare} setCompare={setCompare}/></div>
   <TranscriptOptionNotes session={s} showStatus={!compact||video} onReveal={reveal}/>
   </details>

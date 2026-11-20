@@ -38,12 +38,12 @@ const server=http.createServer((req,res)=>{
    await page.evaluate(()=>window.__qa.emit('transcript-update',{sequence_id:1,text:'취소 기능 확인용 문장입니다.',is_partial:false,audio_start_time:0}));
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    await page.screenshot({path:path.join(evidence,`recording-${width}.png`)});
-   await page.getByRole('button',{name:'녹음 취소',exact:true}).first().click();
+   await page.getByRole('button',{name:'녹음 취소',exact:true}).first().click();await page.getByRole('button',{name:'남은 처리 중단'}).click();
    await page.getByText('녹음과 남은 처리를 취소했습니다. 이미 저장한 음성과 받아쓰기는 유지합니다.',{exact:true}).first().waitFor();
    assert.equal(await page.evaluate(()=>window.__qa.calls.filter(call=>call.command==='ko_stop_recording').length),0);
    checks.push({width,scenario:'live-cancel',passed:true});
    await start().click();
-   await page.evaluate(()=>{window.__qa.pendingStop=true;});await page.getByRole('button',{name:'녹음 중지',exact:true}).click();
+   await page.evaluate(()=>{window.__qa.pendingStop=true;});await page.getByRole('button',{name:'녹음 끝내고 저장',exact:true}).first().click();
    await page.getByRole('button',{name:'저장 취소',exact:true}).first().waitFor();
    await page.screenshot({path:path.join(evidence,`stopping-${width}.png`)});
    await page.getByRole('link',{name:'설정',exact:true}).click();assert.ok(await page.getByRole('button',{name:'저장 취소',exact:true}).isVisible());

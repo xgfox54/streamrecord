@@ -446,6 +446,8 @@ impl AudioCapture {
             return;
         }
 
+        crate::meeting_ko::input_meter::observe_recording(data);
+
         // Convert to mono if needed
         let mut mono_data = if self.channels > 1 {
             audio_to_mono(data, self.channels)

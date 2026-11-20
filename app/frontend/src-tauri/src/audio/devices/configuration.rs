@@ -52,7 +52,7 @@ pub enum DeviceType {
     Output,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Serialize, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Debug)]
 pub struct AudioDevice {
     pub name: String,
     pub device_type: DeviceType,
