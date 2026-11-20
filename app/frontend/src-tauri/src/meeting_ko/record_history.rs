@@ -132,6 +132,27 @@ pub fn load(dir: &Path, id: &str) -> Result<Value, String> {
     parse_snapshot(&serde_json::to_string(&record.snapshot).map_err(|e| e.to_string())?)
 }
 
+fn list_summary(content: &str) -> Result<RecordSummary, serde_json::Error> {
+    #[derive(Deserialize)]
+    struct Header {
+        summary: Value,
+        #[serde(rename = "snapshot")]
+        _snapshot: serde::de::IgnoredAny,
+    }
+    let header: Header = serde_json::from_str(content)?;
+    if header.summary.get("hasMinutes").is_some() {
+        return serde_json::from_value(header.summary);
+    }
+
+    // Records saved before the library stored recording metadata need their snapshot.
+    let record: Record = serde_json::from_str(content)?;
+    let mut summary = record.summary;
+    summary.input_kind = snapshot_input(&record.snapshot);
+    summary.duration_seconds = snapshot_duration(&record.snapshot);
+    summary.has_minutes = record.snapshot["minutes"].as_str().is_some_and(|value| !value.trim().is_empty());
+    Ok(summary)
+}
+
 pub fn list(dir: &Path) -> Result<RecordList, String> {
     let _guard = STORE_LOCK.lock().map_err(|e| e.to_string())?;
     let records_dir = dir.join("records");
@@ -140,13 +161,10 @@ pub fn list(dir: &Path) -> Result<RecordList, String> {
     for entry in fs::read_dir(records_dir).map_err(|e| e.to_string())? {
         let path = entry.map_err(|e| e.to_string())?.path();
         if path.extension().and_then(|s| s.to_str()) != Some("json") { continue; }
-        let record = read_text(&path).and_then(|text| serde_json::from_str::<Record>(&text).map_err(|e| e.to_string()));
-        match record {
-            Ok(mut record) if valid_id(&record.summary.id) && path.file_stem().and_then(|s| s.to_str()) == Some(&record.summary.id) => {
-                record.summary.input_kind = snapshot_input(&record.snapshot);
-                record.summary.duration_seconds = snapshot_duration(&record.snapshot);
-                record.summary.has_minutes = record.snapshot["minutes"].as_str().is_some_and(|value| !value.trim().is_empty());
-                result.records.push(record.summary);
+        let summary = read_text(&path).and_then(|text| list_summary(&text).map_err(|e| e.to_string()));
+        match summary {
+            Ok(summary) if valid_id(&summary.id) && path.file_stem().and_then(|s| s.to_str()) == Some(&summary.id) => {
+                result.records.push(summary);
             },
             Ok(_) | Err(_) => result.warnings.push("읽지 못한 기록이 있습니다. 원본 파일은 보존되어 있습니다.".into()),
         }

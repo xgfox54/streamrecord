@@ -6,6 +6,7 @@ const root=path.resolve(__dirname,'../out');
 const out=process.env.STREAM_RECORD_QA_OUTPUT||path.resolve(__dirname,'../test-results/studio');
 fs.mkdirSync(out,{recursive:true});
 const rows=Array.from({length:18},(_,i)=>({sequence_id:i+1,text:['오늘은 마을돌봄 협업 일정과 각 기관의 역할을 확인하겠습니다. 먼저 지난 회의에서 논의한 방문 상담 일정을 살펴보겠습니다.','방문 상담은 다음 주 화요일과 목요일에 진행하는 것으로 제안드립니다. 참여 기관에서 가능한 시간을 알려주시면 일정을 조정하겠습니다.','좋습니다. 상담 전에 확인할 항목도 함께 정리해 주세요. 같은 내용을 여러 번 묻지 않도록 기관별 질문을 미리 모으면 좋겠습니다.'][i%3],audio_start_time:i*12,audio_end_time:i*12+10,is_partial:false}));
+rows[1].text='발언대로 나와 답변해 주시기 바랍니다.';
 const records=[{version:1,recordId:'qa-first',title:'마을돌봄 협업 회의',rows,minutes:'',startedAt:null,recordingInput:'microphone',durationSeconds:2538,liveSummary:'[00:00:12] 방문 상담 일정과 기관별 준비 사항을 논의했습니다.\n[00:00:38] 참여 기관의 가능한 시간을 확인한 뒤 최종 일정을 조정하기로 했습니다.'},{version:1,recordId:'qa-second',title:'해안 산책로 정비 회의',rows:rows.slice(0,4),minutes:'## 논의한 사항\n\n- 산책로 정비 일정을 확인했습니다.',startedAt:null,recordingInput:'pc',durationSeconds:1686}];
 const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(new URL(req.url,'http://localhost').pathname==='/'?'/index.html':decodeURIComponent(new URL(req.url,'http://localhost').pathname)));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(error,bytes)=>{if(error){res.writeHead(404).end();return;}res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream');res.end(bytes);});});
 (async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({channel:'chrome',headless:true});const checks=[],errors=[];try{
@@ -20,6 +21,19 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(new
  await page.setViewportSize({width:1440,height:960});await page.getByRole('searchbox',{name:'기록 제목 검색'}).fill('없는 제목');await page.getByRole('heading',{name:'검색한 기록이 없습니다'}).waitFor();await page.getByRole('searchbox',{name:'기록 제목 검색'}).fill('');checks.push('Library search and responsive layout');
  await page.getByRole('button',{name:'마을돌봄 협업 회의 중요 표시',exact:true}).click();await page.getByRole('button',{name:/^중요 기록/}).click();assert.equal(await page.getByRole('button',{name:/중요 표시$/}).count(),1);checks.push('Important records persist and filter');
  await page.getByRole('button',{name:'기록 이어 보기'}).click();await page.getByRole('button',{name:'검토본',exact:true}).waitFor();
+ await page.getByText('검색 · AI 보정 · 참여자 설정',{exact:true}).click();
+ const cues=page.getByRole('checkbox',{name:'발언 전환 표현만 보기'});
+ await cues.check();
+ const utterances=page.getByRole('log').locator('article');
+ assert.equal(await utterances.count(),1);
+ assert.equal(await utterances.first().getAttribute('id'),'dictation-row-1');
+ await page.getByRole('searchbox',{name:'대화 내용 검색'}).fill('없는 문장');
+ await page.getByText('조건에 맞는 발언 전환 표현이 없습니다.').waitFor();
+ await page.getByRole('searchbox',{name:'대화 내용 검색'}).fill('');
+ await cues.uncheck();
+ assert.equal(await utterances.count(),rows.length);
+ await page.getByText('검색 · AI 보정 · 참여자 설정',{exact:true}).click();
+ checks.push('Speaker cue filter combines with search and keeps the source row ID');
  for(const width of [390,768,1440,1920]){await page.setViewportSize({width,height:960});await capture('editor-'+width);await overflow();}
  await page.setViewportSize({width:1440,height:960});await page.getByRole('button',{name:'받아쓰기-1 편집',exact:true}).click();await page.getByRole('textbox',{name:'받아쓰기-1 수정'}).fill('검토한 문장입니다. 최초 원문은 보존합니다.');await page.getByRole('button',{name:'저장',exact:true}).click();await page.getByRole('button',{name:'최초 원문',exact:true}).click();assert.equal(await page.getByRole('log').getByText('검토한 문장입니다. 최초 원문은 보존합니다.',{exact:true}).count(),0);await page.getByRole('button',{name:'검토본',exact:true}).click();await page.getByRole('checkbox',{name:'원문 함께 보기',exact:true}).first().check();await capture('original-compare');checks.push('Review saves independently and original tab preserves source');
  await page.getByRole('button',{name:'새 녹음',exact:true}).click();await page.getByRole('checkbox',{name:/녹음·처리 권한을 확인했습니다/}).check();await page.getByRole('button',{name:'마이크 녹음 시작',exact:true}).click();await page.getByRole('button',{name:'일시 정지',exact:true}).waitFor();

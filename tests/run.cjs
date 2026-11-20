@@ -52,7 +52,8 @@ new Function('module','exports','require',compiled)(mod,mod.exports,localRequire
   const actual=fs.readFileSync(path.join(base,'app/frontend/src-tauri/src/audio/recording_commands.rs'),'utf8');
   const patched=patchRecordingCommands(actual);
   assert(patched.includes('pub const EXACT_MIC_DEVICE_PREFIX'));
-  assert(patched.includes('if !exact_microphone'));
+  assert(patched.includes('let exact_source = exact_microphone || exact_system;'));
+  assert.match(patched,/if !exact_source \{\s*if let Some\(receiver\) = device_event_receiver \{\s*spawn_device_event_processor\(/);
   assert(patched.includes('value.strip_prefix(EXACT_MIC_DEVICE_PREFIX)'));
  });
  await check('Upstream source is pinned to one immutable full commit',()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'meeting-ko-pin-'));const pin=path.join(dir,'UPSTREAM_COMMIT.txt');fs.writeFileSync(pin,'A2CB62E827DA7EF59F65064C97233EFB2313878E\n');assert.equal(readPinnedCommit(pin),'a2cb62e827da7ef59f65064c97233efb2313878e');assert.doesNotThrow(()=>requirePinnedCommit('a2cb62e827da7ef59f65064c97233efb2313878e','a2cb62e827da7ef59f65064c97233efb2313878e'));assert.throws(()=>requirePinnedCommit('518e8e6076e476e197b6f196fb9fe8412dcec713','a2cb62e827da7ef59f65064c97233efb2313878e'),/pinned Meetily commit/);fs.writeFileSync(pin,'main\n');assert.throws(()=>readPinnedCommit(pin),/full 40-character/);fs.rmSync(dir,{recursive:true,force:true});});
