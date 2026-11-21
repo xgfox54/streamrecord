@@ -113,8 +113,14 @@ function harness(options = {}) {
 }
 const results = [];
 async function test(name,fn) {
-  try {await fn(); results.push({name,status:'passed'}); console.log('PASS '+name);}
+  let timer;
+  try {
+    const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Test did not finish: '+name)),30000);});
+    await Promise.race([fn(),timeout]);
+    results.push({name,status:'passed'}); console.log('PASS '+name);
+  }
   catch (error) {results.push({name,status:'failed',error:error.stack}); console.error('FAIL '+name+'\n'+error.stack);}
+  finally {clearTimeout(timer);}
 }
 async function using(options,fn) {const h = harness(options); await h.mount(); try {await fn(h);} finally {await h.unmount();}}
 module.exports={harness};

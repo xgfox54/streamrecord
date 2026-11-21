@@ -40,29 +40,30 @@ export function rowTime(row: TranscriptRow): string {
 export function transcriptText(rows: TranscriptRow[]): string {
   return rows.filter(r => r.text.trim()).map(r => `[${rowTime(r)}] ${r.is_partial ? '[미확정] ' : ''}${r.text.trim()}`).join('\n\n');
 }
-export function readRows(value: unknown): TranscriptRow[] {
+function readPage(value: unknown): {rows:TranscriptRow[];hasMore?:boolean;total?:number} {
   const parsed=Array.isArray(value)
     ? z.array(transcriptRowSchema).safeParse(value)
     : transcriptEnvelopeSchema.safeParse(value);
   if(!parsed.success)throw new Error('받아쓰기 항목에 text 필드가 없거나 형식이 올바르지 않습니다.');
-  if(Array.isArray(parsed.data))return parsed.data;
+  if(Array.isArray(parsed.data))return {rows:parsed.data};
   const rows=parsed.data.transcripts??parsed.data.data;
   if(!rows)throw new Error('받아쓰기 응답 형식이 예상과 다릅니다. 원본 데이터는 변경하지 않았습니다.');
-  return rows;
+  return {rows,hasMore:parsed.data.has_more,total:parsed.data.total_count};
+}
+export function readRows(value: unknown): TranscriptRow[] {
+  return readPage(value).rows;
 }
 export type FetchTranscriptPage=(meetingId:string,limit:number,offset:number)=>Promise<unknown>;
 export async function loadAllTranscriptRows(meetingId:string,fetchPage:FetchTranscriptPage):Promise<TranscriptRow[]>{
   const result:TranscriptRow[]=[];const limit=300;let previous='';
-  for(let offset=0;offset<600_000;offset+=limit){
-    const value=await fetchPage(meetingId,limit,offset);const batch=readRows(value);
+  while(result.length<600_000){
+    const {rows:batch,hasMore,total}=readPage(await fetchPage(meetingId,limit,result.length));
     const signature=JSON.stringify(batch);
     if(batch.length&&signature===previous)throw new Error('받아쓰기 페이지가 반복되었습니다. 원본 회의 데이터는 보존되어 있습니다.');
     previous=signature;result.push(...batch);
-    const envelope=transcriptEnvelopeSchema.safeParse(value);
-    const doneByMetadata=envelope.success&&!Array.isArray(envelope.data)&&(
-      envelope.data.has_more===false||
-      (envelope.data.total_count!==undefined&&result.length>=envelope.data.total_count));
-    if(doneByMetadata||batch.length<limit)return result;
+    const more=hasMore??(total===undefined?batch.length===limit:result.length<total);
+    if(!more)return result;
+    if(!batch.length)throw new Error('다음 받아쓰기 페이지가 비어 있습니다. 원본 회의 데이터를 확인하세요.');
   }
   throw new Error('받아쓰기 항목 한도 초과. 원본 회의 데이터를 확인하세요.');
 }

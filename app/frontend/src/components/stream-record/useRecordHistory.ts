@@ -45,8 +45,17 @@ export function useRecordHistory(input:Input){
  const persist=()=>saveSnapshot({...current.current.capture(),recordId:id.current});
  const initialize=async()=>{
   setRecordsLoading(true);
-  try{const value:unknown=await invoke('ko_load_snapshot');if(value){const parsed=parseSnapshot(value);id.current=parsed.recordId??id.current;setActiveRecordId(id.current);current.current.apply(parsed);}await refreshRecords();}
-  finally{setRecordsLoading(false);}
+  try{
+   const value:unknown=await invoke('ko_load_snapshot');
+   if(value){
+    const parsed=parseSnapshot(value);
+    id.current=parsed.recordId??id.current;
+    setActiveRecordId(id.current);
+    current.current.apply(parsed);
+   }
+  }finally{
+   try{await refreshRecords();}finally{setRecordsLoading(false);}
+  }
  };
  const blockedReason=()=>transition.current?'기록을 여는 중입니다.':pending.current?'기록 저장이 끝난 뒤 다시 시도하세요.':current.current.blockedReason();
  const change=async(target:string|null)=>{

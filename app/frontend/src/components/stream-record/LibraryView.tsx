@@ -1,5 +1,5 @@
 'use client';
-import {Fragment,useState} from 'react';
+import {Fragment,useMemo,useState} from 'react';
 import {ArrowDownUp,ArrowRight,Check,ChevronRight,FileText,Search,Star,Upload} from 'lucide-react';
 import type {MeetingSession} from './useMeetingSession';
 import {durationLabel,inputLabels,recordDisplayTitle} from './record-presentation';
@@ -10,8 +10,14 @@ export function LibraryView({session:s}:{readonly session:MeetingSession}){
  const [query,setQuery]=useState('');const [newest,setNewest]=useState(true);
  const [includeBody,setIncludeBody]=useState(false);
  const term=query.trim().toLocaleLowerCase();
- const search=useBodySearch(s.records,includeBody?term:'',s.activeRecordId,s.rows);
- const records=[...s.records].filter(record=>(s.libraryFilter!=='star'||s.starredRecords.includes(record.id))&&(s.libraryFilter!=='review'||!record.hasMinutes)&&(s.libraryFilter!=='minutes'||record.hasMinutes)&&(recordDisplayTitle(record.title,record.updatedAt,record.inputKind).toLocaleLowerCase().includes(term)||search.hits.has(record.id))).sort((a,b)=>newest?b.updatedAt.localeCompare(a.updatedAt):a.updatedAt.localeCompare(b.updatedAt));
+ const candidates=useMemo(()=>{
+   if(s.libraryFilter==='star')return s.records.filter(record=>s.starredRecords.includes(record.id));
+   if(s.libraryFilter==='review')return s.records.filter(record=>!record.hasMinutes);
+   if(s.libraryFilter==='minutes')return s.records.filter(record=>record.hasMinutes);
+   return s.records;
+ },[s.libraryFilter,s.records,s.starredRecords]);
+ const search=useBodySearch(candidates,includeBody?term:'',s.activeRecordId,s.rows);
+ const records=candidates.filter(record=>recordDisplayTitle(record.title,record.updatedAt,record.inputKind).toLocaleLowerCase().includes(term)||search.hits.has(record.id)).sort((a,b)=>newest?b.updatedAt.localeCompare(a.updatedAt):a.updatedAt.localeCompare(b.updatedAt));
  const reset=()=>{setQuery('');s.setLibraryFilter('all');};
  const emptyTitle=term?'검색한 기록이 없습니다':s.libraryFilter==='star'?'중요 표시한 기록이 없습니다':s.libraryFilter==='review'?'검토할 기록이 없습니다':s.libraryFilter==='minutes'?'회의록이 있는 기록이 없습니다':'아직 기록이 없습니다';
  const latest=s.records[0];

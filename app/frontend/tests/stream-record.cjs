@@ -49,6 +49,15 @@ let passed=0;const results=[];
 async function test(name,fn){await fn();passed++;results.push({name,status:'passed'});console.log('PASS '+name);}
 const note=(id='S000001',quote='예산 300만원을 확정한다.')=>({summary:'예산을 논의했다.',decisions:[{text:'예산 300만원 확정',source_id:id,quote,owner:null,due:null}],proposals:[],actions:[],numbers:[],open_questions:[]});
 (async()=>{
+ await test('Import follows short pages and rejects empty pages that promise more rows',async()=>{
+  const rows=[{text:'first'},{text:'second'},{text:'third'}],offsets=[];
+  const loaded=await core.loadAllTranscriptRows('test',async(_,limit,offset)=>{
+   offsets.push(offset);
+   return {transcripts:rows.slice(offset,offset+1),has_more:offset+1<rows.length,total_count:rows.length};
+  });
+  assert.deepEqual(copy(loaded),rows);assert.deepEqual(offsets,[0,1,2]);
+  await assert.rejects(()=>core.loadAllTranscriptRows('test',async()=>({data:[],has_more:true})),/페이지/);
+ });
  await test('English-only and unknown models cannot become Korean defaults',()=>{for(const x of ['small.en','base.en-q5_1','parakeet','../small'])assert.equal(korean.isKoreanModel(x),false);for(const x of ['small','small-q5_1','base','large-v3-turbo-q5_0'])assert.equal(korean.isKoreanModel(x),true);});
  await test('Explicit installed multilingual selection is preserved',()=>assert.equal(korean.chooseKoreanModel([available('base'),available('medium')],'medium'),'medium'));
  await test('Default uses installed multilingual model, not an English model',()=>assert.equal(korean.chooseKoreanModel([available('small.en'),available('base')],'small.en'),'base'));

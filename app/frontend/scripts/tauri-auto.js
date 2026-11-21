@@ -3,9 +3,8 @@
  * Auto-detect GPU and run Tauri with appropriate features
  */
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
-const fs = require('fs');
 const os = require('os');
 
 // Get the command (dev or build)
@@ -19,12 +18,12 @@ if (!command || !['dev', 'build'].includes(command)) {
 let feature = '';
 
 // Check for environment variable override first
-if (process.env.TAURI_GPU_FEATURE) {
-  feature = process.env.TAURI_GPU_FEATURE;
+if (process.argv[3] || process.env.TAURI_GPU_FEATURE) {
+  feature = process.argv[3] || process.env.TAURI_GPU_FEATURE;
   console.log(`🔧 Using forced GPU feature from environment: ${feature}`);
 } else {
   try {
-    const result = execSync('node scripts/auto-detect-gpu.js', {
+    const result = execFileSync(process.execPath, [path.join(__dirname, 'auto-detect-gpu.js')], {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'inherit']
     });
@@ -56,9 +55,12 @@ if (platform === 'linux' && feature === 'cuda') {
 }
 
 // Build the tauri command
-let tauriCmd = `tauri ${command}`;
+const args = [require.resolve('@tauri-apps/cli/tauri.js'), command];
+if (platform === 'win32' && feature === 'cuda') {
+  args.push('--config', path.resolve(__dirname, '../../../tools/tauri.cuda.conf.json'));
+}
 if (feature && feature !== 'none') {
-  tauriCmd += ` -- --features ${feature}`;
+  args.push('--', '--features', feature);
   console.log(`🚀 Running: tauri ${command} with features: ${feature}`);
 } else {
   console.log(`🚀 Running: tauri ${command} (CPU-only mode)`);
@@ -67,7 +69,7 @@ console.log('');
 
 // Execute the command
 try {
-  execSync(tauriCmd, { stdio: 'inherit', env });
+  execFileSync(process.execPath, args, { stdio: 'inherit', env });
 } catch (err) {
   process.exit(err.status || 1);
 }

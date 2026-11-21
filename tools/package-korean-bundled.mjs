@@ -126,12 +126,13 @@ async function main(){
  await run(cargo,['build','-p','llama-helper','--release','--locked'],path.join(root,'app'),'sidecar-build');
  fs.copyFileSync(path.join(cargoTarget,'release/llama-helper.exe'),path.join(frontend,'src-tauri/binaries/llama-helper-x86_64-pc-windows-msvc.exe'));
  const before=await sourceSnapshot();report.buildInputs=before;save();
- await run(process.execPath,[tauri,'build','--no-bundle','--','--locked','--features','cuda'],frontend,'application-build');
+ const cudaConfig=path.join(root,'tools/tauri.cuda.conf.json');
+ await run(process.execPath,[tauri,'build','--config',cudaConfig,'--no-bundle','--','--locked','--features','cuda'],frontend,'application-build');
  assert.deepEqual(await sourceSnapshot(),before,'Application input changed during build');
  const appExe=path.join(cargoTarget,'release/stream-record.exe');assert.ok(fs.statSync(appExe).size>0);report.frontendOutput=await treeSnapshot(path.join(frontend,'out'));save();
  phase('package-model-included-installer');const bundleStarted=Date.now();
  const bundle=path.join(cargoTarget,`release/bundle/nsis/stream-record_${version}_x64-setup.exe`);
- const result=await run(process.execPath,[tauri,'bundle','--bundles','nsis','--verbose','--no-sign'],frontend,'nsis-bundle',{allowFailure:true});
+ const result=await run(process.execPath,[tauri,'bundle','--config',cudaConfig,'--bundles','nsis','--verbose','--no-sign'],frontend,'nsis-bundle',{allowFailure:true});
  if(result.code!==0)assert.ok(result.text.includes('os error 32'),'Bundler failed for a non-recoverable reason: see '+result.log);
  const stat=fs.statSync(bundle);assert.ok(stat.mtimeMs>=bundleStarted-2000,'Installer is stale');assert.ok(stat.size<700*1024*1024);
  const total=[...result.text.matchAll(/Total size:\s*(\d+)\s*\//g)].at(-1),crc=[...result.text.matchAll(/CRC \(0x([0-9a-f]{8})\):/gi)].at(-1);

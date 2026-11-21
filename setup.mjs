@@ -72,7 +72,7 @@ function prepare() {
   console.log('Stream-Record independent sources: app/. Upstream checkout and overlay application are disabled.');
   if (!fs.existsSync(path.join(frontend,'node_modules','typescript'))) {
     const locked = fs.existsSync(path.join(frontend,'package-lock.json'));
-    console.log(locked?'Installing from upstream package-lock.json':'No npm lock found: generating a local npm lockfile.');
+    console.log(locked?'Installing from app/frontend/package-lock.json':'No npm lock found: generating a local npm lockfile.');
     run(npm,[locked?'ci':'install','--no-audit','--no-fund'],frontend);
   }
   alignTauriPackages();
@@ -90,8 +90,9 @@ function prepareSidecar(release) {
   const hostLine=run('rustc',['-vV'],base,true).split(/\r?\n/).find(line=>line.startsWith('host: '));
   if(!hostLine)throw new Error('rustc did not report a target host.');
   const host=hostLine.slice('host: '.length).trim();
+  const metadata=JSON.parse(run('cargo',['metadata','--no-deps','--format-version','1'],app,true));
   const profile=release?'release':'debug';
-  const source=path.join(app,'target',profile,win?'llama-helper.exe':'llama-helper');
+  const source=path.join(metadata.target_directory,profile,win?'llama-helper.exe':'llama-helper');
   if(!fs.existsSync(source))throw new Error(`llama-helper sidecar was not produced: ${source}`);
   const binaries=path.join(frontend,'src-tauri','binaries');fs.mkdirSync(binaries,{recursive:true});
   const destination=path.join(binaries,`llama-helper-${host}${win?'.exe':''}`);
@@ -99,7 +100,8 @@ function prepareSidecar(release) {
   console.log(`Prepared sidecar: ${destination}`);
 }
 try {
-  if (Number(process.versions.node.split('.')[0]) < 20) throw new Error('Node.js 20 or later is required.');
+  const [major,minor]=process.versions.node.split('.').map(Number);
+  if (major<20 || (major===20 && minor<9)) throw new Error('Node.js 20.9 or later is required.');
   if (!['doctor','prepare','check','dev','build'].includes(action)) throw new Error('Usage: node setup.mjs doctor|prepare|check|dev|build [cpu|cuda|vulkan]');
   if (!['cpu','cuda','vulkan'].includes(acceleration)) throw new Error('Acceleration must be cpu, cuda or vulkan. GPU builds require the matching developer toolkit.');
   if (action === 'doctor') { if (!doctor()) process.exitCode = 1; }
@@ -111,9 +113,9 @@ try {
       prepareSidecar(action==='build');
       const script = `tauri:${action}:${acceleration}`;
       const manifest = JSON.parse(fs.readFileSync(path.join(frontend,'package.json'),'utf8'));
-      if(!manifest.scripts?.[script])throw new Error(`Expected upstream script is missing: ${script}`);
+      if(!manifest.scripts?.[script])throw new Error(`Missing frontend script: ${script}`);
       run(npm,['run',script],frontend);
-      if(action==='build')console.log('Build command completed. Inspect app/frontend/src-tauri/target/release and its bundle directory for actual artifacts.');
+      if(action==='build')console.log('Build completed. Tauri printed the bundle paths above.');
     }
   }
 } catch (error) {

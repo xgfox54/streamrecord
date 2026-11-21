@@ -21,7 +21,7 @@ function findHits(rows:readonly TranscriptRow[],query:string):Hit[]{
 }
 
 export function useBodySearch(records:readonly RecordSummary[],query:string,activeId:string,currentRows:readonly TranscriptRow[]){
-  const [result,setResult]=useState<{records:readonly RecordSummary[];query:string;hits:Map<string,Hit[]>;errors:number;rows:readonly TranscriptRow[]}|null>(null);
+  const [result,setResult]=useState<{records:readonly RecordSummary[];query:string;hits:Map<string,Hit[]>;errors:number;rows:readonly TranscriptRow[];activeId:string}|null>(null);
   useEffect(()=>{
     if(!query)return;
     let cancelled=false;
@@ -37,10 +37,10 @@ export function useBodySearch(records:readonly RecordSummary[],query:string,acti
           if(matches.length)hits.set(record.id,matches);
         }catch{errors++;}
       }
-      if(!cancelled)setResult({records,query,hits,errors,rows:currentRows});
+      if(!cancelled)setResult({records,query,hits,errors,rows:currentRows,activeId});
     },300);
     return ()=>{cancelled=true;window.clearTimeout(timer);};
   },[records,query,activeId,currentRows]);
-  const current=query&&result?.query===query&&result.records===records&&result.rows===currentRows?result:null;
+  const current=query&&result?.query===query&&result.records===records&&result.rows===currentRows&&result.activeId===activeId?result:null;
   return {hits:current?.hits??empty,busy:Boolean(query&&!current),errors:current?.errors??0};
 }

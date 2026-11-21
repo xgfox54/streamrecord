@@ -18,6 +18,30 @@ fn snapshot_with_bytes(id: &str, bytes: usize) -> Value {
 }
 
 #[test]
+fn long_title_near_snapshot_limit_stays_visible_and_reopens() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut value = snapshot_with_bytes("long-title", LIMIT as usize - 8192);
+    value["title"] = json!("t".repeat(8192));
+    save(dir.path(), &value.to_string()).unwrap();
+    assert_eq!(list(dir.path()).unwrap().records.len(), 1);
+    assert_eq!(load(dir.path(), "long-title").unwrap(), value);
+}
+
+#[test]
+fn legacy_id_added_at_the_size_limit_can_be_reopened_and_saved_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut value = snapshot_with_bytes("", LIMIT as usize);
+    value.as_object_mut().unwrap().remove("recordId");
+    let content = value.to_string();
+    fs::write(dir.path().join("last-session.json"), &content).unwrap();
+    let restored = current(dir.path()).unwrap().unwrap();
+    let id = restored["recordId"].as_str().unwrap();
+    assert_eq!(load(dir.path(), id).unwrap(), restored);
+    save(dir.path(), &restored.to_string()).unwrap();
+    assert_eq!(current(dir.path()).unwrap().unwrap(), restored);
+}
+
+#[test]
 fn records_above_eight_mb_through_twenty_mb_round_trip_without_losing_originals() {
     let dir = tempfile::tempdir().expect("fixture");
     for bytes in [8_000_001, 20_000_000] {
@@ -66,7 +90,10 @@ fn migration_preserves_original_bytes_and_is_idempotent() {
     let content = "{\"version\":1, \"title\":\"기존 94구간\",\"rows\":[],\"minutes\":\"원본\"}";
     fs::write(dir.path().join("last-session.json"), content).expect("seed");
     let first = current(dir.path()).expect("migration").expect("snapshot");
+    let record_path = dir.path().join("records").join(format!("{}.json", first["recordId"].as_str().unwrap()));
+    let saved = fs::read(&record_path).unwrap();
     let second = current(dir.path()).expect("repeat").expect("snapshot");
+    assert_eq!(fs::read(&record_path).unwrap(), saved);
     assert_eq!(first, second);
     assert_eq!(fs::read_to_string(dir.path().join("last-session.json")).expect("original"), content);
     assert_eq!(list(dir.path()).expect("list").records.len(), 1);

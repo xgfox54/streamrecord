@@ -1132,47 +1132,41 @@ mod tests {
         IMPORT_CANCELLED.store(false, Ordering::SeqCst);
     }
 
+    fn audio_fixture(directory: &Path, filename: &str, encoded: &str) -> std::path::PathBuf {
+        use base64::Engine;
+        let path = directory.join(filename);
+        let bytes = base64::engine::general_purpose::STANDARD.decode(encoded.trim()).unwrap();
+        crate::review_paths::fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    const WAV: &str = include_str!("../../tests/fixtures/silence.wav.b64");
+    const MP3: &str = include_str!("../../tests/fixtures/silence.mp3.b64");
+
     #[test]
     fn test_extract_duration_from_metadata_wav() {
-        // Test with sample WAV file if available
-        let test_path = Path::new("../../backend/whisper.cpp/samples/jfk.wav");
-        if test_path.exists() {
-            let result = extract_duration_from_metadata(test_path);
-            // Should succeed and return a reasonable duration
-            assert!(result.is_ok());
-            let duration = result.unwrap();
-            assert!(
-                duration > 0.0 && duration < 60.0,
-                "Duration {} seems unreasonable",
-                duration
-            );
-        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = audio_fixture(dir.path(), "silence.wav", WAV);
+        assert_eq!(extract_duration_from_metadata(&path).unwrap(), 0.001);
     }
 
     #[test]
-    fn test_extract_duration_from_metadata_mp3() {
-        // Test with sample MP3 file if available
-        let test_path = Path::new("../../backend/whisper.cpp/samples/jfk.mp3");
-        if test_path.exists() {
-            let result = extract_duration_from_metadata(test_path);
-            // MP3 files may not have n_frames metadata, so fallback is expected
-            // We just verify it doesn't panic
-            let _ = result;
-        }
+    fn test_validate_audio_file_mp3() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = audio_fixture(dir.path(), "silence.mp3", MP3);
+        let info = validate_audio_file(&path).unwrap();
+        assert_eq!(info.format, "MP3");
+        assert!((0.2..0.5).contains(&info.duration_seconds));
     }
 
     #[test]
     fn test_validate_audio_file_with_metadata() {
-        // Test validation with actual audio file
-        let test_path = Path::new("../../backend/whisper.cpp/samples/jfk.wav");
-        if test_path.exists() {
-            let result = validate_audio_file(test_path);
-            assert!(result.is_ok());
-            let info = result.unwrap();
-            assert_eq!(info.format, "WAV");
-            assert!(info.duration_seconds > 0.0);
-            assert!(info.size_bytes > 0);
-        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = audio_fixture(dir.path(), "silence.wav", WAV);
+        let info = validate_audio_file(&path).unwrap();
+        assert_eq!(info.format, "WAV");
+        assert_eq!(info.duration_seconds, 0.001);
+        assert_eq!(info.size_bytes, std::fs::metadata(path).unwrap().len());
     }
 
     #[test]
@@ -1184,10 +1178,9 @@ mod tests {
 
     #[test]
     fn test_validate_audio_file_wrong_extension() {
-        // Create a temporary file with wrong extension
-        let temp_dir = std::env::temp_dir();
-        let temp_file = temp_dir.join("test_audio.txt");
-        let _ = crate::review_paths::fs::write(&temp_file, b"dummy content");
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_file = temp_dir.path().join("test_audio.txt");
+        crate::review_paths::fs::write(&temp_file, b"dummy content").unwrap();
 
         let result = validate_audio_file(&temp_file);
         assert!(result.is_err());
@@ -1196,8 +1189,6 @@ mod tests {
             .to_string()
             .contains("Unsupported format"));
 
-        // Cleanup
-        let _ = crate::review_paths::fs::remove_file(temp_file);
     }
 
     #[test]

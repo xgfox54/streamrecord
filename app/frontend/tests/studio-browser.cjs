@@ -24,6 +24,19 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(new
  await page.setViewportSize({width:1440,height:960});await page.getByRole('searchbox',{name:'기록 제목 검색'}).fill('없는 제목');await page.getByRole('heading',{name:'검색한 기록이 없습니다'}).waitFor();await page.getByRole('searchbox',{name:'기록 제목 검색'}).fill('');checks.push('Library search and responsive layout');
  await page.getByRole('button',{name:/^중요 기록/}).click();
  await page.getByRole('heading',{name:'중요 표시한 기록이 없습니다'}).waitFor();
+ await page.evaluate(()=>{
+   window.__bodyLoads=[];
+   const invoke=window.__TAURI_INTERNALS__.invoke;
+   window.__TAURI_INTERNALS__.invoke=(command,args)=>{
+     if(command==='ko_load_record')window.__bodyLoads.push(args.id);
+     return invoke(command,args);
+   };
+ });
+ await page.getByRole('checkbox',{name:'받아쓰기 본문도 검색'}).check();
+ await page.getByRole('searchbox',{name:'기록 제목과 본문 검색'}).fill('발언대로');
+ await page.getByRole('heading',{name:'검색한 기록이 없습니다'}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>window.__bodyLoads),[]);
+ checks.push('Searching an empty starred list reads no saved transcripts');
  await page.getByRole('button',{name:'전체 기록 보기',exact:true}).click();
  await page.getByRole('checkbox',{name:'받아쓰기 본문도 검색'}).check();
  await page.getByRole('searchbox',{name:'기록 제목과 본문 검색'}).fill('발언대로');
@@ -64,5 +77,14 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(new
  await page.getByRole('log').getByText('저장한 기록 확인',{exact:true}).waitFor();
  checks.push('Saved recording opens after successful stop');
  await page.getByRole('link',{name:'설정',exact:true}).click();await capture('settings');await page.getByRole('link',{name:'AI 연결',exact:true}).click();await capture('connections');await page.getByRole('button',{name:'현재 기록',exact:true}).click();await page.evaluate(()=>document.documentElement.style.fontSize='125%');await capture('editor-scale125');await overflow();await page.emulateMedia({forcedColors:'active',reducedMotion:'reduce'});await capture('forced-colors');checks.push('Settings connections zoom and high contrast reachable');
+ const recovered=await browser.newPage();
+ try{
+   await recovered.addInitScript(fixture,{snapshot:{...records[0],version:0},records,models:[]});
+   await recovered.goto('http://127.0.0.1:'+server.address().port);
+   await recovered.getByRole('button',{name:/해안 산책로 정비 회의/,exact:false}).filter({has:recovered.locator('strong')}).click();
+   await recovered.getByRole('button',{name:'검토본',exact:true}).waitFor();
+   assert.ok(await recovered.evaluate(()=>window.__qa.calls.some(call=>call.command==='ko_load_record'&&call.args.id==='qa-second')));
+   checks.push('An unreadable last session leaves other saved records accessible');
+ }finally{await recovered.close();}
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'qa.json'),JSON.stringify({scope:'Production frontend; native audio and persistence boundaries simulated',checks,errors},null,2));console.log(JSON.stringify({checks,errors}));
  }finally{await browser.close();server.close();}})().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -98,7 +98,7 @@ Raw Audio (Mic + System)
 
 ### Audio Device Modularization (Recently Completed)
 
-**Context**: The audio system was refactored from a monolithic 1028-line `core.rs` file into focused modules. See [AUDIO_MODULARIZATION_PLAN.md](AUDIO_MODULARIZATION_PLAN.md) for details.
+The [audio source directory](frontend/src-tauri/src/audio/) contains the capture, device selection and transcription modules.
 
 ```
 audio/

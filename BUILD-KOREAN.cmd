@@ -4,7 +4,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 where node >nul 2>nul
 if errorlevel 1 (
-  echo Node.js 20 이상과 Rust 및 Windows C++ 빌드 도구가 필요합니다.
+  echo Node.js 20.9 이상과 Rust 및 Windows C++ 빌드 도구가 필요합니다.
   pause
   exit /b 1
 )
@@ -15,5 +15,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo 모델 포함 설치파일과 검증 결과는 outputs\korean-bundled-0.1.0 폴더에 있습니다.
+echo 설치 파일 경로는 위 출력의 installer.path 항목에서 확인하세요.
 pause
